@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { InstallButton } from "@/components/install-button";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -92,6 +93,7 @@ function NavContent({ user, pathname, onNavigate }) {
           </div>
           <ThemeToggle />
         </div>
+        <InstallButton className="mt-1 w-full justify-start" />
         <Button
           variant="ghost"
           size="sm"
@@ -128,6 +130,9 @@ export function Sidebar({ user }) {
           <Menu className="h-5 w-5" />
         </Button>
         <span className="text-sm font-semibold">Personal OS</span>
+        <div className="ml-auto">
+          <InstallButton />
+        </div>
       </header>
 
       {/* Mobile drawer */}

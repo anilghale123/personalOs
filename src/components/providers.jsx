@@ -3,6 +3,7 @@
 import * as React from "react";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "sonner";
+import { PwaRegister } from "@/components/pwa-register";
 
 const ThemeContext = React.createContext({
   theme: "light",
@@ -53,6 +54,7 @@ export function Providers({ children }) {
       <ThemeProvider>
         {children}
         <ToastPortal />
+        <PwaRegister />
       </ThemeProvider>
     </SessionProvider>
   );

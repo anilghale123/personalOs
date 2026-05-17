@@ -12,6 +12,23 @@ export const metadata = {
   title: "Personal OS — Your Operating System for Life",
   description:
     "A unified Super App for wealth tracking, habits, journaling and AI briefings.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Personal OS",
+  appleWebApp: {
+    capable: true,
+    title: "Personal OS",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#101012",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }) {

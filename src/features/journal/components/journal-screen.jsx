@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { StickyNote } from "lucide-react";
+import { toDateKey } from "@/lib/utils";
 import { useJournalStore } from "@/features/journal/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -16,12 +17,19 @@ import { QuickNoteCard } from "@/features/journal/components/quick-note-card";
 export function JournalScreen({ initialData }) {
   const hydrate = useJournalStore((s) => s.hydrate);
   const flushSave = useJournalStore((s) => s.flushSave);
+  const selectDate = useJournalStore((s) => s.selectDate);
   const notes = useJournalStore((s) => s.notes);
   const loadingDay = useJournalStore((s) => s.loadingDay);
 
-  // Seed the store from server-rendered data, once.
+  // Seed the store from server-rendered data, once. The server computes
+  // "today" in its own timezone (UTC on Vercel); if the user's local
+  // date differs, re-anchor to their actual local today.
   React.useEffect(() => {
     hydrate(initialData);
+    const localToday = toDateKey();
+    if (localToday !== initialData.date) {
+      selectDate(localToday);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

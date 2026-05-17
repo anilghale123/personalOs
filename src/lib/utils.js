@@ -31,11 +31,19 @@ export function formatNumber(value) {
 }
 
 /**
- * Returns a 'YYYY-MM-DD' string for a given Date (defaults to today).
+ * Returns a 'YYYY-MM-DD' string for a given Date using its **local**
+ * calendar date (defaults to today).
+ *
+ * This must not use toISOString(), which is UTC — in timezones ahead of
+ * UTC (e.g. Nepal, UTC+5:45) that shifts the date a day off, so the
+ * calendar would highlight the wrong "today".
  * @param {Date} [d]
  */
 export function toDateKey(d = new Date()) {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /**
