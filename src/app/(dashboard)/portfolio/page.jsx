@@ -10,7 +10,7 @@ import { VaultClient } from "@/features/vault/components/vault-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function VaultPage() {
+export default async function PortfolioPage() {
   const [portfolio, transactions] = await Promise.all([
     getPortfolioSummary(),
     getRecentTransactions(),
@@ -20,11 +20,11 @@ export default async function VaultPage() {
     <>
       <PageHeader
         icon={Wallet}
-        title="Vault"
-        subtitle="Your NEPSE portfolio, P&L and transaction history."
+        title="Portfolio"
+        subtitle="Your NEPSE holdings, P&L and transaction history."
       >
         <Button asChild variant="outline" size="sm">
-          <Link href="/vault/sip">
+          <Link href="/portfolio/sip">
             <Repeat className="h-4 w-4" />
             SIPs
           </Link>

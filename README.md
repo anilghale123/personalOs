@@ -10,10 +10,11 @@ Built with a clean, Notion-inspired interface.
 
 | Module | Route | Purpose |
 |---|---|---|
-| 🧭 **Compass** | `/compass` | Goals, milestones and a 365-day habit heatmap |
-| 💰 **Vault** | `/vault` | NEPSE portfolio, P&L, SIP manager, CSV import |
-| 🌿 **Sanctuary** | `/sanctuary` | Distraction-free, local-first journaling |
-| ⚡ **Oracle** | `/oracle` | Groq AI weekly executive briefing |
+| 🏠 **Overview** | `/` | At-a-glance dashboard: week progress, journal, portfolio, streak |
+| 🎯 **Goals & Habits** | `/goals` | Weekly goal checklists, long-term milestone goals, 365-day habit heatmap |
+| 📈 **Portfolio** | `/portfolio` | NEPSE holdings, P&L, SIP manager, CSV import |
+| 📓 **Journal** | `/journal` | Distraction-free, local-first journaling |
+| 🗓️ **Weekly Review** | `/review` | End-of-week goal evaluation + Groq AI executive briefing |
 
 ## Tech Stack
 
@@ -61,13 +62,16 @@ Built with a clean, Notion-inspired interface.
 src/
 ├── app/
 │   ├── (auth)/login          → sign-in / sign-up
-│   ├── (dashboard)/          → sidebar shell + the four modules
-│   └── api/                  → auth, cron, ai, vault, compass, sanctuary
-├── lib/                      → mongoose, groq, auth, utils singletons
-├── models/                   → Mongoose schemas
+│   ├── (dashboard)/          → sidebar shell: /, /goals, /portfolio, /journal, /review
+│   └── api/                  → auth, cron, ai, vault, compass, weekly-goals, sanctuary
+├── lib/                      → mongoose, groq, auth, week, utils singletons
+├── models/                   → Mongoose schemas (incl. WeeklyGoal)
 ├── components/               → UI primitives + shell components
 └── features/                 → per-module stores, server actions, UI
 ```
+
+> Routes use plain-language URLs (`/goals`, `/portfolio`…). Internal feature
+> folders keep their original names (`features/compass`, `features/vault`…).
 
 ## Notes
 

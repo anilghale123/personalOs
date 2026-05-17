@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { SessionProvider } from "next-auth/react";
+import { Toaster } from "sonner";
 
 const ThemeContext = React.createContext({
   theme: "light",
@@ -41,10 +42,18 @@ function ThemeProvider({ children }) {
   );
 }
 
+function ToastPortal() {
+  const { theme } = useTheme();
+  return <Toaster richColors position="bottom-right" theme={theme} />;
+}
+
 export function Providers({ children }) {
   return (
     <SessionProvider>
-      <ThemeProvider>{children}</ThemeProvider>
+      <ThemeProvider>
+        {children}
+        <ToastPortal />
+      </ThemeProvider>
     </SessionProvider>
   );
 }

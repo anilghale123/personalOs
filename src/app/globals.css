@@ -4,48 +4,53 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
+    --background: 0 0% 98%;
+    --foreground: 240 10% 8%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 9%;
+    --card-foreground: 240 10% 8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
-    --primary: 0 0% 9%;
+    --popover-foreground: 240 10% 8%;
+    --primary: 240 6% 10%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 240 5% 94%;
+    --secondary-foreground: 240 6% 20%;
+    --muted: 240 5% 94%;
+    --muted-foreground: 240 4% 50%;
+    --accent: 240 5% 94%;
+    --accent-foreground: 240 6% 20%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 9%;
-    --radius: 0.5rem;
+    --border: 240 6% 88%;
+    --input: 240 6% 90%;
+    --ring: 240 6% 10%;
+    --radius: 0.625rem;
+    /* Brand accent — a warm gold */
+    --brand: 38 92% 50%;
+    --brand-foreground: 38 92% 15%;
   }
 
   .dark {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 95%;
-    --card: 0 0% 9%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 17%;
-    --accent-foreground: 0 0% 95%;
+    --background: 240 10% 7%;
+    --foreground: 240 5% 92%;
+    --card: 240 9% 10%;
+    --card-foreground: 240 5% 92%;
+    --popover: 240 9% 10%;
+    --popover-foreground: 240 5% 92%;
+    --primary: 240 5% 92%;
+    --primary-foreground: 240 10% 7%;
+    --secondary: 240 7% 14%;
+    --secondary-foreground: 240 5% 70%;
+    --muted: 240 7% 14%;
+    --muted-foreground: 240 5% 50%;
+    --accent: 240 7% 16%;
+    --accent-foreground: 240 5% 85%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 0 0% 83%;
+    --border: 240 7% 16%;
+    --input: 240 7% 14%;
+    --ring: 240 5% 70%;
+    --brand: 38 92% 55%;
+    --brand-foreground: 38 92% 10%;
   }
 }
 
@@ -54,8 +59,9 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
   }
 }
 

@@ -89,13 +89,13 @@ export function VaultClient({ portfolio, transactions }) {
         >
           <div className="flex gap-2">
             <Button asChild size="sm">
-              <Link href="/vault/import">
+              <Link href="/portfolio/import">
                 <Upload className="h-4 w-4" />
                 Import CSV
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <Link href="/vault/sip">
+              <Link href="/portfolio/sip">
                 <Repeat className="h-4 w-4" />
                 Manage SIPs
               </Link>
@@ -108,7 +108,7 @@ export function VaultClient({ portfolio, transactions }) {
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Holdings</CardTitle>
               <Button asChild size="sm" variant="outline">
-                <Link href="/vault/import">
+                <Link href="/portfolio/import">
                   <Upload className="h-4 w-4" />
                   Import
                 </Link>

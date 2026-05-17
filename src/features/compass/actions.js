@@ -3,7 +3,9 @@
 import connectDB from "@/lib/mongoose";
 import HabitLog from "@/models/HabitLog";
 import Goal from "@/models/Goal";
+import WeeklyGoal from "@/models/WeeklyGoal";
 import { auth } from "@/lib/auth";
+import { weekRange } from "@/lib/week";
 
 /** Serialise a Mongoose doc to a plain client-safe object. */
 function plain(doc) {
@@ -76,6 +78,22 @@ export async function getGoals() {
   const goals = await Goal.find({
     userId: session.user.id,
     isArchived: false,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  return plain(goals);
+}
+
+/** Weekly goals overlapping the current (Monday-anchored) week. */
+export async function getWeeklyGoals() {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  await connectDB();
+  const { weekStart, weekEnd } = weekRange();
+  const goals = await WeeklyGoal.find({
+    userId: session.user.id,
+    weekStart: { $lte: weekEnd },
+    weekEnd: { $gte: weekStart },
   })
     .sort({ createdAt: -1 })
     .lean();

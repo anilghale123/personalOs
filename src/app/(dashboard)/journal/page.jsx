@@ -1,4 +1,4 @@
-import { Leaf } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
@@ -7,7 +7,7 @@ import { SanctuaryClient } from "@/features/sanctuary/components/sanctuary-clien
 
 export const dynamic = "force-dynamic";
 
-export default async function SanctuaryPage() {
+export default async function JournalPage() {
   const session = await auth();
   let entries = [];
   if (session?.user?.id) {
@@ -21,8 +21,8 @@ export default async function SanctuaryPage() {
   return (
     <>
       <PageHeader
-        icon={Leaf}
-        title="Sanctuary"
+        icon={BookOpen}
+        title="Journal"
         subtitle="A distraction-free space to reflect. Everything saves itself."
       />
       <SanctuaryClient initialEntries={entries} />

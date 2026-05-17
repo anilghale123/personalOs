@@ -64,11 +64,11 @@ export function GoalDetailClient({ initialGoal }) {
   return (
     <div className="space-y-6">
       <Link
-        href="/compass"
+        href="/goals"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Compass
+        Back to Goals
       </Link>
 
       <div>

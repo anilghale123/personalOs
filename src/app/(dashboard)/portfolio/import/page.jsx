@@ -13,9 +13,9 @@ export default function ImportPage() {
         subtitle="Upload a broker CSV to populate your portfolio."
       >
         <Button asChild variant="outline" size="sm">
-          <Link href="/vault">
+          <Link href="/portfolio">
             <ArrowLeft className="h-4 w-4" />
-            Vault
+            Portfolio
           </Link>
         </Button>
       </PageHeader>

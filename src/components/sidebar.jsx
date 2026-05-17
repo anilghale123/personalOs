@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Compass,
-  Wallet,
-  Leaf,
-  Sparkles,
+  LayoutDashboard,
+  Target,
+  TrendingUp,
+  BookOpen,
+  CalendarCheck,
   Menu,
   X,
   LogOut,
@@ -19,30 +20,11 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
-  {
-    href: "/compass",
-    label: "Compass",
-    icon: Compass,
-    desc: "Goals & habits",
-  },
-  {
-    href: "/vault",
-    label: "Vault",
-    icon: Wallet,
-    desc: "Wealth & finance",
-  },
-  {
-    href: "/sanctuary",
-    label: "Sanctuary",
-    icon: Leaf,
-    desc: "Daily journal",
-  },
-  {
-    href: "/oracle",
-    label: "Oracle",
-    icon: Sparkles,
-    desc: "AI briefing",
-  },
+  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/goals", label: "Goals & Habits", icon: Target },
+  { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
+  { href: "/journal", label: "Journal", icon: BookOpen },
+  { href: "/review", label: "Weekly Review", icon: CalendarCheck },
 ];
 
 function NavContent({ user, pathname, onNavigate }) {
@@ -67,8 +49,10 @@ function NavContent({ user, pathname, onNavigate }) {
         {NAV.map((item) => {
           const Icon = item.icon;
           const active =
-            pathname === item.href ||
-            pathname.startsWith(`${item.href}/`);
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href ||
+                pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

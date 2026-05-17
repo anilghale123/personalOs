@@ -14,7 +14,7 @@ const FEATURES = [
 export default async function LoginPage() {
   // Already signed in? Skip the form.
   const session = await auth();
-  if (session?.user) redirect("/compass");
+  if (session?.user) redirect("/");
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">

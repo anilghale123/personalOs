@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { toast } from "sonner";
 import { CircleDot, Loader2 } from "lucide-react";
 
 /** Map a NextAuth `?error=` code to a human-readable message. */
@@ -83,6 +84,13 @@ export function LoginForm({ googleEnabled = false }) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Registration failed.");
         }
+        // Account created — the user must log in manually. Do NOT
+        // auto sign-in: switch to the login form and confirm.
+        toast.success("Account created — please log in to continue.");
+        setMode("login");
+        setForm((f) => ({ ...f, name: "", password: "" }));
+        setBusy(false);
+        return;
       }
 
       const result = await signIn("credentials", {
@@ -95,11 +103,13 @@ export function LoginForm({ googleEnabled = false }) {
         throw new Error("Invalid email or password.");
       }
 
+      toast.success("Welcome back!");
       // Hard navigation so the new session cookie is sent with the
       // request for the protected dashboard.
-      window.location.href = "/compass";
+      window.location.href = "/";
     } catch (err) {
       setError(err.message);
+      toast.error(err.message);
       setBusy(false);
     }
   }
@@ -107,7 +117,7 @@ export function LoginForm({ googleEnabled = false }) {
   function googleSignIn() {
     setGoogleBusy(true);
     setError("");
-    signIn("google", { callbackUrl: "/compass" });
+    signIn("google", { callbackUrl: "/" });
   }
 
   return (

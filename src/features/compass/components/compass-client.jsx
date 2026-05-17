@@ -181,7 +181,7 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
       {/* Goals */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Goals</h2>
+          <h2 className="text-base font-semibold">Long-term Goals</h2>
           <AddGoalDialog
             onCreated={(goal) => {
               setGoals([goal, ...useCompassStore.getState().goals]);
@@ -198,7 +198,7 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {goals.map((goal) => (
-              <Link key={goal._id} href={`/compass/${goal._id}`}>
+              <Link key={goal._id} href={`/goals/${goal._id}`}>
                 <Card className="h-full transition-colors hover:border-foreground/30">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2">
