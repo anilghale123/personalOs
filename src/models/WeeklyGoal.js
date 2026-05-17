@@ -45,16 +45,17 @@ const WeeklyGoalSchema = new mongoose.Schema(
 );
 
 // Auto-compute completion rate before save
-WeeklyGoalSchema.pre("save", function (next) {
-  if (this.checklistItems.length > 0) {
-    const done = this.checklistItems.filter((i) => i.isComplete).length;
-    if (this.evaluation) {
-      this.evaluation.completionRate = Math.round(
-        (done / this.checklistItems.length) * 100
-      );
-    }
+WeeklyGoalSchema.pre("save", function () {
+  if (!Array.isArray(this.checklistItems) || this.checklistItems.length === 0) {
+    return;
   }
-  next();
+
+  const done = this.checklistItems.filter((i) => i.isComplete).length;
+  if (this.evaluation) {
+    this.evaluation.completionRate = Math.round(
+      (done / this.checklistItems.length) * 100
+    );
+  }
 });
 
 WeeklyGoalSchema.index({ userId: 1, weekStart: 1, weekEnd: 1 });

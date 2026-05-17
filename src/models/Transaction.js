@@ -22,9 +22,8 @@ const TransactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-TransactionSchema.pre("save", function (next) {
+TransactionSchema.pre("save", function () {
   this.totalAmount = this.pricePerUnit * this.quantity;
-  next();
 });
 
 // Prevent duplicate CSV imports

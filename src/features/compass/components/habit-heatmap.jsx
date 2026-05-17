@@ -35,6 +35,20 @@ function key(d) {
  * @param {(dateKey: string) => void} [props.onCellClick]
  */
 export function HabitHeatmap({ values = {}, maxIntensity = 1, onCellClick }) {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="overflow-x-auto scrollbar-thin">
+        <div className="h-[90px]" />
+      </div>
+    );
+  }
+
   // Build a 53-week grid ending on the current week (Sun-anchored columns).
   const today = new Date();
   const end = new Date(

@@ -269,9 +269,9 @@ function AddWeeklyGoalDialog({ onCreated }) {
                   placeholder={`Task ${idx + 1}`}
                   value={item}
                   onChange={(e) => {
-                    const next = [...items];
-                    next[idx] = e.target.value;
-                    setItems(next);
+                    const updatedItems = [...items];
+                    updatedItems[idx] = e.target.value;
+                    setItems(updatedItems);
                   }}
                 />
                 {items.length > 1 && (

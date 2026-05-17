@@ -405,9 +405,9 @@ function AddGoalDialog({ onCreated }) {
                   placeholder="Milestone"
                   value={m.title}
                   onChange={(e) => {
-                    const next = [...milestones];
-                    next[i].title = e.target.value;
-                    setMilestones(next);
+                    const updatedMilestones = [...milestones];
+                    updatedMilestones[i].title = e.target.value;
+                    setMilestones(updatedMilestones);
                   }}
                 />
                 <Input
@@ -415,9 +415,9 @@ function AddGoalDialog({ onCreated }) {
                   placeholder="Unit"
                   value={m.unit}
                   onChange={(e) => {
-                    const next = [...milestones];
-                    next[i].unit = e.target.value;
-                    setMilestones(next);
+                    const updatedMilestones = [...milestones];
+                    updatedMilestones[i].unit = e.target.value;
+                    setMilestones(updatedMilestones);
                   }}
                 />
                 <Button

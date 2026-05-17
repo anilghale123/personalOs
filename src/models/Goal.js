@@ -41,14 +41,15 @@ const GoalSchema = new mongoose.Schema(
 );
 
 // Auto-compute overallProgress before save
-GoalSchema.pre("save", function (next) {
-  if (this.milestones.length > 0) {
-    const completed = this.milestones.filter((m) => m.isComplete).length;
-    this.overallProgress = Math.round(
-      (completed / this.milestones.length) * 100
-    );
+GoalSchema.pre("save", function () {
+  if (!Array.isArray(this.milestones) || this.milestones.length === 0) {
+    return;
   }
-  next();
+
+  const completed = this.milestones.filter((m) => m.isComplete).length;
+  this.overallProgress = Math.round(
+    (completed / this.milestones.length) * 100
+  );
 });
 
 export default mongoose.models.Goal || mongoose.model("Goal", GoalSchema);
