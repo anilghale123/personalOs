@@ -1,31 +1,43 @@
 import { BookOpen } from "lucide-react";
+import {
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns";
 import { PageHeader } from "@/components/page-header";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
-import JournalEntry from "@/models/JournalEntry";
-import { SanctuaryClient } from "@/features/sanctuary/components/sanctuary-client";
+import { toDateKey } from "@/lib/utils";
+import {
+  getJournalDay,
+  getCalendarMoods,
+  getRecentEntries,
+} from "@/features/journal/actions";
+import { JournalScreen } from "@/features/journal/components/journal-screen";
 
 export const dynamic = "force-dynamic";
 
 export default async function JournalPage() {
-  const session = await auth();
-  let entries = [];
-  if (session?.user?.id) {
-    await connectDB();
-    const docs = await JournalEntry.find({ userId: session.user.id })
-      .sort({ date: -1 })
-      .lean();
-    entries = JSON.parse(JSON.stringify(docs));
-  }
+  const today = toDateKey();
+  const now = new Date();
+  const from = toDateKey(startOfWeek(startOfMonth(now), { weekStartsOn: 1 }));
+  const to = toDateKey(endOfWeek(endOfMonth(now), { weekStartsOn: 1 }));
+
+  const [{ journal, notes }, calendar, recents] = await Promise.all([
+    getJournalDay(today),
+    getCalendarMoods(from, to),
+    getRecentEntries(),
+  ]);
 
   return (
     <>
       <PageHeader
         icon={BookOpen}
         title="Journal"
-        subtitle="A distraction-free space to reflect. Everything saves itself."
+        subtitle="A daily anchor for reflection, plus quick notes for everything in between."
       />
-      <SanctuaryClient initialEntries={entries} />
+      <JournalScreen
+        initialData={{ date: today, journal, notes, calendar, recents }}
+      />
     </>
   );
 }

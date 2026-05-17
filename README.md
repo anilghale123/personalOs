@@ -13,7 +13,7 @@ Built with a clean, Notion-inspired interface.
 | 🏠 **Overview** | `/` | At-a-glance dashboard: week progress, journal, portfolio, streak |
 | 🎯 **Goals & Habits** | `/goals` | Weekly goal checklists, long-term milestone goals, 365-day habit heatmap |
 | 📈 **Portfolio** | `/portfolio` | NEPSE holdings, P&L, SIP manager, CSV import |
-| 📓 **Journal** | `/journal` | Distraction-free, local-first journaling |
+| 📓 **Journal** | `/journal` | Daily anchor journal + unlimited quick notes, calendar, search, AI reflection |
 | 🗓️ **Weekly Review** | `/review` | End-of-week goal evaluation + Groq AI executive briefing |
 
 ## Tech Stack

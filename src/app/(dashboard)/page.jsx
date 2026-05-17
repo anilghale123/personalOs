@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
-import JournalEntry from "@/models/JournalEntry";
+import DailyJournal from "@/models/DailyJournal";
 import {
   getWeeklyGoals,
   getAllHeatmapData,
@@ -58,7 +58,7 @@ export default async function OverviewPage() {
   let todayEntry = null;
   if (session?.user?.id) {
     await connectDB();
-    todayEntry = await JournalEntry.findOne({
+    todayEntry = await DailyJournal.findOne({
       userId: session.user.id,
       date: today,
     }).lean();
