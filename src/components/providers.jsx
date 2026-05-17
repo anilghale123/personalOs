@@ -1,0 +1,50 @@
+"use client";
+
+import * as React from "react";
+import { SessionProvider } from "next-auth/react";
+
+const ThemeContext = React.createContext({
+  theme: "light",
+  toggleTheme: () => {},
+});
+
+export function useTheme() {
+  return React.useContext(ThemeContext);
+}
+
+function ThemeProvider({ children }) {
+  const [theme, setTheme] = React.useState("light");
+
+  React.useEffect(() => {
+    const stored = localStorage.getItem("pos-theme");
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+    const initial = stored || (prefersDark ? "dark" : "light");
+    setTheme(initial);
+  }, []);
+
+  React.useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("pos-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = React.useCallback(
+    () => setTheme((t) => (t === "dark" ? "light" : "dark")),
+    []
+  );
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function Providers({ children }) {
+  return (
+    <SessionProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </SessionProvider>
+  );
+}
