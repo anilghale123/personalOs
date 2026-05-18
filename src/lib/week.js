@@ -7,6 +7,11 @@ export function weekRange(date = new Date()) {
   return { weekStart, weekEnd };
 }
 
+/** 'YYYY-MM-DD' key for the Monday that starts the given date's week. */
+export function weekStartKey(date = new Date()) {
+  return format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd");
+}
+
 /** Human label like "May 12 – May 18, 2025". */
 export function weekLabel(date = new Date()) {
   const { weekStart, weekEnd } = weekRange(date);

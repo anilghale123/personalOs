@@ -10,6 +10,7 @@ import {
   TrendingUp,
   BookOpen,
   CalendarCheck,
+  CalendarDays,
   Menu,
   X,
   LogOut,
@@ -23,6 +24,7 @@ import { InstallButton } from "@/components/install-button";
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/goals", label: "Goals & Habits", icon: Target },
+  { href: "/planner", label: "Weekly Planner", icon: CalendarDays },
   { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
   { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/review", label: "Weekly Review", icon: CalendarCheck },
