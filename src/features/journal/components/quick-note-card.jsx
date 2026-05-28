@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Pin, PinOff, Pencil, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useJournalStore } from "@/features/journal/store";
+import { noteTypeEmoji, noteTypeLabel } from "@/features/journal/constants";
 
 const LONG = 240; // chars before a note collapses
 
@@ -95,10 +96,15 @@ export function QuickNoteCard({ note }) {
             </button>
           )}
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              {note.type && note.type !== "note" && (
+                <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                  {noteTypeEmoji(note.type)} {noteTypeLabel(note.type)}
+                </span>
+              )}
               {stamp ? format(stamp, "h:mm a") : ""}
               {note.pinned && (
-                <span className="ml-2 text-brand">Pinned</span>
+                <span className="text-brand">Pinned</span>
               )}
             </span>
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">

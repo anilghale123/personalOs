@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
+import { NOTE_PAGE_SIZE } from "@/features/journal/constants";
 
 function plain(doc) {
   return JSON.parse(JSON.stringify(doc));
@@ -13,15 +14,25 @@ function plain(doc) {
 /** The daily anchor journal + quick notes for one day. */
 export async function getJournalDay(date) {
   const session = await auth();
-  if (!session?.user?.id) return { journal: null, notes: [] };
+  if (!session?.user?.id) {
+    return { journal: null, notes: [], notesTotal: 0, notesHasMore: false };
+  }
   await connectDB();
-  const [journal, notes] = await Promise.all([
-    DailyJournal.findOne({ userId: session.user.id, date }).lean(),
-    QuickNote.find({ userId: session.user.id, date })
+  const userId = session.user.id;
+  const [journal, notes, notesTotal] = await Promise.all([
+    DailyJournal.findOne({ userId, date }).lean(),
+    QuickNote.find({ userId, date })
       .sort({ createdAt: 1 })
+      .limit(NOTE_PAGE_SIZE)
       .lean(),
+    QuickNote.countDocuments({ userId, date }),
   ]);
-  return { journal: journal ? plain(journal) : null, notes: plain(notes) };
+  return {
+    journal: journal ? plain(journal) : null,
+    notes: plain(notes),
+    notesTotal,
+    notesHasMore: notes.length < notesTotal,
+  };
 }
 
 /**

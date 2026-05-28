@@ -22,21 +22,30 @@ export default async function JournalPage() {
   const from = toDateKey(startOfWeek(startOfMonth(now), { weekStartsOn: 1 }));
   const to = toDateKey(endOfWeek(endOfMonth(now), { weekStartsOn: 1 }));
 
-  const [{ journal, notes }, calendar, recents] = await Promise.all([
-    getJournalDay(today),
-    getCalendarMoods(from, to),
-    getRecentEntries(),
-  ]);
+  const [{ journal, notes, notesTotal, notesHasMore }, calendar, recents] =
+    await Promise.all([
+      getJournalDay(today),
+      getCalendarMoods(from, to),
+      getRecentEntries(),
+    ]);
 
   return (
     <>
       <PageHeader
         icon={BookOpen}
         title="Journal"
-        subtitle="A daily anchor for reflection, plus quick notes for everything in between."
+        subtitle="Write on lokta — your daily anchor for reflection."
       />
       <JournalScreen
-        initialData={{ date: today, journal, notes, calendar, recents }}
+        initialData={{
+          date: today,
+          journal,
+          notes,
+          notesTotal,
+          notesHasMore,
+          calendar,
+          recents,
+        }}
       />
     </>
   );

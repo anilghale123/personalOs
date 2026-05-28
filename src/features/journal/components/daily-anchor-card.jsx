@@ -4,50 +4,26 @@ import * as React from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Check,
-  CloudOff,
   Loader2,
   Sparkles,
   X,
   Tag,
 } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
-import { cn, toDateKey, formatDate } from "@/lib/utils";
+import { toDateKey, formatDate } from "@/lib/utils";
 import { useJournalStore } from "@/features/journal/store";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { MoodPicker } from "@/features/journal/components/mood-picker";
+import {
+  DiaryPageFlip,
+  dispatchDiaryNavigate,
+  shiftDate,
+} from "@/features/journal/components/diary-page-flip";
 
-/** Shift a 'YYYY-MM-DD' key by N days. */
-function shiftDate(key, days) {
-  const d = new Date(`${key}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
-function SaveStatus({ status }) {
-  if (status === "saving") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <CloudOff className="h-3 w-3 text-amber-500" />
-        Saving…
-      </Badge>
-    );
-  }
-  if (status === "error") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <CloudOff className="h-3 w-3 text-destructive" />
-        Retrying…
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="secondary" className="gap-1">
-      <Check className="h-3 w-3 text-emerald-500" />
-      Saved
-    </Badge>
-  );
+function SaveHint({ status }) {
+  if (status === "saving") return <span className="diary-save-hint">Saving…</span>;
+  if (status === "error") return <span className="diary-save-hint text-[#8b2500]">Retrying…</span>;
+  return <span className="diary-save-hint">Saved</span>;
 }
 
 export function DailyAnchorCard() {
@@ -74,14 +50,28 @@ export function DailyAnchorCard() {
   const today = toDateKey();
   const isToday = activeDate === today;
 
-  // Auto-grow the editor to fit its content.
   React.useEffect(() => {
     const el = textareaRef.current;
     if (el) {
       el.style.height = "auto";
-      el.style.height = `${Math.max(el.scrollHeight, 200)}px`;
+      el.style.height = `${Math.max(el.scrollHeight, 280)}px`;
     }
   }, [j.content, activeDate, loadingDay]);
+
+  function goPrev() {
+    dispatchDiaryNavigate("prev", shiftDate(activeDate, -1));
+  }
+
+  function goNext() {
+    if (isToday) return;
+    dispatchDiaryNavigate("next", shiftDate(activeDate, 1));
+  }
+
+  function goToday() {
+    if (activeDate === today) return;
+    const direction = today > activeDate ? "next" : "prev";
+    dispatchDiaryNavigate(direction, today);
+  }
 
   function addTag() {
     const tag = tagDraft.trim().toLowerCase();
@@ -111,94 +101,121 @@ export function DailyAnchorCard() {
     }
   }
 
+  const pageLabel = isToday ? "आज — Today" : formatDate(activeDate);
+  const pageFoot = format(
+    new Date(`${activeDate}T12:00:00`),
+    "EEEE · MMM d, yyyy"
+  );
+
   return (
-    <Card>
-      <CardContent className="space-y-4 p-5 sm:p-6">
-        {/* Date navigator */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => selectDate(shiftDate(activeDate, -1))}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="min-w-[150px] text-center text-sm font-medium">
-              {isToday ? "Today" : formatDate(activeDate)}
-            </span>
-            <button
-              onClick={() => selectDate(shiftDate(activeDate, 1))}
-              disabled={isToday}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
-              aria-label="Next day"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+    <DiaryPageFlip activeDate={activeDate} onNavigate={selectDate}>
+      <div className="relative z-[1] space-y-5 overflow-hidden py-5 pl-6 pr-5 sm:py-7 sm:pl-8 sm:pr-6">
+        {/* Date + navigation */}
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={goPrev}
+            className="diary-nav-btn"
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+
+          <div className="min-w-0 flex-1 text-center">
+            <p className="diary-date-label text-base font-semibold text-[#3d2914] sm:text-lg">
+              {pageLabel}
+            </p>
             {!isToday && (
               <button
-                onClick={() => selectDate(today)}
-                className="ml-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                type="button"
+                onClick={goToday}
+                className="mt-0.5 text-xs text-[#6b5344] underline-offset-2 hover:underline"
               >
-                Jump to today
+                Today
               </button>
             )}
+            <div className="mt-0.5">
+              <SaveHint status={saveStatus} />
+            </div>
           </div>
-          <SaveStatus status={saveStatus} />
+
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={isToday}
+            className="diary-nav-btn"
+            aria-label="Next day"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
         </div>
 
         {loadingDay ? (
-          <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
+          <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#6b5344]">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Turning page…
           </div>
         ) : (
           <>
             <MoodPicker
+              variant="paper"
               value={j.mood}
               onChange={(mood) => updateJournal({ mood })}
             />
 
-            {/* Optional title */}
             <input
               value={j.title || ""}
               onChange={(e) => updateJournal({ title: e.target.value })}
-              placeholder="Title your day (optional)"
-              className="w-full border-0 bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:font-normal placeholder:text-muted-foreground"
+              placeholder="Title (optional)"
+              className="journal-lokta-input w-full border-0 bg-transparent text-xl font-semibold outline-none placeholder:font-normal placeholder:text-[#6b5344]/60 dark:text-[#e8dcc8]"
             />
 
-            {/* Long-form reflection */}
             <textarea
               ref={textareaRef}
               value={j.content || ""}
               onChange={(e) => updateJournal({ content: e.target.value })}
-              placeholder="What's on your mind? No pressure — a sentence is enough."
-              className="w-full resize-none border-0 bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground"
+              placeholder="Write here…"
+              className="journal-lokta-input w-full min-h-[280px] resize-none border-0 bg-transparent text-[16px] leading-relaxed outline-none sm:text-[17px] dark:text-[#e8dcc8]"
               spellCheck
             />
 
-            {/* Tags */}
-            <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
-              <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-              {(j.tags || []).map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs"
-                >
-                  {tag}
-                  <button
-                    onClick={() =>
-                      updateJournal({
-                        tags: j.tags.filter((t) => t !== tag),
-                      })
-                    }
-                    aria-label={`Remove ${tag}`}
-                    className="text-muted-foreground hover:text-foreground"
+            {(j.tags || []).length > 0 || tagDraft ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag className="h-3.5 w-3.5 text-[#6b5344]/60" />
+                {(j.tags || []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="flex items-center gap-1 text-xs text-[#6b5344]"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
+                    #{tag}
+                    <button
+                      onClick={() =>
+                        updateJournal({
+                          tags: j.tags.filter((t) => t !== tag),
+                        })
+                      }
+                      aria-label={`Remove ${tag}`}
+                      className="opacity-50 hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  value={tagDraft}
+                  onChange={(e) => setTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  onBlur={addTag}
+                  placeholder="tag"
+                  className="journal-lokta-input w-16 border-0 bg-transparent text-xs outline-none"
+                />
+              </div>
+            ) : (
               <input
                 value={tagDraft}
                 onChange={(e) => setTagDraft(e.target.value)}
@@ -210,45 +227,35 @@ export function DailyAnchorCard() {
                 }}
                 onBlur={addTag}
                 placeholder="Add tag…"
-                className="min-w-[80px] flex-1 border-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                className="journal-lokta-input w-full max-w-[120px] border-0 bg-transparent text-xs text-[#6b5344]/60 outline-none"
               />
-            </div>
+            )}
 
-            {/* AI reflection */}
-            <div className="rounded-lg border border-brand/30 bg-brand/5 p-3">
+            <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-brand">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  AI reflection
+                <span className="flex items-center gap-1 text-xs text-[#6b5344]">
+                  <Sparkles className="h-3 w-3" />
+                  Reflection
                 </span>
                 <button
                   onClick={reflect}
                   disabled={reflecting}
-                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:opacity-50"
+                  className="text-xs text-[#8b2500] underline-offset-2 hover:underline disabled:opacity-50"
                 >
-                  {reflecting ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3 w-3" />
-                  )}
-                  {j.aiSummary ? "Refresh" : "Reflect on this day"}
+                  {reflecting ? "…" : j.aiSummary ? "Refresh" : "Generate"}
                 </button>
               </div>
-              <p
-                className={cn(
-                  "mt-1.5 text-[13px] leading-relaxed",
-                  j.aiSummary
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                {j.aiSummary ||
-                  "Get a gentle, judgement-free reflection on your day once you've written a little."}
-              </p>
+              {j.aiSummary && (
+                <p className="text-[14px] leading-relaxed text-[#3d2914]/90">
+                  {j.aiSummary}
+                </p>
+              )}
             </div>
+
+            <p className="diary-page-number">{pageFoot}</p>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </DiaryPageFlip>
   );
 }

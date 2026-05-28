@@ -39,9 +39,11 @@ export function moodLabel(key) {
  * @param {string|null} props.value
  * @param {(mood: string|null) => void} props.onChange
  */
-export function MoodPicker({ value, onChange }) {
+export function MoodPicker({ value, onChange, variant = "default" }) {
+  const isPaper = variant === "paper";
+
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2">
       {MOODS.map((m) => {
         const active = value === m.key;
         return (
@@ -51,17 +53,24 @@ export function MoodPicker({ value, onChange }) {
             title={m.label}
             onClick={() => onChange(active ? null : m.key)}
             className={cn(
-              "flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-all",
-              active
-                ? "border-foreground/25 bg-accent scale-[1.03]"
-                : "border-transparent opacity-55 hover:opacity-100 hover:bg-accent/60"
+              "flex min-h-[44px] items-center gap-1.5 rounded-full px-2.5 text-sm transition-all sm:px-3",
+              !isPaper && "border",
+              isPaper
+                ? active
+                  ? "bg-[#e6d4ad]/50 text-[#3d2914] opacity-100"
+                  : "text-[#6b5344] opacity-60 hover:opacity-90"
+                : active
+                  ? "border-foreground/25 bg-accent scale-[1.03]"
+                  : "border-transparent opacity-55 hover:bg-accent/60 hover:opacity-100"
             )}
           >
-            <span className="text-base leading-none">{m.emoji}</span>
+            <span className="text-lg leading-none sm:text-base">{m.emoji}</span>
             <span
               className={cn(
-                "text-xs",
-                active ? "font-medium" : "text-muted-foreground"
+                "hidden text-xs sm:inline",
+                !isPaper && (active ? "font-medium" : "text-muted-foreground"),
+                isPaper && "text-inherit",
+                active && "font-medium"
               )}
             >
               {m.label}

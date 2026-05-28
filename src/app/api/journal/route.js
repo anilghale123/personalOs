@@ -24,15 +24,27 @@ export async function GET(request) {
     );
   }
 
+  const notesLimit = Math.min(Number(searchParams.get("notesLimit")) || 200, 500);
+  const notesSkip = Number(searchParams.get("notesSkip")) || 0;
+
   await connectDB();
-  const [journal, notes] = await Promise.all([
-    DailyJournal.findOne({ userId: session.user.id, date }).lean(),
-    QuickNote.find({ userId: session.user.id, date })
+  const userId = session.user.id;
+  const [journal, notes, notesTotal] = await Promise.all([
+    DailyJournal.findOne({ userId, date }).lean(),
+    QuickNote.find({ userId, date })
       .sort({ createdAt: 1 })
+      .skip(notesSkip)
+      .limit(notesLimit)
       .lean(),
+    QuickNote.countDocuments({ userId, date }),
   ]);
 
-  return NextResponse.json({ journal: journal || null, notes });
+  return NextResponse.json({
+    journal: journal || null,
+    notes,
+    notesTotal,
+    notesHasMore: notesSkip + notes.length < notesTotal,
+  });
 }
 
 /**

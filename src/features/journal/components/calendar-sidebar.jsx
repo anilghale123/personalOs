@@ -16,10 +16,11 @@ import { cn, toDateKey, formatDate } from "@/lib/utils";
 import { useJournalStore } from "@/features/journal/store";
 import { Input } from "@/components/ui/input";
 import { MOOD_DOT, MOOD_TINT } from "@/features/journal/components/mood-picker";
+import { MoodTrendStrip } from "@/features/journal/components/mood-trends";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
-export function CalendarSidebar() {
+export function CalendarSidebar({ onDateSelect, mobile = false }) {
   const activeDate = useJournalStore((s) => s.activeDate);
   const calendar = useJournalStore((s) => s.calendar);
   const recents = useJournalStore((s) => s.recents);
@@ -33,9 +34,12 @@ export function CalendarSidebar() {
   const [results, setResults] = React.useState(null);
   const [searching, setSearching] = React.useState(false);
 
-  const today = toDateKey();
+  const pickDate = (date) => {
+    selectDate(date);
+    onDateSelect?.();
+  };
 
-  // The visible 6-week grid.
+  const today = toDateKey();
   const gridDays = React.useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(viewMonth), { weekStartsOn: 1 });
@@ -111,7 +115,7 @@ export function CalendarSidebar() {
           results={results}
           searching={searching}
           onPick={(date) => {
-            selectDate(date);
+            pickDate(date);
             setQuery("");
           }}
         />
@@ -141,11 +145,14 @@ export function CalendarSidebar() {
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className={cn("grid grid-cols-7", mobile ? "gap-1.5" : "gap-1")}>
               {WEEKDAYS.map((d, i) => (
                 <div
                   key={i}
-                  className="pb-1 text-center text-[10px] font-medium uppercase text-muted-foreground"
+                  className={cn(
+                    "pb-1 text-center font-medium uppercase text-muted-foreground",
+                    mobile ? "text-xs" : "text-[10px]"
+                  )}
                 >
                   {d}
                 </div>
@@ -162,24 +169,27 @@ export function CalendarSidebar() {
                   <button
                     key={key}
                     disabled={isFuture}
-                    onClick={() => selectDate(key)}
+                    onClick={() => pickDate(key)}
                     className={cn(
-                      "relative flex aspect-square items-center justify-center rounded-md text-xs transition-colors",
+                      "relative flex items-center justify-center rounded-lg font-medium transition-colors",
+                      mobile
+                        ? "min-h-[44px] min-w-0 text-sm"
+                        : "aspect-square text-xs",
                       data?.mood && MOOD_TINT[data.mood],
                       !inMonth && "opacity-35",
                       isFuture && "cursor-not-allowed opacity-25",
                       selected
-                        ? "ring-2 ring-foreground ring-offset-1 ring-offset-background font-semibold"
-                        : !isFuture && "hover:bg-accent",
-                      key === today && !selected && "font-semibold"
+                        ? "ring-2 ring-foreground ring-offset-1 ring-offset-background"
+                        : !isFuture && "hover:bg-accent active:scale-95",
+                      key === today && !selected && "font-bold"
                     )}
                   >
                     {format(day, "d")}
                     {hasEntry && !data?.mood && (
-                      <span className="absolute bottom-1 h-1 w-1 rounded-full bg-foreground/45" />
+                      <span className="absolute bottom-1.5 h-1.5 w-1.5 rounded-full bg-foreground/45" />
                     )}
                     {data?.noteCount > 0 && (
-                      <span className="absolute right-1 top-1 h-1 w-1 rounded-full bg-brand" />
+                      <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                     )}
                   </button>
                 );
@@ -201,7 +211,7 @@ export function CalendarSidebar() {
                 {recents.map((r) => (
                   <button
                     key={r.date}
-                    onClick={() => selectDate(r.date)}
+                    onClick={() => pickDate(r.date)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
                       r.date === activeDate
@@ -230,6 +240,8 @@ export function CalendarSidebar() {
               </div>
             )}
           </div>
+
+          <MoodTrendStrip onDateSelect={onDateSelect} />
         </>
       )}
     </div>

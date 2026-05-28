@@ -1,10 +1,16 @@
-import { DM_Sans } from "next/font/google";
+import { DM_Sans, Lora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+});
+
+const lora = Lora({
+  subsets: ["latin"],
+  variable: "--font-journal",
   weight: ["400", "500", "600", "700"],
 });
 
@@ -34,7 +40,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${dmSans.variable} font-sans`}>
+      <body className={`${dmSans.variable} ${lora.variable} font-sans`}>
         <Providers>{children}</Providers>
       </body>
     </html>
