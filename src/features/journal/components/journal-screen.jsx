@@ -45,24 +45,35 @@ export function JournalScreen({ initialData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Read the status through a ref so these listeners are bound once — an
+  // effect that re-ran on every status change would flush on its cleanup,
+  // which is exactly the keystroke-driven saving we're removing.
+  const statusRef = React.useRef(saveStatus);
+  statusRef.current = saveStatus;
+
+  // Saving is manual, but leaving the page must never cost the user their
+  // writing: hiding the tab or unmounting flushes silently, and a real
+  // navigation away warns while unsaved changes are pending.
   React.useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState === "hidden") flushSave();
+      if (document.visibilityState === "hidden" && statusRef.current !== "saved") {
+        flushSave();
+      }
     };
-    const onOnline = () => {
-      if (saveStatus !== "saved") flushSave();
+    const onBeforeUnload = (e) => {
+      if (statusRef.current === "saved") return;
+      e.preventDefault();
+      e.returnValue = "";
     };
-    window.addEventListener("visibilitychange", onHide);
-    window.addEventListener("beforeunload", flushSave);
-    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
-      window.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("beforeunload", flushSave);
-      window.removeEventListener("online", onOnline);
-      flushSave();
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      if (statusRef.current !== "saved") flushSave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saveStatus]);
+  }, []);
 
   const orderedNotes = React.useMemo(() => {
     return [...notes].sort((a, b) => {

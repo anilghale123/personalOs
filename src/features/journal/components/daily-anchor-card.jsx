@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Save,
   Sparkles,
   X,
   Tag,
@@ -21,9 +23,44 @@ import {
 } from "@/features/journal/components/diary-page-flip";
 
 function SaveHint({ status }) {
-  if (status === "saving") return <span className="diary-save-hint">Saving…</span>;
-  if (status === "error") return <span className="diary-save-hint text-[#8b2500]">Retrying…</span>;
+  if (status === "saving")
+    return <span className="diary-save-hint">Saving…</span>;
+  if (status === "error")
+    return (
+      <span className="diary-save-hint text-[#8b2500]">
+        Not saved — tap Save
+      </span>
+    );
+  if (status === "unsaved")
+    return (
+      <span className="diary-save-hint text-[#8b2500]">Unsaved changes</span>
+    );
   return <span className="diary-save-hint">Saved</span>;
+}
+
+/** Explicit save control — the anchor journal never writes on its own. */
+function SaveButton({ status, onSave }) {
+  const saving = status === "saving";
+  const dirty = status === "unsaved" || status === "error";
+
+  return (
+    <button
+      type="button"
+      onClick={onSave}
+      disabled={saving || !dirty}
+      className="flex items-center gap-1.5 rounded-md border border-[#8b2500]/40 bg-[#8b2500]/[0.06] px-3 py-1.5 text-xs font-medium text-[#8b2500] transition hover:bg-[#8b2500]/[0.12] disabled:cursor-not-allowed disabled:border-[#6b5344]/25 disabled:bg-transparent disabled:text-[#6b5344]/60"
+      title={dirty ? "Save entry (Ctrl+S)" : "Everything is saved"}
+    >
+      {saving ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : dirty ? (
+        <Save className="h-3.5 w-3.5" />
+      ) : (
+        <Check className="h-3.5 w-3.5" />
+      )}
+      {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+    </button>
+  );
 }
 
 export function DailyAnchorCard() {
@@ -32,6 +69,7 @@ export function DailyAnchorCard() {
   const saveStatus = useJournalStore((s) => s.saveStatus);
   const loadingDay = useJournalStore((s) => s.loadingDay);
   const updateJournal = useJournalStore((s) => s.updateJournal);
+  const saveJournal = useJournalStore((s) => s.saveJournal);
   const selectDate = useJournalStore((s) => s.selectDate);
   const setAiSummary = useJournalStore((s) => s.setAiSummary);
 
@@ -57,6 +95,18 @@ export function DailyAnchorCard() {
       el.style.height = `${Math.max(el.scrollHeight, 280)}px`;
     }
   }, [j.content, activeDate, loadingDay]);
+
+  // Ctrl/Cmd+S saves the page instead of the browser's save dialog.
+  React.useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveJournal();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [saveJournal]);
 
   function goPrev() {
     dispatchDiaryNavigate("prev", shiftDate(activeDate, -1));
@@ -178,6 +228,11 @@ export function DailyAnchorCard() {
               className="journal-lokta-input w-full min-h-[280px] resize-none border-0 bg-transparent text-[16px] leading-relaxed outline-none sm:text-[17px] dark:text-[#e8dcc8]"
               spellCheck
             />
+
+            <div className="flex items-center justify-between gap-3 border-t border-[#6b5344]/15 pt-3">
+              <SaveHint status={saveStatus} />
+              <SaveButton status={saveStatus} onSave={() => saveJournal()} />
+            </div>
 
             {(j.tags || []).length > 0 || tagDraft ? (
               <div className="flex flex-wrap items-center gap-2">

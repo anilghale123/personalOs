@@ -133,7 +133,7 @@ QuickNote (many per day)
 
 src/features/journal/
 
-├── store.js                  Zustand + persist — debounced autosave, pagination
+├── store.js                  Zustand + persist — manual save, pagination
 
 ├── constants.js              NOTE_TYPES, NOTE_PAGE_SIZE
 
@@ -159,19 +159,21 @@ src/features/journal/
 
 
 
-### State & autosave strategy
+### State & save strategy
 
 
 
-- Anchor journal: local edit → 1.1s debounce → `PUT /api/journal` → calendar map update
+- Anchor journal: **manual save** — local edit marks the day `unsaved`; Save button or Ctrl/Cmd+S → `PUT /api/journal` → calendar map update
+
+- A save never clobbers the live draft: if the text changed while the request was in flight, the local text wins and the day stays `unsaved`
 
 - Quick notes: optimistic insert → `POST` → rollback on failure
 
 - **localStorage:** draft journal, notes, calendar cache, save status via Zustand `persist`
 
-- **Draft recovery:** on hydrate, unsaved local draft wins over server; auto-retries flush
+- **Draft recovery:** on hydrate, unsaved local draft wins over server and stays `unsaved` until the user saves
 
-- Tab hide / beforeunload / **online reconnect:** `flushSave()` so edits aren't lost
+- Safety nets (silent `flushSave()`): switching days, tab hide, screen unmount. `beforeunload` warns instead of saving
 
 - Notes: 50 per page; "Load more" when `notesHasMore`
 
@@ -278,7 +280,7 @@ src/features/journal/
 
 - Wrapped with Zustand `persist` → `localStorage` key `journal-store`
 
-- Draft recovery: unsaved anchor wins on hydrate; auto-retries `flushSave`
+- Draft recovery: unsaved anchor wins on hydrate and waits for an explicit save
 
 - Added `notesTotal`, `notesHasMore`, `loadMoreNotes`, `loadingMoreNotes`
 
