@@ -11,6 +11,7 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarDays,
+  Receipt,
   Menu,
   X,
   LogOut,
@@ -20,17 +21,19 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
+import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/goals", label: "Goals & Habits", icon: Target },
   { href: "/planner", label: "Weekly Planner", icon: CalendarDays },
+  { href: "/budget", label: "Budgeting", icon: Receipt },
   { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
   { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/review", label: "Weekly Review", icon: CalendarCheck },
 ];
 
-function NavContent({ user, pathname, onNavigate }) {
+function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-5 py-5">
@@ -81,18 +84,24 @@ function NavContent({ user, pathname, onNavigate }) {
       </nav>
 
       <div className="border-t p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold uppercase">
-            {(user?.name || user?.email || "U").charAt(0)}
-          </div>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-sm font-medium">
-              {user?.name || "User"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user?.email}
-            </p>
-          </div>
+        <div className="flex items-center gap-1 rounded-lg px-1 py-1 hover:bg-accent/60">
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1.5 py-1 text-left"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold uppercase">
+              {(user?.name || user?.email || "U").charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-sm font-medium">
+                {user?.name || "User"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user?.email}
+              </p>
+            </div>
+          </button>
           <ThemeToggle />
         </div>
         <InstallButton className="mt-1 w-full justify-start" />
@@ -113,12 +122,22 @@ function NavContent({ user, pathname, onNavigate }) {
 export function Sidebar({ user }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  // Local overlay so an edited name shows immediately without waiting
+  // for a fresh sign-in to reissue the JWT (which is what the session
+  // actually carries under the jwt strategy).
+  const [displayUser, setDisplayUser] = React.useState(user);
+
+  function handleOpenProfile() {
+    setOpen(false);
+    setProfileOpen(true);
+  }
 
   return (
     <>
       {/* Desktop fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-card md:block">
-        <NavContent user={user} pathname={pathname} />
+        <NavContent user={displayUser} pathname={pathname} onOpenProfile={handleOpenProfile} />
       </aside>
 
       {/* Mobile top bar */}
@@ -155,13 +174,21 @@ export function Sidebar({ user }) {
               <X className="h-5 w-5" />
             </Button>
             <NavContent
-              user={user}
+              user={displayUser}
               pathname={pathname}
               onNavigate={() => setOpen(false)}
+              onOpenProfile={handleOpenProfile}
             />
           </aside>
         </div>
       )}
+
+      <ProfileDialog
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        user={displayUser}
+        onUpdated={(patch) => setDisplayUser((u) => ({ ...u, ...patch }))}
+      />
     </>
   );
 }
