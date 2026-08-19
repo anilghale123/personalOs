@@ -34,7 +34,7 @@ export default async function JournalPage() {
       <PageHeader
         icon={BookOpen}
         title="Journal"
-        subtitle="Write on lokta — your daily anchor for reflection."
+        subtitle="One entry a day, plus anything worth capturing in between."
       />
       <JournalScreen
         initialData={{

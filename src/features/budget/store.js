@@ -54,6 +54,7 @@ export const useBudgetStore = create((set, get) => ({
       set({
         expenses: get().expenses.map((e) => (e._id === tempId ? saved : e)),
       });
+      get().refreshSummary();
       return saved;
     } catch (err) {
       set({ expenses: before, totalPaisa: get().totalPaisa - (payload.amountPaisa || 0) });
@@ -75,6 +76,7 @@ export const useBudgetStore = create((set, get) => ({
       if (!res.ok) throw new Error((await res.json()).error || "Failed to update expense");
       const saved = await res.json();
       set({ expenses: get().expenses.map((e) => (e._id === id ? saved : e)) });
+      get().refreshSummary();
       return saved;
     } catch (err) {
       set({ expenses: before });
@@ -93,6 +95,7 @@ export const useBudgetStore = create((set, get) => ({
     try {
       const res = await fetch(`/api/budget/expenses/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
+      get().refreshSummary();
       return removed;
     } catch (err) {
       set({ expenses: before, totalPaisa: get().totalPaisa + (removed?.amountPaisa || 0) });
@@ -112,6 +115,7 @@ export const useBudgetStore = create((set, get) => ({
         method: "POST",
       });
       if (!res.ok) throw new Error();
+      get().refreshSummary();
     } catch {
       set({
         expenses: get().expenses.filter((e) => e._id !== removed._id),
@@ -178,5 +182,198 @@ export const useBudgetStore = create((set, get) => ({
       set({ categories: get().categories.filter((c) => c._id !== id) });
     }
     return data;
+  },
+
+  // ── Budgets ──────────────────────────────────────────────────────────
+  budgetPeriod: "monthly",
+  summary: null,
+  loadingSummary: false,
+
+  setSummary: (summary) => set({ summary }),
+
+  async loadSummary(period) {
+    const next = period || get().budgetPeriod;
+    set({ loadingSummary: true, budgetPeriod: next });
+    try {
+      const res = await fetch(`/api/budget/budgets?period=${next}`);
+      if (!res.ok) throw new Error();
+      set({ summary: await res.json() });
+    } finally {
+      set({ loadingSummary: false });
+    }
+  },
+
+  /**
+   * Re-reads the budget summary after an expense changes, so the
+   * over-budget warning can never lag behind the list it sits above.
+   * A no-op until the summary has been loaded at least once.
+   */
+  refreshSummary() {
+    if (!get().summary) return;
+    get().loadSummary();
+  },
+
+  /** Set or clear one budget line — an amount of 0 removes it. */
+  async setBudget({ scope, categoryId, amount, carryForward }) {
+    const res = await fetch("/api/budget/budgets", {
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        period: get().budgetPeriod,
+        scope,
+        categoryId,
+        amount,
+        carryForward,
+      }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to save budget");
+    const summary = await res.json();
+    set({ summary });
+    return summary;
+  },
+
+  // ── Debts ────────────────────────────────────────────────────────────
+  debts: [],
+
+  setDebts: (debts) => set({ debts }),
+
+  async loadDebts() {
+    const res = await fetch("/api/budget/debts");
+    if (!res.ok) return;
+    set({ debts: await res.json() });
+  },
+
+  async addDebt(payload) {
+    const res = await fetch("/api/budget/debts", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to add debt");
+    const created = await res.json();
+    set({ debts: [created, ...get().debts] });
+    return created;
+  },
+
+  async updateDebt(id, patch) {
+    const res = await fetch(`/api/budget/debts/${id}`, {
+      method: "PATCH",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to update debt");
+    const saved = await res.json();
+    set({ debts: get().debts.map((d) => (d._id === id ? saved : d)) });
+    return saved;
+  },
+
+  async deleteDebt(id) {
+    const before = get().debts;
+    set({ debts: before.filter((d) => d._id !== id) });
+    try {
+      const res = await fetch(`/api/budget/debts/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch (err) {
+      set({ debts: before });
+      throw err;
+    }
+  },
+
+  /** Log a repayment ("payment") or extra borrowing ("borrow"). */
+  async addDebtEntry(id, payload) {
+    const res = await fetch(`/api/budget/debts/${id}/entries`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to save entry");
+    const saved = await res.json();
+    set({ debts: get().debts.map((d) => (d._id === id ? saved : d)) });
+    return saved;
+  },
+
+  async deleteDebtEntry(id, entryId) {
+    const res = await fetch(`/api/budget/debts/${id}/entries/${entryId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to remove entry");
+    const saved = await res.json();
+    set({ debts: get().debts.map((d) => (d._id === id ? saved : d)) });
+    return saved;
+  },
+
+  // ── Savings goals ────────────────────────────────────────────────────
+  financialGoals: [],
+
+  setFinancialGoals: (financialGoals) => set({ financialGoals }),
+
+  async loadFinancialGoals() {
+    const res = await fetch("/api/budget/goals");
+    if (!res.ok) return;
+    set({ financialGoals: await res.json() });
+  },
+
+  async addFinancialGoal(payload) {
+    const res = await fetch("/api/budget/goals", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to add goal");
+    const created = await res.json();
+    set({ financialGoals: [created, ...get().financialGoals] });
+    return created;
+  },
+
+  async updateFinancialGoal(id, patch) {
+    const res = await fetch(`/api/budget/goals/${id}`, {
+      method: "PATCH",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to update goal");
+    const saved = await res.json();
+    set({
+      financialGoals: get().financialGoals.map((g) => (g._id === id ? saved : g)),
+    });
+    return saved;
+  },
+
+  async deleteFinancialGoal(id) {
+    const before = get().financialGoals;
+    set({ financialGoals: before.filter((g) => g._id !== id) });
+    try {
+      const res = await fetch(`/api/budget/goals/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch (err) {
+      set({ financialGoals: before });
+      throw err;
+    }
+  },
+
+  async addContribution(id, payload) {
+    const res = await fetch(`/api/budget/goals/${id}/contributions`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed to save contribution");
+    const saved = await res.json();
+    set({
+      financialGoals: get().financialGoals.map((g) => (g._id === id ? saved : g)),
+    });
+    return saved;
+  },
+
+  async deleteContribution(id, entryId) {
+    const res = await fetch(`/api/budget/goals/${id}/contributions/${entryId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to remove contribution");
+    const saved = await res.json();
+    set({
+      financialGoals: get().financialGoals.map((g) => (g._id === id ? saved : g)),
+    });
+    return saved;
   },
 }));

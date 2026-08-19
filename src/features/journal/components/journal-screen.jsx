@@ -87,7 +87,7 @@ export function JournalScreen({ initialData }) {
     activeDate === today ? "Today" : formatDate(activeDate);
 
   return (
-    <div className="-mx-4 journal-page-bg px-4 sm:mx-0 sm:px-0">
+    <div>
       {/* Mobile: sticky calendar toggle + current date */}
       <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
         <div className="flex items-center justify-between gap-3">

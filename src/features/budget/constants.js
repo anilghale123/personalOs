@@ -43,3 +43,24 @@ export const RECURRENCE_FREQUENCIES = [
   { id: "monthly", label: "Monthly" },
   { id: "yearly", label: "Yearly" },
 ];
+
+export const BUDGET_PERIODS = [
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+];
+
+export const DEBT_KINDS = [
+  { id: "owe", label: "I owe", hint: "Money you have to pay back" },
+  { id: "lent", label: "Owed to me", hint: "Money someone owes you" },
+];
+
+export const DEBT_ENTRY_TYPES = [
+  { id: "payment", label: "Payment made", hint: "Reduces the balance" },
+  { id: "borrow", label: "Extra borrowed", hint: "Increases the balance" },
+];
+
+/** Spend ratio at which the budget UI switches from calm to caution. */
+export const BUDGET_WARNING_RATIO = 0.8;
+
+/** Emoji shortlist offered when creating a savings goal. */
+export const GOAL_ICONS = ["🎯", "🏠", "🚗", "✈️", "🎓", "💍", "🛡️", "💻", "🏥", "🎁"];

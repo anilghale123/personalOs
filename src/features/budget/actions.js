@@ -3,10 +3,13 @@
 import connectDB from "@/lib/mongoose";
 import Category from "@/models/Category";
 import Expense from "@/models/Expense";
+import Debt from "@/models/Debt";
+import FinancialGoal from "@/models/FinancialGoal";
 import { auth } from "@/lib/auth";
 import { sumMinor } from "@/lib/money";
 import { DEFAULT_CATEGORIES } from "./constants";
 import { periodRange } from "./utils";
+import { computeBudgetSummary } from "./summary";
 
 function plain(doc) {
   return JSON.parse(JSON.stringify(doc));
@@ -91,4 +94,34 @@ export async function getExpenses(filters = {}) {
 export async function getCurrentMonthExpenses() {
   const { start, end } = periodRange("month");
   return getExpenses({ dateFrom: start, dateTo: end, sort: "date_desc" });
+}
+
+/** Budget limits vs actual spend for the given period (defaults to monthly). */
+export async function getBudgetSummary(period = "monthly") {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  await connectDB();
+  return plain(await computeBudgetSummary(session.user.id, period));
+}
+
+/** All debts for the current user, open ones first. */
+export async function getDebts() {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  await connectDB();
+  const debts = await Debt.find({ userId: session.user.id })
+    .sort({ status: 1, createdAt: -1 })
+    .lean();
+  return plain(debts);
+}
+
+/** All savings goals for the current user, active ones first. */
+export async function getFinancialGoals() {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  await connectDB();
+  const goals = await FinancialGoal.find({ userId: session.user.id })
+    .sort({ status: 1, createdAt: -1 })
+    .lean();
+  return plain(goals);
 }
