@@ -12,6 +12,10 @@ import {
   CalendarCheck,
   CalendarDays,
   Receipt,
+  Wallet,
+  Handshake,
+  PiggyBank,
+  ChevronDown,
   Menu,
   X,
   LogOut,
@@ -27,11 +31,95 @@ const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/goals", label: "Goals & Habits", icon: Target },
   { href: "/planner", label: "Weekly Planner", icon: CalendarDays },
-  { href: "/budget", label: "Budgeting", icon: Receipt },
+  {
+    href: "/budget",
+    label: "Budgeting",
+    icon: Receipt,
+    children: [
+      { href: "/budget/expenses", label: "Expenses", icon: Receipt },
+      { href: "/budget/plan", label: "Budget", icon: Wallet },
+      { href: "/budget/debts", label: "Debts", icon: Handshake },
+      { href: "/budget/goals", label: "Goals", icon: PiggyBank },
+    ],
+  },
   { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
   { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/review", label: "Weekly Review", icon: CalendarCheck },
 ];
+
+function isActivePath(pathname, href) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavLink({ item, pathname, onNavigate, nested = false }) {
+  const Icon = item.icon;
+  const active = isActivePath(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg text-sm transition-colors",
+        nested ? "px-2.5 py-1.5" : "px-2.5 py-2",
+        active
+          ? "bg-accent font-medium text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+      )}
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", active && "text-foreground")} />
+      <span className="flex-1">{item.label}</span>
+    </Link>
+  );
+}
+
+function NavGroup({ item, pathname, onNavigate }) {
+  const Icon = item.icon;
+  const inSection = isActivePath(pathname, item.href);
+  const [open, setOpen] = React.useState(inSection);
+
+  React.useEffect(() => {
+    if (inSection) setOpen(true);
+  }, [inSection]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+          inSection
+            ? "font-medium text-foreground"
+            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+        )}
+      >
+        <Icon className={cn("h-4 w-4 shrink-0", inSection && "text-foreground")} />
+        <span className="flex-1 text-left">{item.label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      {open && (
+        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/70 pl-2">
+          {item.children.map((child) => (
+            <NavLink
+              key={child.href}
+              item={child}
+              pathname={pathname}
+              onNavigate={onNavigate}
+              nested
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
   return (
@@ -48,39 +136,27 @@ function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         <p className="px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Modules
         </p>
-        {NAV.map((item) => {
-          const Icon = item.icon;
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href ||
-                pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
+        {NAV.map((item) =>
+          item.children ? (
+            <NavGroup
               key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
-                active
-                  ? "bg-accent font-medium text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4 shrink-0",
-                  active && "text-foreground"
-                )}
-              />
-              <span className="flex-1">{item.label}</span>
-            </Link>
-          );
-        })}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          ) : (
+            <NavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          )
+        )}
       </nav>
 
       <div className="border-t p-3">
