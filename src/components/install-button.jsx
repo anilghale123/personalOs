@@ -42,7 +42,7 @@ export function InstallButton({ className, size = "sm" }) {
     const onInstalled = () => {
       setInstalled(true);
       setDeferred(null);
-      toast.success("Personal OS installed.");
+      toast.success("selfView installed.");
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
@@ -64,7 +64,7 @@ export function InstallButton({ className, size = "sm" }) {
       return;
     }
     // No native prompt (iOS Safari, or criteria not yet met).
-    toast("Install Personal OS", {
+    toast("Install selfView", {
       description:
         "Open your browser menu and choose “Install app” or “Add to Home Screen”.",
       icon: <Download className="h-4 w-4" />,

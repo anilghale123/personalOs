@@ -46,7 +46,11 @@ function GoogleIcon(props) {
 }
 
 export function LoginForm({ googleEnabled = false }) {
-  const [mode, setMode] = React.useState("login"); // 'login' | 'signup'
+  const searchParams = useSearchParams();
+  // /signup lands here as /login?mode=signup — open on the signup form.
+  const [mode, setMode] = React.useState(() =>
+    searchParams.get("mode") === "signup" ? "signup" : "login"
+  );
   const [form, setForm] = React.useState({
     name: "",
     email: "",
@@ -57,7 +61,6 @@ export function LoginForm({ googleEnabled = false }) {
   const [error, setError] = React.useState("");
 
   // Surface OAuth / callback errors NextAuth passes back via the URL.
-  const searchParams = useSearchParams();
   React.useEffect(() => {
     const code = searchParams.get("error");
     if (code) {
@@ -106,7 +109,7 @@ export function LoginForm({ googleEnabled = false }) {
       toast.success("Welcome back!");
       // Hard navigation so the new session cookie is sent with the
       // request for the protected dashboard.
-      window.location.href = "/";
+      window.location.href = "/app";
     } catch (err) {
       setError(err.message);
       toast.error(err.message);
@@ -117,7 +120,7 @@ export function LoginForm({ googleEnabled = false }) {
   function googleSignIn() {
     setGoogleBusy(true);
     setError("");
-    signIn("google", { callbackUrl: "/" });
+    signIn("google", { callbackUrl: "/app" });
   }
 
   return (
@@ -126,7 +129,7 @@ export function LoginForm({ googleEnabled = false }) {
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <CircleDot className="h-5 w-5" />
         </div>
-        <span className="text-lg font-semibold">Personal OS</span>
+        <span className="text-lg font-semibold">selfView</span>
       </div>
 
       <h2 className="text-2xl font-semibold tracking-tight">

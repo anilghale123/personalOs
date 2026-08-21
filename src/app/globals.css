@@ -3,54 +3,61 @@
 @tailwind utilities;
 
 @layer base {
+  /* selfView tokens — dark-first, light follows the system setting.
+     Roles: Ink (page) · Surface (cards) · Line (borders) · Brass (signature
+     accent, spent sparingly) · Positive/Negative (semantics). */
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 8%;
+    --background: 60 4% 97%;
+    --foreground: 240 6% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 8%;
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 8%;
+    --popover-foreground: 240 6% 10%;
     --primary: 240 6% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 5% 94%;
+    --primary-foreground: 60 4% 97%;
+    --secondary: 240 5% 93%;
     --secondary-foreground: 240 6% 20%;
-    --muted: 240 5% 94%;
-    --muted-foreground: 240 4% 50%;
-    --accent: 240 5% 94%;
-    --accent-foreground: 240 6% 20%;
-    --destructive: 0 72% 51%;
+    --muted: 240 5% 93%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 240 5% 92%;
+    --accent-foreground: 240 6% 16%;
+    --destructive: 0 58% 50%;
     --destructive-foreground: 0 0% 98%;
+    --positive: 158 45% 34%;
+    --negative: 0 58% 50%;
     --border: 240 6% 88%;
-    --input: 240 6% 90%;
-    --ring: 240 6% 10%;
+    --input: 240 6% 86%;
+    --ring: 39 60% 45%;
     --radius: 0.625rem;
-    /* Brand accent — a warm gold */
-    --brand: 38 92% 50%;
-    --brand-foreground: 38 92% 15%;
+    /* Brass — the signature accent. */
+    --brand: 38 69% 39%;
+    --brand-foreground: 45 30% 96%;
   }
 
   .dark {
-    --background: 240 10% 7%;
-    --foreground: 240 5% 92%;
-    --card: 240 9% 10%;
-    --card-foreground: 240 5% 92%;
-    --popover: 240 9% 10%;
-    --popover-foreground: 240 5% 92%;
-    --primary: 240 5% 92%;
-    --primary-foreground: 240 10% 7%;
+    --background: 240 9% 6.5%;
+    --foreground: 240 6% 93%;
+    --card: 240 8% 10%;
+    --card-foreground: 240 6% 93%;
+    --popover: 240 8% 10%;
+    --popover-foreground: 240 6% 93%;
+    --primary: 240 6% 93%;
+    --primary-foreground: 240 9% 8%;
     --secondary: 240 7% 14%;
-    --secondary-foreground: 240 5% 70%;
+    --secondary-foreground: 240 5% 72%;
     --muted: 240 7% 14%;
-    --muted-foreground: 240 5% 50%;
+    --muted-foreground: 235 6% 62%;
     --accent: 240 7% 16%;
-    --accent-foreground: 240 5% 85%;
-    --destructive: 0 62% 50%;
+    --accent-foreground: 240 6% 88%;
+    --destructive: 0 62% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 7% 16%;
-    --input: 240 7% 14%;
-    --ring: 240 5% 70%;
-    --brand: 38 92% 55%;
-    --brand-foreground: 38 92% 10%;
+    --positive: 158 42% 50%;
+    --negative: 0 62% 62%;
+    --border: 240 8% 16%;
+    --input: 240 7% 16%;
+    --ring: 39 70% 55%;
+    --brand: 39 75% 55%;
+    --brand-foreground: 35 40% 10%;
   }
 }
 
@@ -60,14 +67,32 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* iOS zooms on focused inputs under 16px — never go below it on mobile. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: revert;
+    }
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  /* Tabular figures — money, streaks and percentages that must not jitter. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -81,5 +106,34 @@
     background: hsl(var(--border));
     border-radius: 9999px;
   }
+}
 
+/* The Lifeline — one tick per day, taller when more of the day is recorded.
+   Bars rise once on mount; motion is a courtesy, never required. */
+@keyframes lifeline-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.lifeline-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: lifeline-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifeline-bar {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -84,11 +84,12 @@ export async function importBrokerCSV(formData) {
 
 /**
  * Computes portfolio summary: total invested, current value, P&L per ticker.
- * @param {string} [userIdArg]
+ * Always scoped to the signed-in user — this file is "use server", so every
+ * export is client-callable and must never take a user id from the caller.
  */
-export async function getPortfolioSummary(userIdArg) {
+export async function getPortfolioSummary() {
   const session = await auth();
-  const userId = userIdArg || session?.user?.id;
+  const userId = session?.user?.id;
   if (!userId) return [];
   await connectDB();
 

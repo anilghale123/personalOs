@@ -21,11 +21,11 @@ export async function getJournalDay(date) {
   const userId = session.user.id;
   const [journal, notes, notesTotal] = await Promise.all([
     DailyJournal.findOne({ userId, date }).lean(),
-    QuickNote.find({ userId, date })
+    QuickNote.find({ userId, date, deletedAt: null })
       .sort({ createdAt: 1 })
       .limit(NOTE_PAGE_SIZE)
       .lean(),
-    QuickNote.countDocuments({ userId, date }),
+    QuickNote.countDocuments({ userId, date, deletedAt: null }),
   ]);
   return {
     journal: journal ? plain(journal) : null,
@@ -51,7 +51,13 @@ export async function getCalendarMoods(from, to) {
       .select("date mood content title")
       .lean(),
     QuickNote.aggregate([
-      { $match: { userId, date: { $gte: from, $lte: to } } },
+      {
+        $match: {
+          userId,
+          date: { $gte: from, $lte: to },
+          deletedAt: null,
+        },
+      },
       { $group: { _id: "$date", count: { $sum: 1 } } },
     ]),
   ]);

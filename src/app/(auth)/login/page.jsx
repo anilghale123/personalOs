@@ -14,7 +14,7 @@ const FEATURES = [
 export default async function LoginPage() {
   // Already signed in? Skip the form.
   const session = await auth();
-  if (session?.user) redirect("/");
+  if (session?.user) redirect("/app");
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -24,13 +24,13 @@ export default async function LoginPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-background text-foreground">
             <CircleDot className="h-5 w-5" />
           </div>
-          <span className="text-lg font-semibold">Personal OS</span>
+          <span className="text-lg font-semibold">selfView</span>
         </div>
         <div>
           <h1 className="text-3xl font-semibold leading-tight">
-            One operating system
+            Your whole life,
             <br />
-            for your entire life.
+            in one calm view.
           </h1>
           <p className="mt-3 max-w-sm text-sm text-background/60">
             Wealth, habits, journaling and AI insight — unified into a
@@ -54,7 +54,7 @@ export default async function LoginPage() {
           </ul>
         </div>
         <p className="text-xs text-background/40">
-          © {new Date().getFullYear()} Personal OS
+          © {new Date().getFullYear()} selfView
         </p>
       </div>
 

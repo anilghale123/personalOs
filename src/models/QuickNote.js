@@ -26,6 +26,8 @@ const QuickNoteSchema = new mongoose.Schema(
       default: "note",
     },
     pinned: { type: Boolean, default: false },
+    // Soft delete so "undo" is real — queries filter deletedAt: null.
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

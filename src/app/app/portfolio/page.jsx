@@ -24,7 +24,7 @@ export default async function PortfolioPage() {
         subtitle="Your NEPSE holdings, P&L and transaction history."
       >
         <Button asChild variant="outline" size="sm">
-          <Link href="/portfolio/sip">
+          <Link href="/app/portfolio/sip">
             <Repeat className="h-4 w-4" />
             SIPs
           </Link>

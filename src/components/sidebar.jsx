@@ -16,64 +16,67 @@ import {
   Handshake,
   PiggyBank,
   ChevronDown,
-  Menu,
-  X,
   LogOut,
-  CircleDot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 
 const NAV = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/goals", label: "Goals & Habits", icon: Target },
-  { href: "/planner", label: "Weekly Planner", icon: CalendarDays },
+  { href: "/app", label: "Overview", icon: LayoutDashboard },
+  { href: "/app/goals", label: "Goals & Habits", icon: Target },
+  { href: "/app/planner", label: "Weekly Planner", icon: CalendarDays },
   {
-    href: "/budget",
+    href: "/app/budget",
     label: "Budgeting",
     icon: Receipt,
     children: [
-      { href: "/budget/expenses", label: "Expenses", icon: Receipt },
-      { href: "/budget/plan", label: "Budget", icon: Wallet },
-      { href: "/budget/debts", label: "Debts", icon: Handshake },
-      { href: "/budget/goals", label: "Goals", icon: PiggyBank },
+      { href: "/app/budget/expenses", label: "Expenses", icon: Receipt },
+      { href: "/app/budget/plan", label: "Budget", icon: Wallet },
+      { href: "/app/budget/debts", label: "Debts", icon: Handshake },
+      { href: "/app/budget/goals", label: "Goals", icon: PiggyBank },
     ],
   },
-  { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
-  { href: "/journal", label: "Journal", icon: BookOpen },
-  { href: "/review", label: "Weekly Review", icon: CalendarCheck },
+  { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
+  { href: "/app/journal", label: "Journal", icon: BookOpen },
+  { href: "/app/review", label: "Weekly Review", icon: CalendarCheck },
 ];
 
 function isActivePath(pathname, href) {
-  if (href === "/") return pathname === "/";
+  if (href === "/app") return pathname === "/app";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLink({ item, pathname, onNavigate, nested = false }) {
+function NavLink({ item, pathname, nested = false }) {
   const Icon = item.icon;
   const active = isActivePath(pathname, item.href);
   return (
     <Link
       href={item.href}
-      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-center gap-3 rounded-lg text-sm transition-colors",
+        "group relative flex items-center gap-3 rounded-lg text-sm transition-colors",
         nested ? "px-2.5 py-1.5" : "px-2.5 py-2",
         active
           ? "bg-accent font-medium text-accent-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
       )}
     >
-      <Icon className={cn("h-4 w-4 shrink-0", active && "text-foreground")} />
+      {active && (
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brand" />
+      )}
+      <Icon
+        className={cn("h-4 w-4 shrink-0", active ? "text-brand" : undefined)}
+      />
       <span className="flex-1">{item.label}</span>
     </Link>
   );
 }
 
-function NavGroup({ item, pathname, onNavigate }) {
+function NavGroup({ item, pathname }) {
   const Icon = item.icon;
   const inSection = isActivePath(pathname, item.href);
   const [open, setOpen] = React.useState(inSection);
@@ -95,7 +98,9 @@ function NavGroup({ item, pathname, onNavigate }) {
             : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         )}
       >
-        <Icon className={cn("h-4 w-4 shrink-0", inSection && "text-foreground")} />
+        <Icon
+          className={cn("h-4 w-4 shrink-0", inSection && "text-brand")}
+        />
         <span className="flex-1 text-left">{item.label}</span>
         <ChevronDown
           className={cn(
@@ -111,7 +116,6 @@ function NavGroup({ item, pathname, onNavigate }) {
               key={child.href}
               item={child}
               pathname={pathname}
-              onNavigate={onNavigate}
               nested
             />
           ))}
@@ -121,19 +125,11 @@ function NavGroup({ item, pathname, onNavigate }) {
   );
 }
 
-function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
+function NavContent({ user, pathname, onOpenProfile }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <CircleDot className="h-4 w-4" />
-        </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">Personal OS</p>
-          <p className="text-xs text-muted-foreground">
-            Your operating system
-          </p>
-        </div>
+      <div className="px-5 py-5">
+        <BrandMark />
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
@@ -142,19 +138,9 @@ function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
         </p>
         {NAV.map((item) =>
           item.children ? (
-            <NavGroup
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              onNavigate={onNavigate}
-            />
+            <NavGroup key={item.href} item={item} pathname={pathname} />
           ) : (
-            <NavLink
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              onNavigate={onNavigate}
-            />
+            <NavLink key={item.href} item={item} pathname={pathname} />
           )
         )}
       </nav>
@@ -195,69 +181,24 @@ function NavContent({ user, pathname, onNavigate, onOpenProfile }) {
   );
 }
 
+/** Desktop sidebar — phones use BottomNav instead. */
 export function Sidebar({ user }) {
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
   // Local overlay so an edited name shows immediately without waiting
   // for a fresh sign-in to reissue the JWT (which is what the session
   // actually carries under the jwt strategy).
   const [displayUser, setDisplayUser] = React.useState(user);
 
-  function handleOpenProfile() {
-    setOpen(false);
-    setProfileOpen(true);
-  }
-
   return (
     <>
-      {/* Desktop fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-card md:block">
-        <NavContent user={displayUser} pathname={pathname} onOpenProfile={handleOpenProfile} />
+        <NavContent
+          user={displayUser}
+          pathname={pathname}
+          onOpenProfile={() => setProfileOpen(true)}
+        />
       </aside>
-
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-card/80 px-4 backdrop-blur md:hidden">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        <span className="text-sm font-semibold">Personal OS</span>
-        <div className="ml-auto">
-          <InstallButton />
-        </div>
-      </header>
-
-      {/* Mobile drawer */}
-      {open && (
-        <div className="md:hidden">
-          <div
-            className="fixed inset-0 z-40 bg-black/50 animate-fade-in"
-            onClick={() => setOpen(false)}
-          />
-          <aside className="fixed inset-y-0 left-0 z-50 w-72 border-r bg-card animate-fade-in">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-3"
-              onClick={() => setOpen(false)}
-              aria-label="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-            <NavContent
-              user={displayUser}
-              pathname={pathname}
-              onNavigate={() => setOpen(false)}
-              onOpenProfile={handleOpenProfile}
-            />
-          </aside>
-        </div>
-      )}
 
       <ProfileDialog
         open={profileOpen}

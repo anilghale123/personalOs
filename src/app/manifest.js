@@ -4,11 +4,11 @@
  */
 export default function manifest() {
   return {
-    name: "Personal OS — Your Operating System for Life",
-    short_name: "Personal OS",
+    name: "selfView — your life, in view",
+    short_name: "selfView",
     description:
-      "Goals, habits, wealth tracking, journaling and AI briefings in one calm dashboard.",
-    start_url: "/",
+      "Wealth tracking, habits, journaling and AI briefings in one calm, private app.",
+    start_url: "/app",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

@@ -70,7 +70,7 @@ export function QuickNoteInput() {
             }
           }}
           placeholder="Capture a quick thought…"
-          className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+          className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
         />
         <button
           onClick={submit}

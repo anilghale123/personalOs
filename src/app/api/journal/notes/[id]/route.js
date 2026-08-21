@@ -40,18 +40,22 @@ export async function PATCH(request, { params }) {
   return NextResponse.json(note);
 }
 
-/** DELETE /api/journal/notes/[id] */
+/**
+ * DELETE /api/journal/notes/[id]
+ * Soft delete — the note survives as deletedAt so Undo can restore it.
+ */
 export async function DELETE(request, { params }) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   await connectDB();
-  const res = await QuickNote.deleteOne({
-    _id: params.id,
-    userId: session.user.id,
-  });
-  if (!res.deletedCount) {
+  const note = await QuickNote.findOneAndUpdate(
+    { _id: params.id, userId: session.user.id, deletedAt: null },
+    { $set: { deletedAt: new Date() } },
+    { new: true }
+  ).lean();
+  if (!note) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json({ ok: true });

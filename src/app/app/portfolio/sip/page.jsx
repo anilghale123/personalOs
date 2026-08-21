@@ -18,7 +18,7 @@ export default async function SipPage() {
         subtitle="Track systematic investment plans and their installments."
       >
         <Button asChild variant="outline" size="sm">
-          <Link href="/portfolio">
+          <Link href="/app/portfolio">
             <ArrowLeft className="h-4 w-4" />
             Portfolio
           </Link>

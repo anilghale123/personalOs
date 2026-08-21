@@ -88,8 +88,9 @@ export function JournalScreen({ initialData }) {
 
   return (
     <div>
-      {/* Mobile: sticky calendar toggle + current date */}
-      <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
+      {/* Mobile: sticky calendar toggle + current date (sits below the
+          sticky brand bar, which is h-14) */}
+      <div className="sticky top-14 z-20 -mx-4 mb-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{dateLabel}</p>

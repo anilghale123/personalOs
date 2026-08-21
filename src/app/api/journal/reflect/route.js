@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
-import { getGroqClient } from "@/lib/groq";
+import { getGroqClient, GROQ_CHAT_MODEL } from "@/lib/groq";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
 
@@ -59,7 +59,7 @@ Write a SHORT reflection (3-4 sentences, under 90 words). Gently name the emotio
   try {
     const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_CHAT_MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 220,

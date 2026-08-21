@@ -27,7 +27,7 @@ export function shiftDate(key, days) {
 
 const STATUS_TEXT = {
   saving: "Saving…",
-  error: "Not saved",
+  error: "Still on this device",
   unsaved: "Unsaved changes",
   saved: "Saved",
 };
@@ -225,7 +225,7 @@ export function DailyAnchorCard() {
             onChange={(e) => updateJournal({ title: e.target.value })}
             placeholder="Untitled"
             aria-label="Entry title"
-            className="w-full border-0 bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40"
+            className="w-full border-0 bg-transparent font-display text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40 sm:text-3xl"
           />
 
           {/* Properties */}
@@ -268,7 +268,7 @@ export function DailyAnchorCard() {
                   onBlur={addTag}
                   placeholder={(j.tags || []).length ? "Add another…" : "Add a tag…"}
                   aria-label="Add tag"
-                  className="w-28 border-0 bg-transparent px-1 py-0.5 text-xs outline-none placeholder:text-muted-foreground"
+                  className="w-28 border-0 bg-transparent px-1 py-0.5 text-base outline-none placeholder:text-muted-foreground sm:text-xs"
                 />
               </div>
             </PropertyRow>
@@ -283,7 +283,7 @@ export function DailyAnchorCard() {
             placeholder="Start writing…"
             aria-label="Entry content"
             spellCheck
-            className="w-full min-h-[320px] resize-none border-0 bg-transparent text-[15px] leading-7 outline-none placeholder:text-muted-foreground/60"
+            className="w-full min-h-[320px] resize-none border-0 bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground/60"
           />
 
           {/* Reflection callout */}

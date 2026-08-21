@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Pencil, Trash2, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
@@ -17,9 +18,15 @@ const PAYMENT_LABEL = Object.fromEntries(
  * by the parent — the row itself stays a read-only line so the list
  * never reflows into a form.
  */
+const SWIPE_COMMIT = -96; // px of leftward drag that deletes on release
+
 export function ExpenseRow({ expense, category, onEdit }) {
   const deleteExpense = useBudgetStore((s) => s.deleteExpense);
   const undoDeleteExpense = useBudgetStore((s) => s.undoDeleteExpense);
+
+  // Swipe-to-delete (touch only — pointer users keep the hover buttons).
+  const [swipeX, setSwipeX] = React.useState(0);
+  const tracking = React.useRef(null);
 
   async function handleDelete() {
     try {
@@ -35,12 +42,58 @@ export function ExpenseRow({ expense, category, onEdit }) {
     }
   }
 
+  function onTouchStart(e) {
+    const t = e.touches[0];
+    tracking.current = { x: t.clientX, y: t.clientY, axis: null };
+  }
+
+  function onTouchMove(e) {
+    const t = tracking.current;
+    if (!t) return;
+    const dx = e.touches[0].clientX - t.x;
+    const dy = e.touches[0].clientY - t.y;
+    // Decide once: horizontal gesture swipes, vertical gesture scrolls.
+    if (t.axis === null) t.axis = Math.abs(dx) > Math.abs(dy) + 6 ? "h" : "v";
+    if (t.axis !== "h") return;
+    setSwipeX(Math.max(Math.min(dx, 0), SWIPE_COMMIT - 24));
+  }
+
+  function onTouchEnd() {
+    const t = tracking.current;
+    tracking.current = null;
+    if (t?.axis === "h" && swipeX <= SWIPE_COMMIT) {
+      setSwipeX(0);
+      handleDelete();
+      return;
+    }
+    setSwipeX(0);
+  }
+
   const meta = [
     PAYMENT_LABEL[expense.paymentMethod] || null,
     expense.note || null,
   ].filter(Boolean);
 
   return (
+    <div className="relative overflow-hidden rounded-lg">
+      {/* Delete affordance revealed behind the row while swiping. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 flex items-center justify-end rounded-lg bg-negative pr-5 text-white"
+        style={{ opacity: swipeX < -8 ? 1 : 0 }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </div>
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="relative bg-card"
+        style={{
+          transform: swipeX ? `translateX(${swipeX}px)` : undefined,
+          transition: tracking.current ? "none" : "transform 0.2s ease-out",
+        }}
+      >
     <div className="group flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 text-sm hover:bg-accent/50">
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -97,6 +150,8 @@ export function ExpenseRow({ expense, category, onEdit }) {
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
+      </div>
+    </div>
       </div>
     </div>
   );

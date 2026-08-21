@@ -38,7 +38,7 @@ export async function GET(request) {
       .sort({ date: -1 })
       .limit(40)
       .lean(),
-    QuickNote.find({ userId, content: rx })
+    QuickNote.find({ userId, content: rx, deletedAt: null })
       .select("date content type createdAt")
       .sort({ createdAt: -1 })
       .limit(60)

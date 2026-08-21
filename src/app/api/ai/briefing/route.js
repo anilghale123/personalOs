@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
-import { getGroqClient } from "@/lib/groq";
+import { getGroqClient, GROQ_CHAT_MODEL } from "@/lib/groq";
 import HabitLog from "@/models/HabitLog";
 import Transaction from "@/models/Transaction";
 import DailyJournal from "@/models/DailyJournal";
@@ -69,7 +69,7 @@ Keep the entire briefing under 550 words. Use bullet points where helpful.`;
   try {
     const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_CHAT_MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 900,

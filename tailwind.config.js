@@ -52,6 +52,8 @@ module.exports = {
           DEFAULT: "hsl(var(--brand))",
           foreground: "hsl(var(--brand-foreground))",
         },
+        positive: "hsl(var(--positive))",
+        negative: "hsl(var(--negative))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -61,7 +63,14 @@ module.exports = {
         "3xl": "1.25rem",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
+        body: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: [
+          "var(--font-display)",
+          "var(--font-body)",
+          "ui-sans-serif",
+          "sans-serif",
+        ],
       },
       keyframes: {
         "accordion-down": {
@@ -76,11 +85,16 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "slide-up": {
+          from: { transform: "translateY(100%)" },
+          to: { transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
+        "slide-up": "slide-up 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
       },
     },
   },

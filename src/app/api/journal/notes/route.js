@@ -36,7 +36,11 @@ export async function GET(request) {
   const skip = Number(searchParams.get("skip")) || 0;
 
   await connectDB();
-  const notes = await QuickNote.find({ userId: session.user.id, date })
+  const notes = await QuickNote.find({
+    userId: session.user.id,
+    date,
+    deletedAt: null,
+  })
     .sort({ createdAt: 1 })
     .skip(skip)
     .limit(limit)

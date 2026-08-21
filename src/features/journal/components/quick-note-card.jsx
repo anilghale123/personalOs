@@ -8,6 +8,7 @@ import { useJournalStore } from "@/features/journal/store";
 import { noteTypeEmoji, noteTypeLabel } from "@/features/journal/constants";
 
 const LONG = 240; // chars before a note collapses
+const SWIPE_COMMIT = -96; // px of leftward drag that deletes on release
 
 export function QuickNoteCard({ note }) {
   const updateNote = useJournalStore((s) => s.updateNote);
@@ -17,6 +18,10 @@ export function QuickNoteCard({ note }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(note.content);
   const [expanded, setExpanded] = React.useState(false);
+
+  // Swipe-to-delete (touch only — pointer users keep the hover buttons).
+  const [swipeX, setSwipeX] = React.useState(0);
+  const tracking = React.useRef(null);
 
   const isLong = note.content.length > LONG;
   const shown =
@@ -34,7 +39,35 @@ export function QuickNoteCard({ note }) {
     setEditing(false);
   }
 
-  return (
+  function onTouchStart(e) {
+    if (editing || note.isOptimistic) return;
+    const t = e.touches[0];
+    tracking.current = { x: t.clientX, y: t.clientY, axis: null };
+  }
+
+  function onTouchMove(e) {
+    const t = tracking.current;
+    if (!t) return;
+    const dx = e.touches[0].clientX - t.x;
+    const dy = e.touches[0].clientY - t.y;
+    // Decide once: horizontal gesture swipes, vertical gesture scrolls.
+    if (t.axis === null) t.axis = Math.abs(dx) > Math.abs(dy) + 6 ? "h" : "v";
+    if (t.axis !== "h") return;
+    setSwipeX(Math.max(Math.min(dx, 0), SWIPE_COMMIT - 24));
+  }
+
+  function onTouchEnd() {
+    const t = tracking.current;
+    tracking.current = null;
+    if (t?.axis === "h" && swipeX <= SWIPE_COMMIT) {
+      setSwipeX(0);
+      deleteNote(note._id); // soft delete — the toast offers Undo
+      return;
+    }
+    setSwipeX(0);
+  }
+
+  const card = (
     <div
       className={cn(
         "group rounded-xl border bg-card p-3 transition-colors",
@@ -60,7 +93,7 @@ export function QuickNoteCard({ note }) {
                 setDraft(note.content);
               }
             }}
-            className="min-h-[60px] w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:border-foreground/30"
+            className="min-h-[60px] w-full resize-none rounded-lg border bg-background p-2 text-base outline-none focus-visible:border-foreground/30 sm:text-sm"
           />
           <div className="flex justify-end gap-1.5">
             <button
@@ -103,9 +136,7 @@ export function QuickNoteCard({ note }) {
                 </span>
               )}
               {stamp ? format(stamp, "h:mm a") : ""}
-              {note.pinned && (
-                <span className="text-brand">Pinned</span>
-              )}
+              {note.pinned && <span className="text-brand">Pinned</span>}
             </span>
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
               <IconBtn
@@ -132,6 +163,31 @@ export function QuickNoteCard({ note }) {
           </div>
         </>
       )}
+    </div>
+  );
+
+  return (
+    <div className="relative overflow-hidden rounded-xl">
+      {/* Delete affordance revealed behind the card while swiping. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 flex items-center justify-end rounded-xl bg-negative pr-5 text-white"
+        style={{ opacity: swipeX < -8 ? 1 : 0 }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </div>
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="relative"
+        style={{
+          transform: swipeX ? `translateX(${swipeX}px)` : undefined,
+          transition: tracking.current ? "none" : "transform 0.2s ease-out",
+        }}
+      >
+        {card}
+      </div>
     </div>
   );
 }

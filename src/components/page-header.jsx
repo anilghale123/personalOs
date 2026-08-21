@@ -11,7 +11,7 @@ export function PageHeader({ icon: Icon, title, subtitle, children }) {
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
             {title}
           </h1>
           {subtitle && (

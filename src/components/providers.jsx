@@ -17,13 +17,13 @@ export function useTheme() {
 function ThemeProvider({ children }) {
   const [theme, setTheme] = React.useState("light");
 
+  // The class was already applied pre-paint by the inline script in the
+  // root layout — here we just adopt whatever is on <html>.
   React.useEffect(() => {
-    const stored = localStorage.getItem("pos-theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
-    const initial = stored || (prefersDark ? "dark" : "light");
-    setTheme(initial);
+    const applied = document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+    setTheme(applied);
   }, []);
 
   React.useEffect(() => {

@@ -31,12 +31,12 @@ export async function GET(request) {
   const userId = session.user.id;
   const [journal, notes, notesTotal] = await Promise.all([
     DailyJournal.findOne({ userId, date }).lean(),
-    QuickNote.find({ userId, date })
+    QuickNote.find({ userId, date, deletedAt: null })
       .sort({ createdAt: 1 })
       .skip(notesSkip)
       .limit(notesLimit)
       .lean(),
-    QuickNote.countDocuments({ userId, date }),
+    QuickNote.countDocuments({ userId, date, deletedAt: null }),
   ]);
 
   return NextResponse.json({

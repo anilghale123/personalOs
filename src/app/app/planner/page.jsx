@@ -15,7 +15,7 @@ export default async function PlannerPage() {
       <PageHeader
         icon={CalendarDays}
         title="Weekly Planner"
-        subtitle="Block out your week hour by hour — from the early morning to midnight."
+        subtitle="Plan each day in one-hour blocks, from early morning to midnight."
       />
       <PlannerScreen initialWeekStart={weekStart} initialGoals={goals} />
     </>

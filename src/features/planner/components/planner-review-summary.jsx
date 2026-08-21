@@ -37,7 +37,7 @@ export function PlannerReviewSummary({ summary }) {
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No planner goals this week.{" "}
-            <Link href="/planner" className="text-primary hover:underline">
+            <Link href="/app/planner" className="text-primary hover:underline">
               Open the Weekly Planner
             </Link>{" "}
             to set some.
