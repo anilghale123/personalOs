@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
 import { getGroqClient, GROQ_CHAT_MODEL } from "@/lib/groq";
+import { formatMoney } from "@/lib/money";
+import { toDateKey } from "@/lib/utils";
 import HabitLog from "@/models/HabitLog";
 import Transaction from "@/models/Transaction";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
 import Goal from "@/models/Goal";
+import Expense from "@/models/Expense";
+import Category from "@/models/Category";
 
 export async function POST() {
   const session = await auth();
@@ -17,10 +21,12 @@ export async function POST() {
   await connectDB();
   const userId = session.user.id;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const sinceKey = sevenDaysAgo.toISOString().split("T")[0];
+  // Local calendar key — the string-dated collections store local dates,
+  // so a UTC-derived key would slice the window a day off in Nepal.
+  const sinceKey = toDateKey(sevenDaysAgo);
 
   // 1. Aggregate weekly data across every module.
-  const [habits, transactions, journals, quickNotes, activeGoals] =
+  const [habits, transactions, journals, quickNotes, activeGoals, expenses, categories] =
     await Promise.all([
       HabitLog.find({ userId, date: { $gte: sevenDaysAgo } }).lean(),
       Transaction.find({
@@ -34,11 +40,16 @@ export async function POST() {
         .sort({ createdAt: 1 })
         .lean(),
       Goal.find({ userId, isArchived: false }).lean(),
+      Expense.find({ userId, deletedAt: null, date: { $gte: sinceKey } })
+        .select("amountPaisa categoryId date")
+        .lean(),
+      Category.find({ userId }).select("name type").lean(),
     ]);
 
   // 2. Summarise for the prompt (keep tokens lean).
   const habitSummary = summarizeHabits(habits);
   const financeSummary = summarizeTransactions(transactions);
+  const spendSummary = summarizeExpenses(expenses, categories);
   const journalSummary = summarizeJournal(journals, quickNotes);
   const goalSummary =
     activeGoals
@@ -50,8 +61,12 @@ export async function POST() {
 ## 🎯 Goals Review
 Summarize goal progress: ${goalSummary}
 
+## 💸 Spending Report
+Day-to-day money this week: ${spendSummary}
+Only describe the numbers given above — do not estimate, extrapolate or invent any figure.
+
 ## 📈 Portfolio Report
-Financial activity this week: ${financeSummary}
+Investment activity this week: ${financeSummary}
 
 ## 📓 Journal Reflection
 Below are the user's daily journals and quick notes. Daily journals carry the most emotional weight; quick notes add texture and context. Identify emotional trends, recurring stress, repeated topics, positive patterns, gratitude moments, burnout signals, and energy shifts. Then give a short emotional summary, the recurring themes, and one gratitude reflection.
@@ -102,6 +117,46 @@ function summarizeHabits(logs) {
   return Object.entries(grouped)
     .map(([name, { done }]) => `${name}: ${done}/7 days completed`)
     .join(", ");
+}
+
+/**
+ * Everyday spending for the week — the half of "financial activity" this
+ * briefing used to miss entirely, because it read `Transaction` (NEPSE
+ * trades) and never `Expense`.
+ *
+ * All arithmetic happens here, in integer paisa, so the model only ever
+ * receives finished figures.
+ */
+function summarizeExpenses(expenses, categories) {
+  if (!expenses.length) return "No expenses logged this week.";
+
+  const byId = Object.fromEntries(categories.map((c) => [String(c._id), c]));
+  const byType = { need: 0, want: 0, savings: 0 };
+  const byCategory = {};
+  let totalPaisa = 0;
+
+  for (const e of expenses) {
+    const paisa = Number(e.amountPaisa) || 0;
+    const category = byId[String(e.categoryId)];
+    totalPaisa += paisa;
+    if (category?.type in byType) byType[category.type] += paisa;
+    const name = category?.name || "Uncategorised";
+    byCategory[name] = (byCategory[name] || 0) + paisa;
+  }
+
+  const top = Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([name, paisa]) => `${name} ${formatMoney(paisa)}`)
+    .join(", ");
+
+  const activeDays = new Set(expenses.map((e) => e.date)).size;
+
+  return `${formatMoney(totalPaisa)} across ${expenses.length} expenses on ${activeDays} of 7 days. Needs ${formatMoney(
+    byType.need
+  )}, wants ${formatMoney(byType.want)}, savings ${formatMoney(
+    byType.savings
+  )}. Biggest categories: ${top}.`;
 }
 
 function summarizeTransactions(txns) {

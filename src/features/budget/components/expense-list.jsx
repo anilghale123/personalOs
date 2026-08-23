@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Receipt, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn, formatDate, toDateKey } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
@@ -38,13 +39,21 @@ export function ExpenseList({ categories }) {
   const summary = useBudgetStore((s) => s.summary);
   const budgetPeriod = useBudgetStore((s) => s.budgetPeriod);
 
+  // A discovery's evidence rows link here with the day already selected,
+  // so the user lands on exactly the expenses a finding was computed from.
+  const searchParams = useSearchParams();
+  const initialFrom = searchParams.get("dateFrom") ?? "";
+  const initialTo = searchParams.get("dateTo") ?? "";
+
   const [q, setQ] = React.useState("");
   const [categoryId, setCategoryId] = React.useState("");
   const [paymentMethod, setPaymentMethod] = React.useState("");
-  const [dateFrom, setDateFrom] = React.useState("");
-  const [dateTo, setDateTo] = React.useState("");
+  const [dateFrom, setDateFrom] = React.useState(initialFrom);
+  const [dateTo, setDateTo] = React.useState(initialTo);
   const [sort, setSort] = React.useState("date_desc");
-  const [showFilters, setShowFilters] = React.useState(false);
+  const [showFilters, setShowFilters] = React.useState(
+    Boolean(initialFrom || initialTo)
+  );
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);

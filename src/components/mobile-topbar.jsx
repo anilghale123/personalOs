@@ -8,7 +8,7 @@ import { BrandMark } from "@/components/brand-mark";
 /**
  * Sticky phone brand row. Transparent at rest; once the page scrolls it
  * gains a hairline and a soft shadow so content reads as passing under it.
- * Tapping the mark goes home (Today).
+ * Tapping the mark goes home (Discoveries).
  */
 export function MobileTopBar() {
   const [scrolled, setScrolled] = React.useState(false);
@@ -29,7 +29,7 @@ export function MobileTopBar() {
       )}
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <Link href="/app" aria-label="Today — home" className="inline-flex h-11 items-center">
+      <Link href="/app" aria-label="Discoveries — home" className="inline-flex h-11 items-center">
         <BrandMark />
       </Link>
     </header>

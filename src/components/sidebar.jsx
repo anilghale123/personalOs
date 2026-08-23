@@ -17,6 +17,7 @@ import {
   PiggyBank,
   ChevronDown,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,13 +26,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 
+/**
+ * Discoveries leads, because that is what this app is for. Everything
+ * else is where the data comes from.
+ */
 const NAV = [
-  { href: "/app", label: "Overview", icon: LayoutDashboard },
-  { href: "/app/goals", label: "Goals & Habits", icon: Target },
-  { href: "/app/planner", label: "Weekly Planner", icon: CalendarDays },
+  { href: "/app", label: "Discoveries", icon: Sparkles },
+  { href: "/app/today", label: "Today", icon: LayoutDashboard },
+  { href: "/app/journal", label: "Journal", icon: BookOpen },
   {
     href: "/app/budget",
-    label: "Budgeting",
+    label: "Money",
     icon: Receipt,
     children: [
       { href: "/app/budget/expenses", label: "Expenses", icon: Receipt },
@@ -40,13 +45,18 @@ const NAV = [
       { href: "/app/budget/goals", label: "Goals", icon: PiggyBank },
     ],
   },
+  { href: "/app/goals", label: "Habits & Goals", icon: Target },
+  { href: "/app/weekly", label: "Weekly", icon: CalendarCheck },
+  { href: "/app/planner", label: "Planner", icon: CalendarDays },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
-  { href: "/app/journal", label: "Journal", icon: BookOpen },
-  { href: "/app/review", label: "Weekly Review", icon: CalendarCheck },
 ];
 
 function isActivePath(pathname, href) {
-  if (href === "/app") return pathname === "/app";
+  // /app is Discoveries, and /app/discoveries is its archive — both light
+  // the same nav entry, but neither may claim /app/today.
+  if (href === "/app") {
+    return pathname === "/app" || pathname.startsWith("/app/discoveries");
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -133,9 +143,6 @@ function NavContent({ user, pathname, onOpenProfile }) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        <p className="px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Modules
-        </p>
         {NAV.map((item) =>
           item.children ? (
             <NavGroup key={item.href} item={item} pathname={pathname} />

@@ -26,6 +26,26 @@ const DailyJournalSchema = new mongoose.Schema(
     content: { type: String, default: "" }, // long-form reflection (Markdown)
     tags: [String],
     aiSummary: { type: String, default: "" }, // per-day AI reflection
+    /**
+     * Structured signals extracted from `content`.
+     *
+     * Additive and optional — exactly like `title` and `aiSummary` before
+     * it, old documents simply lack the field and no migration is needed.
+     *
+     * `sentiment` matters more than it looks: mood is optional and
+     * nullable, and sparse mood coverage is the binding constraint on
+     * most of the pattern engine. A sentiment derived from writing the
+     * user was going to do anyway is an independent fallback signal for
+     * days where no mood was ever set.
+     */
+    signals: {
+      sentiment: { type: Number, min: -1, max: 1 },
+      energy: { type: String, enum: ["low", "medium", "high"] },
+      themes: [String],
+      stressors: [String],
+      extractedAt: Date,
+      model: String,
+    },
   },
   { timestamps: true, collection: "journalentries" }
 );

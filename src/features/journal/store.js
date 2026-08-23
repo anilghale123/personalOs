@@ -190,6 +190,19 @@ export const useJournalStore = create(
               },
             },
           });
+          // Derive tone/themes from what was just written, so the pattern
+          // engine has an emotional signal for days with no mood set.
+          // Fire-and-forget: the route is opt-in and returns a plain
+          // "off" when journal analysis is disabled, so nothing here
+          // needs to know or care which it is.
+          if (payload.content.trim()) {
+            fetch("/api/journal/extract", {
+              method: "POST",
+              headers: JSON_HEADERS,
+              body: JSON.stringify({ date: payload.date, force: true }),
+            }).catch(() => {});
+          }
+
           if (!silent) toast.success("Saved");
           return true;
         } catch {

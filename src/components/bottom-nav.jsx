@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   X,
   User,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/brand-mark";
@@ -24,20 +25,23 @@ import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 
 const TABS = [
-  { href: "/app/planner", label: "Planner", icon: CalendarDays },
-  { href: "/app/budget", label: "Budget", icon: Receipt },
+  { href: "/app", label: "Discover", icon: Sparkles },
+  { href: "/app/budget", label: "Money", icon: Receipt },
   { href: "/app/journal", label: "Journal", icon: BookOpen },
 ];
 
 const MORE_LINKS = [
-  { href: "/app", label: "Today", icon: LayoutDashboard },
-  { href: "/app/goals", label: "Goals", icon: Target },
+  { href: "/app/today", label: "Today", icon: LayoutDashboard },
+  { href: "/app/goals", label: "Goals & habits", icon: Target },
+  { href: "/app/weekly", label: "Weekly", icon: CalendarCheck },
+  { href: "/app/planner", label: "Planner", icon: CalendarDays },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
-  { href: "/app/review", label: "Weekly review", icon: CalendarCheck },
 ];
 
 function isActive(pathname, href) {
-  if (href === "/app") return pathname === "/app";
+  if (href === "/app") {
+    return pathname === "/app" || pathname.startsWith("/app/discoveries");
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -51,11 +55,9 @@ export function BottomNav({ user }) {
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
 
-  // "More" lights up only for secondary sections — /app (Today) is the
-  // home base, so it never marks the More tab.
-  const moreActive = MORE_LINKS.filter((l) => l.href !== "/app").some((l) =>
-    isActive(pathname, l.href)
-  );
+  // Discoveries is a tab of its own now, so "More" lights up purely for
+  // the sections that live in the sheet.
+  const moreActive = MORE_LINKS.some((l) => isActive(pathname, l.href));
 
   return (
     <>

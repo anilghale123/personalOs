@@ -1,4 +1,4 @@
-import { Database, WifiOff, ShieldCheck, Sparkles } from "lucide-react";
+import { Database, WifiOff, ShieldCheck, Sparkles, FileText } from "lucide-react";
 
 const POINTS = [
   {
@@ -19,7 +19,12 @@ const POINTS = [
   {
     icon: Sparkles,
     title: "AI only when you ask",
-    body: "An entry is sent to the Groq API only when you tap Reflect or generate the weekly briefing. Nothing is sent anywhere else, ever unprompted.",
+    body: "An entry reaches the Groq API only when you tap Reflect, or open your weekly review. Pattern detection itself never uses AI — the statistics are computed here, and a model is only ever asked to put a finished result into words.",
+  },
+  {
+    icon: FileText,
+    title: "Journal analysis is off until you turn it on",
+    body: "You can let the app read the tone of each entry as you save it, so it has something to work with on days you didn't set a mood. That sends one entry at a time to Groq, automatically, whenever you save — which is why it's off by default and lives behind a switch in your profile. Turn it off and journal text stops leaving the app.",
   },
 ];
 

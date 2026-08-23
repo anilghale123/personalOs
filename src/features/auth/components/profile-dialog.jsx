@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, KeyRound, User as UserIcon, Loader2 } from "lucide-react";
+import { Eye, EyeOff, KeyRound, User as UserIcon, Loader2, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +56,9 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [savingPassword, setSavingPassword] = React.useState(false);
 
+  const [extraction, setExtraction] = React.useState(false);
+  const [savingPrivacy, setSavingPrivacy] = React.useState(false);
+
   React.useEffect(() => {
     if (!open) return;
     setName(user?.name || "");
@@ -64,9 +67,36 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
     setConfirmPassword("");
     fetch("/api/profile")
       .then((r) => r.json())
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data);
+        setExtraction(Boolean(data?.journalExtraction));
+      })
       .catch(() => {});
   }, [open, user]);
+
+  /**
+   * Saved immediately rather than behind a Save button: a privacy switch
+   * that silently didn't apply because the dialog was closed would be the
+   * worst possible failure mode for this particular setting.
+   */
+  async function saveExtraction(next) {
+    setExtraction(next);
+    setSavingPrivacy(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journalExtraction: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(next ? "Journal analysis is on." : "Journal analysis is off.");
+    } catch {
+      setExtraction(!next);
+      toast.error("Couldn't change that setting — nothing was altered.");
+    } finally {
+      setSavingPrivacy(false);
+    }
+  }
 
   async function saveName(e) {
     e.preventDefault();
@@ -127,7 +157,7 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
         <DialogHeader>
           <DialogTitle>Your profile</DialogTitle>
           <DialogDescription>
-            Manage your name and password.
+            Manage your name, password and privacy.
           </DialogDescription>
         </DialogHeader>
 
@@ -140,6 +170,10 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
             <TabsTrigger value="security">
               <KeyRound className="h-3.5 w-3.5" />
               Security
+            </TabsTrigger>
+            <TabsTrigger value="privacy">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Privacy
             </TabsTrigger>
           </TabsList>
 
@@ -218,6 +252,40 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 </Button>
               </DialogFooter>
             </form>
+          </TabsContent>
+
+          <TabsContent value="privacy" className="space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Journal analysis</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                With this on, each journal entry you save is sent — one entry
+                at a time, never your whole journal — to Groq to derive a
+                tone and a few themes. Those become signals the pattern
+                engine can use on days you didn&apos;t set a mood.
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                With it off, no journal text leaves the app for this purpose
+                and nothing already derived is used. Everything else about
+                Discoveries keeps working — the engine reads your numbers,
+                not your writing.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-3">
+              <span className="text-sm">
+                Analyse my journal entries
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {extraction ? "On" : "Off"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[hsl(var(--brand))]"
+                checked={extraction}
+                disabled={savingPrivacy}
+                onChange={(e) => saveExtraction(e.target.checked)}
+              />
+            </label>
           </TabsContent>
         </Tabs>
       </DialogContent>
