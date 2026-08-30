@@ -29,6 +29,14 @@ const UserSchema = new mongoose.Schema(
      */
     preferences: {
       journalExtraction: { type: Boolean, default: false },
+      // Which calendar the money screens group and label months by.
+      // English (Gregorian) is the default; Nepali (Bikram Sambat) is
+      // opt-in for users in Nepal.
+      dateFormat: {
+        type: String,
+        enum: ["english", "nepali"],
+        default: "english",
+      },
     },
   },
   { timestamps: true }

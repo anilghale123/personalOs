@@ -57,11 +57,21 @@ export async function GET(request) {
   if (q?.trim()) query.note = { $regex: q.trim(), $options: "i" };
 
   await connectDB();
-  const expenses = await Expense.find(query)
-    .sort(sortFor(searchParams.get("sort")))
-    .lean();
+  const [expenses, earliest] = await Promise.all([
+    Expense.find(query).sort(sortFor(searchParams.get("sort"))).lean(),
+    // The oldest record on file, regardless of the active filters — the
+    // monthly record pager needs to know how far back it can go.
+    Expense.findOne({ userId: session.user.id, deletedAt: null })
+      .sort({ date: 1 })
+      .select("date")
+      .lean(),
+  ]);
   const totalPaisa = sumMinor(expenses);
-  return NextResponse.json({ expenses, totalPaisa });
+  return NextResponse.json({
+    expenses,
+    totalPaisa,
+    earliestDate: earliest?.date ?? null,
+  });
 }
 
 /**

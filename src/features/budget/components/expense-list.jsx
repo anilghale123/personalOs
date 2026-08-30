@@ -2,9 +2,27 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Receipt, Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Receipt,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { cn, formatDate, toDateKey } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
+import {
+  compareMonthCursors,
+  currentMonthCursor,
+  cursorForDateKey,
+  exactMonthCursor,
+  monthCursorLabel,
+  monthCursorRange,
+  shiftMonthCursor,
+} from "@/lib/months";
+import { formatBsDate } from "@/lib/nepali-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -32,12 +50,23 @@ function groupByDate(expenses) {
   }));
 }
 
-export function ExpenseList({ categories }) {
+export function ExpenseList({ categories, earliestDate: initialEarliestDate, dateFormat }) {
   const expenses = useBudgetStore((s) => s.expenses);
   const totalPaisa = useBudgetStore((s) => s.totalPaisa);
   const loadExpenses = useBudgetStore((s) => s.loadExpenses);
   const summary = useBudgetStore((s) => s.summary);
   const budgetPeriod = useBudgetStore((s) => s.budgetPeriod);
+  // The store copy refreshes on every fetch; the prop covers first paint.
+  const storeEarliestDate = useBudgetStore((s) => s.earliestDate);
+  const earliestDate = storeEarliestDate ?? initialEarliestDate ?? null;
+
+  const cal = dateFormat === "nepali" ? "np" : "en";
+  const todayKey = toDateKey();
+  const currentCursor = currentMonthCursor(cal, todayKey);
+  // The monthly record appears once history spans more than this month.
+  const hasMonthlyRecord = earliestDate
+    ? compareMonthCursors(cursorForDateKey(earliestDate, cal), currentCursor) < 0
+    : false;
 
   // A discovery's evidence rows link here with the day already selected,
   // so the user lands on exactly the expenses a finding was computed from.
@@ -45,11 +74,21 @@ export function ExpenseList({ categories }) {
   const initialFrom = searchParams.get("dateFrom") ?? "";
   const initialTo = searchParams.get("dateTo") ?? "";
 
+  // With a monthly record the list opens on the current month, unless a
+  // deep-link already pinned a range.
+  const openingRange = React.useMemo(() => {
+    if (initialFrom || initialTo || !initialEarliestDate) return null;
+    const cur = currentMonthCursor(cal, toDateKey());
+    const earliest = cursorForDateKey(initialEarliestDate, cal);
+    return compareMonthCursors(earliest, cur) < 0 ? monthCursorRange(cur) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [q, setQ] = React.useState("");
   const [categoryId, setCategoryId] = React.useState("");
   const [paymentMethod, setPaymentMethod] = React.useState("");
-  const [dateFrom, setDateFrom] = React.useState(initialFrom);
-  const [dateTo, setDateTo] = React.useState(initialTo);
+  const [dateFrom, setDateFrom] = React.useState(initialFrom || openingRange?.from || "");
+  const [dateTo, setDateTo] = React.useState(initialTo || openingRange?.to || "");
   const [sort, setSort] = React.useState("date_desc");
   const [showFilters, setShowFilters] = React.useState(
     Boolean(initialFrom || initialTo)
@@ -69,9 +108,29 @@ export function ExpenseList({ categories }) {
 
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
   const options = React.useMemo(() => categoryOptions(categories), [categories]);
-  const activeFilters = [categoryId, paymentMethod, dateFrom, dateTo].filter(
-    Boolean
-  ).length;
+
+  // The month the active range maps to — set only when the range is
+  // exactly one calendar month, so manual date edits read as "custom".
+  const activeCursor = exactMonthCursor(dateFrom, dateTo, cal);
+  const earliestCursor = earliestDate
+    ? cursorForDateKey(earliestDate, cal)
+    : null;
+  const canGoPrev = Boolean(
+    activeCursor &&
+      earliestCursor &&
+      compareMonthCursors(activeCursor, earliestCursor) > 0
+  );
+  const canGoNext = Boolean(
+    activeCursor && compareMonthCursors(activeCursor, currentCursor) < 0
+  );
+
+  // Month-pager dates are navigation, not filters — they don't count
+  // towards the badge while a month is selected.
+  const activeFilters = [
+    categoryId,
+    paymentMethod,
+    ...(activeCursor ? [] : [dateFrom, dateTo]),
+  ].filter(Boolean).length;
   const isFiltered = Boolean(q) || activeFilters > 0;
   // Day headers only make sense while the list is in date order; sorting
   // by amount falls back to one flat list.
@@ -87,6 +146,16 @@ export function ExpenseList({ categories }) {
     setPaymentMethod("");
     setDateFrom("");
     setDateTo("");
+  }
+
+  function goToCursor(cursor) {
+    const range = monthCursorRange(cursor);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  }
+
+  function shiftMonth(delta) {
+    goToCursor(shiftMonthCursor(activeCursor ?? currentCursor, delta));
   }
 
   function openAdd() {
@@ -208,12 +277,75 @@ export function ExpenseList({ categories }) {
         </div>
       )}
 
+      {/* Monthly record — appears once the history spans past this month */}
+      {hasMonthlyRecord && (
+        <div className="flex items-center gap-1 rounded-xl border bg-card p-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => shiftMonth(-1)}
+            disabled={!canGoPrev}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0 flex-1 text-center text-sm font-medium">
+            {activeCursor
+              ? monthCursorLabel(activeCursor)
+              : dateFrom || dateTo
+              ? "Custom range"
+              : "All time"}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => shiftMonth(1)}
+            disabled={!canGoNext}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {activeCursor ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 text-muted-foreground"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
+              All time
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 text-muted-foreground"
+              onClick={() => goToCursor(currentCursor)}
+            >
+              This month
+            </Button>
+          )}
+        </div>
+      )}
+
       {expenses.length === 0 ? (
         <EmptyState
           icon={Receipt}
-          title={isFiltered ? "No expenses match these filters" : "No expenses yet"}
+          title={
+            activeCursor
+              ? `No expenses in ${monthCursorLabel(activeCursor)}`
+              : isFiltered
+              ? "No expenses match these filters"
+              : "No expenses yet"
+          }
           description={
-            isFiltered
+            activeCursor
+              ? "Nothing was logged this month — the arrows above take you to other months."
+              : isFiltered
               ? "Try widening your date range or clearing a filter."
               : "Log your first expense — amount and category are all you need."
           }
@@ -243,7 +375,7 @@ export function ExpenseList({ categories }) {
             <div key={group.date} className={cn(i > 0 && "border-t")}>
               <div className="flex items-center justify-between gap-2 bg-muted/40 px-4 py-1.5">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {formatDate(group.date)}
+                  {cal === "np" ? formatBsDate(group.date) : formatDate(group.date)}
                 </span>
                 <span className="text-xs tabular-nums text-muted-foreground">
                   {formatMoney(group.totalPaisa)}

@@ -1,8 +1,21 @@
 import { Receipt } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ExpensesScreen } from "@/features/budget/components/budget-screen";
+import {
+  getDateFormat,
+  getEarliestExpenseDate,
+} from "@/features/budget/actions";
 
-export default function ExpensesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ExpensesPage() {
+  // The monthly record needs both on first paint: how far back the
+  // history goes, and which calendar to label it in.
+  const [earliestDate, dateFormat] = await Promise.all([
+    getEarliestExpenseDate(),
+    getDateFormat(),
+  ]);
+
   return (
     <>
       <PageHeader
@@ -10,7 +23,7 @@ export default function ExpensesPage() {
         title="Expenses"
         subtitle="Log spending and keep your categories in one place."
       />
-      <ExpensesScreen />
+      <ExpensesScreen earliestDate={earliestDate} dateFormat={dateFormat} />
     </>
   );
 }

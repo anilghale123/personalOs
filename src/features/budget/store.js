@@ -14,10 +14,14 @@ export const useBudgetStore = create((set, get) => ({
   totalPaisa: 0,
   filters: { sort: "date_desc" },
   loading: false,
+  // The oldest expense date on record ('YYYY-MM-DD'), refreshed by every
+  // expenses fetch — drives whether the monthly record pager appears.
+  earliestDate: null,
 
   setCategories: (categories) => set({ categories }),
   setExpenses: (expenses, totalPaisa) => set({ expenses, totalPaisa }),
   setFilters: (filters) => set({ filters }),
+  setEarliestDate: (earliestDate) => set({ earliestDate }),
 
   async loadExpenses(filters) {
     set({ loading: true, filters: { ...get().filters, ...filters } });
@@ -29,7 +33,13 @@ export const useBudgetStore = create((set, get) => ({
       const res = await fetch(`/api/budget/expenses?${params.toString()}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      set({ expenses: data.expenses, totalPaisa: data.totalPaisa });
+      set({
+        expenses: data.expenses,
+        totalPaisa: data.totalPaisa,
+        ...(data.earliestDate !== undefined
+          ? { earliestDate: data.earliestDate }
+          : {}),
+      });
     } finally {
       set({ loading: false });
     }

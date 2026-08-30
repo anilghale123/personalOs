@@ -41,6 +41,22 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   const [refreshKey, setRefreshKey] = React.useState(0);
   // Guards against a slow fetch overwriting the grid after navigation.
   const weekRef = React.useRef(initialWeekStart);
+  // Always-current goals for the stable callbacks below.
+  const goalsRef = React.useRef(goals);
+  goalsRef.current = goals;
+  // In-flight mutations per goal, so a slow response can never overwrite
+  // a newer optimistic edit (the rapid check/uncheck glitch).
+  const pendingRef = React.useRef(new Map());
+  const refreshTimer = React.useRef(null);
+
+  // Toggles often come in bursts; the calendar/history refetch once the
+  // burst settles instead of on every single tap.
+  const scheduleRefresh = React.useCallback(() => {
+    clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => setRefreshKey((n) => n + 1), 600);
+  }, []);
+
+  React.useEffect(() => () => clearTimeout(refreshTimer.current), []);
 
   const loadWeek = React.useCallback(async (ws) => {
     weekRef.current = ws;
@@ -101,54 +117,87 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
     }
   }
 
-  /** Optimistically patch a goal, rolling back the row on failure. */
-  async function patchGoal(goalId, body, optimistic) {
-    const before = goals;
-    setGoals((g) => g.map((x) => (x._id === goalId ? optimistic(x) : x)));
-    setSaving((n) => n + 1);
-    try {
-      const res = await fetch(`/api/planner/${goalId}`, {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setGoals((g) => g.map((x) => (x._id === goalId ? updated : x)));
-      setRefreshKey((n) => n + 1);
-    } catch {
-      setGoals(before); // rollback
-      toast.error("Could not save — please try again.");
-    } finally {
-      setSaving((n) => n - 1);
-    }
-  }
+  /**
+   * Optimistically patch a goal. The server's copy is applied only when
+   * no newer edit to the same goal is still in flight; on failure just
+   * the touched fields roll back, then the week quietly re-syncs.
+   */
+  const patchGoal = React.useCallback(
+    async (goalId, body, optimistic, rollback) => {
+      setGoals((g) => g.map((x) => (x._id === goalId ? optimistic(x) : x)));
+      pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 0) + 1);
+      setSaving((n) => n + 1);
+      try {
+        const res = await fetch(`/api/planner/${goalId}`, {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error();
+        const updated = await res.json();
+        if (pendingRef.current.get(goalId) === 1) {
+          setGoals((g) => g.map((x) => (x._id === goalId ? updated : x)));
+        }
+        scheduleRefresh();
+      } catch {
+        setGoals((g) => g.map((x) => (x._id === goalId ? rollback(x) : x)));
+        toast.error("Could not save — please try again.");
+        loadWeek(weekRef.current);
+      } finally {
+        pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 1) - 1);
+        setSaving((n) => n - 1);
+      }
+    },
+    [loadWeek, scheduleRefresh]
+  );
 
-  function updateDay(goalId, day, status) {
-    patchGoal(goalId, { day, status }, (g) => ({
-      ...g,
-      days: { ...g.days, [day]: status },
-    }));
-  }
+  const updateDay = React.useCallback(
+    (goalId, day, status) => {
+      const prev =
+        goalsRef.current.find((x) => x._id === goalId)?.days?.[day] || "pending";
+      patchGoal(
+        goalId,
+        { day, status },
+        (g) => ({ ...g, days: { ...g.days, [day]: status } }),
+        (g) => ({ ...g, days: { ...g.days, [day]: prev } })
+      );
+    },
+    [patchGoal]
+  );
 
-  function updateTitle(goalId, title) {
-    patchGoal(goalId, { title }, (g) => ({ ...g, title }));
-  }
+  const updateTitle = React.useCallback(
+    (goalId, title) => {
+      const prev = goalsRef.current.find((x) => x._id === goalId)?.title || "";
+      patchGoal(
+        goalId,
+        { title },
+        (g) => ({ ...g, title }),
+        (g) => ({ ...g, title: prev })
+      );
+    },
+    [patchGoal]
+  );
 
-  async function deleteGoal(goalId) {
-    const before = goals;
-    setGoals((g) => g.filter((x) => x._id !== goalId));
-    try {
-      const res = await fetch(`/api/planner/${goalId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      setRefreshKey((n) => n + 1);
-    } catch {
-      setGoals(before); // rollback
-      toast.error("Could not delete goal.");
-    }
-  }
+  const deleteGoal = React.useCallback(
+    async (goalId) => {
+      const before = goalsRef.current;
+      setGoals((g) => g.filter((x) => x._id !== goalId));
+      try {
+        const res = await fetch(`/api/planner/${goalId}`, { method: "DELETE" });
+        if (!res.ok) throw new Error();
+        scheduleRefresh();
+      } catch {
+        setGoals(before); // rollback
+        toast.error("Could not delete goal.");
+      }
+    },
+    [scheduleRefresh]
+  );
 
-  const weekDates = DAYS.map((_, i) => addDays(parseISO(weekStart), i));
+  const weekDates = React.useMemo(
+    () => DAYS.map((_, i) => addDays(parseISO(weekStart), i)),
+    [weekStart]
+  );
   const todayKey = toDateKey();
   const start = parseISO(weekStart);
   const label = `${format(start, "MMM d")} – ${format(
@@ -380,13 +429,10 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
                   goal={goal}
                   weekDates={weekDates}
                   todayKey={todayKey}
-                  toDateKey={toDateKey}
                   gridCols={GRID_COLS}
-                  onUpdateDay={(day, status) =>
-                    updateDay(goal._id, day, status)
-                  }
-                  onUpdateTitle={(title) => updateTitle(goal._id, title)}
-                  onDelete={() => deleteGoal(goal._id)}
+                  onUpdateDay={updateDay}
+                  onUpdateTitle={updateTitle}
+                  onDelete={deleteGoal}
                 />
               ))
             )}

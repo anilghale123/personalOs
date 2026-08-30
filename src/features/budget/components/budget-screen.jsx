@@ -41,7 +41,7 @@ function BudgetHint() {
   );
 }
 
-export function ExpensesScreen() {
+export function ExpensesScreen({ earliestDate, dateFormat }) {
   const categories = useBudgetStore((s) => s.categories);
 
   return (
@@ -54,7 +54,11 @@ export function ExpensesScreen() {
         </TabsList>
 
         <TabsContent value="expenses">
-          <ExpenseList categories={categories} />
+          <ExpenseList
+            categories={categories}
+            earliestDate={earliestDate}
+            dateFormat={dateFormat}
+          />
         </TabsContent>
 
         <TabsContent value="categories">

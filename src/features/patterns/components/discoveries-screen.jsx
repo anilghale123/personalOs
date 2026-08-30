@@ -11,7 +11,7 @@ import { MOODS } from "@/features/journal/components/mood-picker";
 import { usePatternStore } from "../store";
 import { splitFeed } from "../feed";
 import { HeadlineInsight, InsightCard } from "./insight-card";
-import { DataReadiness } from "./data-readiness";
+import { WeeklyBriefing } from "./weekly-briefing";
 
 /**
  * Discoveries — the front door.
@@ -22,7 +22,7 @@ import { DataReadiness } from "./data-readiness";
  * states where nothing was found matter as much as the ones where
  * something was: a product that always finds something is lying.
  */
-export function DiscoveriesScreen({ initial, lifeline, firstName }) {
+export function DiscoveriesScreen({ initial, lifeline, briefing, firstName }) {
   const { insights, readiness, meta, runStatus, hydrate, runPatterns, needsRun } =
     usePatternStore();
   const startedRef = React.useRef(false);
@@ -93,7 +93,7 @@ export function DiscoveriesScreen({ initial, lifeline, firstName }) {
           <ComputingState />
         )}
 
-        <DataReadiness readiness={readiness} compact={hasFindings} />
+        <WeeklyBriefing briefing={briefing} />
 
         <QuickLog />
 

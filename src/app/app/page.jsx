@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getDiscoveriesData, getLifelineWeek } from "@/features/patterns/actions";
+import { getDiscoveriesData, getLifelineWeek, getWeeklyBriefing } from "@/features/patterns/actions";
 import { DiscoveriesScreen } from "@/features/patterns/components/discoveries-screen";
 
 export const dynamic = "force-dynamic";
@@ -14,15 +14,17 @@ export const dynamic = "force-dynamic";
  */
 export default async function DiscoveriesPage() {
   const session = await auth();
-  const [data, lifeline] = await Promise.all([
+  const [data, lifeline, briefing] = await Promise.all([
     getDiscoveriesData(),
     getLifelineWeek(),
+    getWeeklyBriefing(),
   ]);
 
   return (
     <DiscoveriesScreen
       initial={data ?? { insights: [], readiness: null, meta: null }}
       lifeline={lifeline}
+      briefing={briefing}
       firstName={session?.user?.name?.split(" ")[0] || "there"}
     />
   );

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, KeyRound, User as UserIcon, Loader2, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, KeyRound, User as UserIcon, Loader2, ShieldCheck, CalendarDays } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,9 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
   const [extraction, setExtraction] = React.useState(false);
   const [savingPrivacy, setSavingPrivacy] = React.useState(false);
 
+  const [dateFormat, setDateFormat] = React.useState("english");
+  const [savingDateFormat, setSavingDateFormat] = React.useState(false);
+
   React.useEffect(() => {
     if (!open) return;
     setName(user?.name || "");
@@ -70,9 +74,38 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
       .then((data) => {
         setProfile(data);
         setExtraction(Boolean(data?.journalExtraction));
+        setDateFormat(data?.dateFormat === "nepali" ? "nepali" : "english");
       })
       .catch(() => {});
   }, [open, user]);
+
+  /**
+   * Saved the moment it's picked, like the privacy switch — a calendar
+   * choice that silently didn't apply would be confusing on the very
+   * next screen the user opens.
+   */
+  async function saveDateFormat(next) {
+    setDateFormat(next);
+    setSavingDateFormat(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dateFormat: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(
+        next === "nepali"
+          ? "Dates will follow the Nepali calendar."
+          : "Dates will follow the English calendar."
+      );
+    } catch {
+      setDateFormat(next === "nepali" ? "english" : "nepali");
+      toast.error("Couldn't change that setting — nothing was altered.");
+    } finally {
+      setSavingDateFormat(false);
+    }
+  }
 
   /**
    * Saved immediately rather than behind a Save button: a privacy switch
@@ -171,6 +204,10 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
               <KeyRound className="h-3.5 w-3.5" />
               Security
             </TabsTrigger>
+            <TabsTrigger value="preferences">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Preferences
+            </TabsTrigger>
             <TabsTrigger value="privacy">
               <ShieldCheck className="h-3.5 w-3.5" />
               Privacy
@@ -252,6 +289,50 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 </Button>
               </DialogFooter>
             </form>
+          </TabsContent>
+
+          <TabsContent value="preferences" className="space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Date format</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Which calendar the money screens use to group and label
+                months. English is the default; Nepali (Bikram Sambat)
+                follows months like Baisakh and Bhadra instead.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { id: "english", label: "English (AD)", hint: "January – December" },
+                { id: "nepali", label: "Nepali (BS)", hint: "Baisakh – Chaitra" },
+              ].map((option) => (
+                <label
+                  key={option.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+                    dateFormat === option.id
+                      ? "border-primary bg-primary/5"
+                      : "hover:bg-accent/60",
+                    savingDateFormat && "pointer-events-none opacity-60"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="date-format"
+                    className="h-4 w-4 accent-[hsl(var(--brand))]"
+                    checked={dateFormat === option.id}
+                    disabled={savingDateFormat}
+                    onChange={() => saveDateFormat(option.id)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {option.hint}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-4">

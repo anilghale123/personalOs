@@ -26,12 +26,14 @@ export async function GET() {
     // Absent on accounts created before the preference existed, which
     // reads correctly as "off".
     journalExtraction: Boolean(user.preferences?.journalExtraction),
+    // Same story — absent reads as the English calendar.
+    dateFormat: user.preferences?.dateFormat === "nepali" ? "nepali" : "english",
   });
 }
 
 /**
  * PATCH /api/profile — update display name and/or preferences.
- * Body: { name?, journalExtraction? }
+ * Body: { name?, journalExtraction?, dateFormat? }
  */
 export async function PATCH(request) {
   const session = await auth();
@@ -51,6 +53,12 @@ export async function PATCH(request) {
   // the route that performs it checks this on every call.
   if (body?.journalExtraction !== undefined) {
     update["preferences.journalExtraction"] = Boolean(body.journalExtraction);
+  }
+  if (body?.dateFormat !== undefined) {
+    if (!["english", "nepali"].includes(body.dateFormat)) {
+      return NextResponse.json({ error: "Invalid date format." }, { status: 400 });
+    }
+    update["preferences.dateFormat"] = body.dateFormat;
   }
 
   if (!Object.keys(update).length) {
@@ -76,5 +84,6 @@ export async function PATCH(request) {
     image: user.image,
     provider: user.provider,
     journalExtraction: Boolean(user.preferences?.journalExtraction),
+    dateFormat: user.preferences?.dateFormat === "nepali" ? "nepali" : "english",
   });
 }

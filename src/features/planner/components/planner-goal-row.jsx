@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check, X, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, toDateKey } from "@/lib/utils";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Tapping a cell cycles through the three states.
@@ -23,14 +23,24 @@ function DayToggle({ status, isToday, onChange }) {
           cn("hover:bg-muted/60", isToday && "bg-primary/5")
       )}
     >
+      {/* Keyed by status so the pop replays on every change. */}
       {status === "done" && (
-        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <Check
+          key="done"
+          className="h-4 w-4 animate-check-pop text-emerald-600 dark:text-emerald-400"
+        />
       )}
       {status === "missed" && (
-        <X className="h-4 w-4 text-red-600 dark:text-red-400" />
+        <X
+          key="missed"
+          className="h-4 w-4 animate-check-pop text-red-600 dark:text-red-400"
+        />
       )}
       {status === "pending" && (
-        <span className="h-3.5 w-3.5 rounded-full border border-dashed border-muted-foreground/40" />
+        <span
+          key="pending"
+          className="h-3.5 w-3.5 rounded-full border border-dashed border-muted-foreground/40"
+        />
       )}
     </button>
   );
@@ -39,12 +49,14 @@ function DayToggle({ status, isToday, onChange }) {
 /**
  * A planner goal row — editable title in the Goals column, followed by
  * a done/missed toggle for each day of the week.
+ *
+ * Memoised: the screen keeps stable callbacks and a stable weekDates,
+ * so a tap on one cell re-renders only this row, not the whole grid.
  */
-export function PlannerGoalRow({
+function PlannerGoalRowInner({
   goal,
   weekDates,
   todayKey,
-  toDateKey,
   gridCols,
   onUpdateDay,
   onUpdateTitle,
@@ -64,7 +76,7 @@ export function PlannerGoalRow({
       setTitle(goal.title); // revert empty / unchanged
       return;
     }
-    onUpdateTitle(trimmed);
+    onUpdateTitle(goal._id, trimmed);
   }
 
   const statuses = DAYS.map((d) => goal.days?.[d] || "pending");
@@ -104,7 +116,7 @@ export function PlannerGoalRow({
           </span>
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => onDelete(goal._id)}
             aria-label="Delete goal"
             className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
           >
@@ -119,9 +131,11 @@ export function PlannerGoalRow({
           key={day}
           status={goal.days?.[day] || "pending"}
           isToday={toDateKey(weekDates[i]) === todayKey}
-          onChange={(status) => onUpdateDay(day, status)}
+          onChange={(status) => onUpdateDay(goal._id, day, status)}
         />
       ))}
     </div>
   );
 }
+
+export const PlannerGoalRow = React.memo(PlannerGoalRowInner);

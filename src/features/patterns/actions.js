@@ -4,10 +4,15 @@ import { auth } from "@/lib/auth";
 import connectDB from "@/lib/mongoose";
 import Insight from "@/models/Insight";
 import PatternRun from "@/models/PatternRun";
+import PlannerGoal from "@/models/PlannerGoal";
+import Expense from "@/models/Expense";
+import Category from "@/models/Category";
 import { toDateKey } from "@/lib/utils";
+import { weekStartKey } from "@/lib/week";
 import { computeCoverage, getDailySignals } from "./signals";
 import { renderStatement, DEFAULT_WINDOW_DAYS, MIN_ACTIVE_DAYS, READINESS_DOMAINS, RUN_TTL_HOURS } from "./constants";
 import { addDays } from "./dates";
+import { buildHabitNotes, buildMoneyNotes, orderNotes } from "./briefing";
 
 /**
  * Server-side data fetchers for the Discoveries screens.
@@ -180,6 +185,88 @@ async function readinessFor(userId) {
         ready: covered >= domain.target,
       };
     }),
+  };
+}
+
+/**
+ * The weekly briefing — this week's planner checkmarks and spending,
+ * already turned into plain sentences. Deterministic: no model is
+ * involved, so every number in the text came from the rows below.
+ *
+ * Reads the planner week directly rather than through getPlannerWeek —
+ * the briefing must never trigger the copy-forward side effect.
+ */
+export async function getWeeklyBriefing() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const userId = session.user.id;
+  const name = session.user.name?.split(" ")[0] || "there";
+
+  await connectDB();
+  const wsKey = weekStartKey();
+  const todayKey = toDateKey();
+  // Days from Monday to today, inclusive — the days that could have a tick.
+  const elapsedDays = Math.max(
+    1,
+    Math.min(
+      7,
+      Math.round(
+        (new Date(`${todayKey}T12:00:00`) - new Date(`${wsKey}T12:00:00`)) /
+          86_400_000
+      ) + 1
+    )
+  );
+
+  const [goals, weekExpenses, lastWeekExpenses, categories] = await Promise.all([
+    PlannerGoal.find({ userId, weekStart: wsKey }).sort({ createdAt: 1 }).lean(),
+    Expense.find({
+      userId,
+      deletedAt: null,
+      date: { $gte: wsKey, $lte: todayKey },
+    }).lean(),
+    Expense.find({
+      userId,
+      deletedAt: null,
+      date: { $gte: addDays(wsKey, -7), $lte: addDays(wsKey, -1) },
+    }).lean(),
+    Category.find({ userId }).select("name icon").lean(),
+  ]);
+
+  const catMap = Object.fromEntries(categories.map((c) => [String(c._id), c]));
+  const sum = (rows) => rows.reduce((s, e) => s + (e.amountPaisa || 0), 0);
+  const weekPaisa = sum(weekExpenses);
+  const lastWeekPaisa = sum(lastWeekExpenses);
+
+  const byCategory = new Map();
+  for (const e of weekExpenses) {
+    const id = String(e.categoryId);
+    byCategory.set(id, (byCategory.get(id) || 0) + (e.amountPaisa || 0));
+  }
+  let top = null;
+  if (weekPaisa > 0) {
+    for (const [id, paisa] of byCategory) {
+      if (!top || paisa > top.paisa) {
+        const cat = catMap[id];
+        top = {
+          name: cat?.name || "Uncategorised",
+          paisa,
+          share: paisa / weekPaisa,
+        };
+      }
+    }
+  }
+
+  return {
+    habitNotes: orderNotes(buildHabitNotes(goals, elapsedDays, name)),
+    moneyNotes: buildMoneyNotes({
+      weekPaisa,
+      lastWeekPaisa,
+      top,
+      categoryCount: byCategory.size,
+      name,
+    }),
+    hasGoals: goals.length > 0,
+    elapsedDays,
   };
 }
 

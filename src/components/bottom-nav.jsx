@@ -11,7 +11,6 @@ import {
   Receipt,
   TrendingUp,
   CalendarDays,
-  CalendarCheck,
   LogOut,
   MoreHorizontal,
   X,
@@ -33,7 +32,6 @@ const TABS = [
 const MORE_LINKS = [
   { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/goals", label: "Goals & habits", icon: Target },
-  { href: "/app/weekly", label: "Weekly", icon: CalendarCheck },
   { href: "/app/planner", label: "Planner", icon: CalendarDays },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];

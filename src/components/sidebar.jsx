@@ -9,7 +9,6 @@ import {
   Target,
   TrendingUp,
   BookOpen,
-  CalendarCheck,
   CalendarDays,
   Receipt,
   Wallet,
@@ -46,7 +45,6 @@ const NAV = [
     ],
   },
   { href: "/app/goals", label: "Habits & Goals", icon: Target },
-  { href: "/app/weekly", label: "Weekly", icon: CalendarCheck },
   { href: "/app/planner", label: "Planner", icon: CalendarDays },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];

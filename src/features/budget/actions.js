@@ -5,6 +5,7 @@ import Category from "@/models/Category";
 import Expense from "@/models/Expense";
 import Debt from "@/models/Debt";
 import FinancialGoal from "@/models/FinancialGoal";
+import User from "@/models/User";
 import { auth } from "@/lib/auth";
 import { sumMinor } from "@/lib/money";
 import { DEFAULT_CATEGORIES } from "./constants";
@@ -94,6 +95,27 @@ export async function getExpenses(filters = {}) {
 export async function getCurrentMonthExpenses() {
   const { start, end } = periodRange("month");
   return getExpenses({ dateFrom: start, dateTo: end, sort: "date_desc" });
+}
+
+/** The oldest expense date on record — drives the monthly record pager. */
+export async function getEarliestExpenseDate() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  await connectDB();
+  const earliest = await Expense.findOne({ userId: session.user.id, deletedAt: null })
+    .sort({ date: 1 })
+    .select("date")
+    .lean();
+  return earliest?.date ?? null;
+}
+
+/** The user's calendar preference for the money screens ('english' | 'nepali'). */
+export async function getDateFormat() {
+  const session = await auth();
+  if (!session?.user?.id) return "english";
+  await connectDB();
+  const user = await User.findById(session.user.id).select("preferences").lean();
+  return user?.preferences?.dateFormat === "nepali" ? "nepali" : "english";
 }
 
 /** Budget limits vs actual spend for the given period (defaults to monthly). */
