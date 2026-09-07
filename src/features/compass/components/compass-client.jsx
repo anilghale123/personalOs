@@ -35,15 +35,11 @@ import {
 
 const CATEGORIES = ["study", "health", "finance", "career", "personal"];
 const CATEGORY_TONE = {
-  study: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  health:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  finance:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  career:
-    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-  personal:
-    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  study: "bg-sage-200 text-sage-900",
+  health: "bg-sage-300 text-sage-900",
+  finance: "bg-clay-200 text-clay-900",
+  career: "bg-clay-300 text-clay-900",
+  personal: "bg-sand-200 text-sand-800",
 };
 
 export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
@@ -113,7 +109,7 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="gap-1">
-              <Flame className="h-3 w-3 text-amber-500" />
+              <Flame className="h-3 w-3 text-clay-500" />
               {streak} day streak
             </Badge>
             <AddHabitDialog onAdd={addHabit} />
@@ -135,26 +131,26 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
                     key={habit}
                     onClick={() => toggleHabit(habit, today, !done)}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                      "flex items-center gap-3 rounded-md px-3.5 py-3 text-left text-[15px] transition-colors",
                       done
-                        ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
-                        : "hover:bg-accent/60"
+                        ? "bg-sage-200 text-sage-900"
+                        : "bg-sand-200 hover:bg-sand-300"
                     )}
                   >
                     <span
                       className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-md border",
+                        "flex h-5 w-5 items-center justify-center rounded-full",
                         done
-                          ? "border-emerald-500 bg-emerald-500 text-white"
-                          : "border-input"
+                          ? "bg-sage-700 text-sage-100"
+                          : "border border-sand-400"
                       )}
                     >
                       {done && <Check className="h-3.5 w-3.5" />}
                     </span>
                     <span
                       className={cn(
-                        "flex-1 font-medium",
-                        done && "text-emerald-700 dark:text-emerald-300"
+                        "flex-1",
+                        done && "font-semibold"
                       )}
                     >
                       {habit}

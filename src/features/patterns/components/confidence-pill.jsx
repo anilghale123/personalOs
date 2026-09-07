@@ -25,13 +25,13 @@ export function ConfidencePill({ insight, className, showLabel = true }) {
             key={i}
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              i < filled ? "bg-brand" : "bg-muted-foreground/25"
+              i < filled ? "bg-primary" : "bg-sand-400"
             )}
           />
         ))}
       </span>
       {showLabel && (
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-[13px] text-sand-600">{label}</span>
       )}
       <span className="sr-only">
         {insight?.confidence} confidence — {label}

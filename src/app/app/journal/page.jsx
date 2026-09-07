@@ -39,7 +39,7 @@ export default async function JournalPage({ searchParams }) {
       <PageHeader
         icon={BookOpen}
         title="Journal"
-        subtitle="One entry a day, plus anything worth capturing in between."
+        subtitle="One entry a day, plus anything in between"
       />
       <JournalScreen
         initialData={{

@@ -6,7 +6,7 @@ import { BrandMark } from "@/components/brand-mark";
 export function LandingClosing({ signedIn }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-5 pb-10 pt-28 text-center sm:px-8 sm:pt-36">
-      <h2 className="text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+      <h2 className="text-balance font-display text-3xl tracking-tight sm:text-4xl lg:text-5xl">
         Start tonight.
       </h2>
       <p className="mx-auto mt-4 max-w-md text-balance leading-relaxed text-muted-foreground">

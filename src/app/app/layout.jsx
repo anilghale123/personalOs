@@ -19,8 +19,8 @@ export default async function AppLayout({ children }) {
 
       <MobileTopBar />
 
-      <div className="md:pl-64">
-        <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-8 md:py-10">
+      <div className="md:pl-[248px]">
+        <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-8 md:px-14 md:pb-16 md:pt-11">
           {children}
         </main>
       </div>

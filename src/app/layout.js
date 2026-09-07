@@ -1,17 +1,19 @@
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Caprasimo, Figtree } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const inter = Inter({
+const figtree = Figtree({
   subsets: ["latin"],
   variable: "--font-body",
   weight: ["400", "500", "600", "700"],
 });
 
-const spaceGrotesk = Space_Grotesk({
+// Organic's display face. Caprasimo ships a single weight — headings get
+// their emphasis from size, never from bolding.
+const caprasimo = Caprasimo({
   subsets: ["latin"],
   variable: "--font-display",
-  weight: ["500", "600", "700"],
+  weight: ["400"],
 });
 
 /** Sets the theme class before first paint so dark users never see a flash. */
@@ -55,8 +57,8 @@ export const metadata = {
 
 export const viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F7F4" },
-    { media: "(prefers-color-scheme: dark)", color: "#0F0F12" },
+    { media: "(prefers-color-scheme: light)", color: "#f5ead8" },
+    { media: "(prefers-color-scheme: dark)", color: "#16150f" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -67,7 +69,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}
+        className={`${figtree.variable} ${caprasimo.variable} font-sans`}
       >
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <Providers>{children}</Providers>

@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 export function StatCard({ label, value, hint, icon: Icon, tone = "default" }) {
   const toneClass = {
     default: "text-foreground",
-    positive: "text-emerald-600 dark:text-emerald-400",
+    positive: "text-positive",
     negative: "text-destructive",
   }[tone];
 

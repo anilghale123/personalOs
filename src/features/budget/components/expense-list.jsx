@@ -211,7 +211,7 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card elev-sm p-3">
           <Select
             className="h-8 w-44"
             value={categoryId}
@@ -279,7 +279,7 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
 
       {/* Monthly record — appears once the history spans past this month */}
       {hasMonthlyRecord && (
-        <div className="flex items-center gap-1 rounded-xl border bg-card p-2">
+        <div className="flex items-center gap-1 rounded-2xl bg-card elev-sm p-2">
           <Button
             variant="outline"
             size="icon"
@@ -358,7 +358,7 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
           )}
         </EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
+        <div className="overflow-hidden rounded-2xl bg-card elev-sm">
           {!grouped && (
             <div className="divide-y px-2">
               {expenses.map((e) => (

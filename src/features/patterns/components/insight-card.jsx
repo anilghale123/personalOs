@@ -10,24 +10,30 @@ import { MiniEvidence } from "./evidence-chart";
 
 /** Domain chips — the two worlds a finding sits between. */
 const DOMAIN_META = {
-  money: { label: "Money", icon: "💰" },
-  journal: { label: "Mood", icon: "🧠" },
-  habits: { label: "Habits", icon: "🔁" },
+  money: { label: "Money", tone: "bg-clay-200 text-clay-900" },
+  journal: { label: "Mood", tone: "bg-sage-200 text-sage-900" },
+  habits: { label: "Habits", tone: "bg-sand-200 text-sand-800" },
 };
 
+/** The worlds a finding sits between, as Organic pills. */
 export function DomainChips({ domains, className }) {
   return (
-    <span className={cn("flex flex-wrap items-center gap-1 text-xs text-muted-foreground", className)}>
-      {(domains ?? []).map((domain, i) => {
-        const meta = DOMAIN_META[domain] ?? { label: domain, icon: "•" };
+    <span className={cn("flex flex-wrap items-center gap-2", className)}>
+      {(domains ?? []).map((domain) => {
+        const meta = DOMAIN_META[domain] ?? {
+          label: domain,
+          tone: "bg-sand-200 text-sand-800",
+        };
         return (
-          <React.Fragment key={domain}>
-            {i > 0 && <span className="text-muted-foreground/50">×</span>}
-            <span className="inline-flex items-center gap-1">
-              <span aria-hidden="true">{meta.icon}</span>
-              {meta.label}
-            </span>
-          </React.Fragment>
+          <span
+            key={domain}
+            className={cn(
+              "inline-flex h-7 items-center rounded-full px-3.5 text-[13px]",
+              meta.tone
+            )}
+          >
+            {meta.label}
+          </span>
         );
       })}
     </span>
@@ -100,7 +106,7 @@ function OverflowMenu({ insight }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-lg border bg-card py-1 shadow-lg"
+          className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-2xl bg-card elev-sm py-1 shadow-lg"
         >
           {items.map((item) => {
             const Icon = item.icon;
@@ -137,7 +143,7 @@ export function InsightCard({ insight, className }) {
   return (
     <article
       className={cn(
-        "group relative rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 sm:p-5",
+        "group relative rounded-2xl bg-card elev-sm p-4 transition-colors hover:border-foreground/20 sm:p-5",
         insight.status === "stale" && "opacity-70",
         className
       )}
@@ -192,38 +198,69 @@ export function HeadlineInsight({ insight }) {
   const markRead = usePatternStore((s) => s.markRead);
 
   return (
-    <article className="relative rounded-xl border border-brand/25 bg-brand/[0.04] p-5 sm:p-6">
+    <article className="relative border-b border-border pb-10">
       <div className="flex items-start justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-brand">
-          <span aria-hidden="true">✦</span> Headline discovery
-        </span>
+        <p className="kicker text-[13px] text-clay-700">
+          The one thing worth knowing
+        </p>
         <OverflowMenu insight={insight} />
       </div>
 
       <Link
         href={`/app/discoveries/${insight.id}`}
         onClick={() => markRead(insight.id)}
-        className="mt-3 block focus:outline-none"
+        className="mt-5 block focus:outline-none"
       >
         <span className="absolute inset-0 z-0" aria-hidden="true" />
-        <p className="relative z-10 font-display text-lg leading-snug sm:text-xl">
+        <h2 className="relative z-10 max-w-[24ch] text-balance font-display text-[28px] leading-[1.1] sm:text-4xl lg:text-[52px]">
           {insight.statement}
-        </p>
+        </h2>
       </Link>
 
-      <div className="relative z-10 mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <ConfidencePill insight={insight} />
-        <span className="tnum text-xs text-muted-foreground">
-          Based on {insight.n} days
-        </span>
+      <div className="relative z-10 mt-[22px] flex flex-wrap items-center gap-x-[18px] gap-y-3">
         <Link
           href={`/app/discoveries/${insight.id}`}
           onClick={() => markRead(insight.id)}
-          className="relative z-10 text-xs font-medium text-brand hover:underline"
+          className={cn(
+            "inline-flex items-center rounded-full bg-primary px-6 py-3 font-display text-sm",
+            "text-primary-foreground transition-colors hover:bg-clay-600"
+          )}
         >
-          See the evidence →
+          See the evidence
         </Link>
+        <span className="flex flex-wrap items-center gap-2 text-sm text-sand-600">
+          <ConfidencePill insight={insight} />
+          <span className="tnum">· {insight.n} days</span>
+        </span>
       </div>
     </article>
+  );
+}
+
+/**
+ * One secondary finding, as a row — the "Also noticed" form. Statement on
+ * the left, the measurement on the right, separated by a hairline.
+ */
+export function InsightRow({ insight }) {
+  const markRead = usePatternStore((s) => s.markRead);
+  const window = windowLabel(insight);
+
+  return (
+    <Link
+      href={`/app/discoveries/${insight.id}`}
+      onClick={() => markRead(insight.id)}
+      className={cn(
+        "grid grid-cols-[1fr_auto] items-center gap-5 border-t border-border py-5 transition-colors",
+        "hover:bg-sand-200/40 sm:grid-cols-[1fr_130px]",
+        insight.status === "stale" && "opacity-70"
+      )}
+    >
+      <p className="text-[15px] leading-[1.5] sm:text-[17px]">
+        {insight.statement}
+      </p>
+      <span className="tnum text-right text-[13px] text-sand-600">
+        {insight.n} days{window ? ` · ${window}` : ""}
+      </span>
+    </Link>
   );
 }

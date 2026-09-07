@@ -21,7 +21,7 @@ export default async function ExpensesPage() {
       <PageHeader
         icon={Receipt}
         title="Expenses"
-        subtitle="Log spending and keep your categories in one place."
+        subtitle="Everything you have spent, and where"
       />
       <ExpensesScreen earliestDate={earliestDate} dateFormat={dateFormat} />
     </>

@@ -8,7 +8,7 @@ export default function BudgetGoalsPage() {
       <PageHeader
         icon={PiggyBank}
         title="Savings goals"
-        subtitle="Put money aside for something specific."
+        subtitle="What the money you keep is for"
       />
       <FinancialGoalsScreen />
     </>

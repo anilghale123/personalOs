@@ -66,7 +66,7 @@ export function DiscoveriesArchive({ initial }) {
           <ArrowLeft className="h-4 w-4" />
           Discoveries
         </Link>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">
+        <h1 className="mt-2 font-display text-2xl tracking-tight">
           All discoveries
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -136,7 +136,7 @@ function FilterRow({ label, options, value, onChange }) {
             "min-h-[36px] rounded-full border px-3 text-xs transition-colors",
             value === option.id
               ? "border-foreground/20 bg-accent text-foreground"
-              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              : "text-muted-foreground hover:bg-sand-200/60 hover:text-foreground"
           )}
         >
           {option.label}

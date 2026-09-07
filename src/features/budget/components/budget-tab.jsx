@@ -86,7 +86,7 @@ function TotalBudgetCard({ summary, periodLabel, onSave }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-5">
+    <div className="rounded-2xl bg-card elev-sm p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -424,7 +424,7 @@ export function BudgetTab({ categories }) {
         </div>
       )}
 
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-2xl bg-card elev-sm">
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <Wallet className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold">Category limits</h3>

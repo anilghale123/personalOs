@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand-mark";
 import { HeroLifeline } from "./landing-fragments";
 
-export function LandingHeader({ loggedIn }) {
+export function LandingHeader({ signedIn }) {
   return (
-    <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
+    <header className="mx-auto flex w-full max-w-[1312px] items-center gap-8 px-5 py-[26px] sm:px-8 lg:px-16">
       <BrandMark />
-      <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
+      <div className="flex-1" />
+      <nav className="hidden items-center gap-7 text-[15px] text-sand-700 sm:flex">
         <a href="#pillars" className="transition-colors hover:text-foreground">
           What&apos;s inside
         </a>
@@ -19,8 +19,8 @@ export function LandingHeader({ loggedIn }) {
           Privacy
         </a>
       </nav>
-      {loggedIn ? (
-        <Button asChild size="sm">
+      {signedIn ? (
+        <Button asChild className="rounded-full px-[22px] py-[11px]">
           <Link href="/app">Open selfView</Link>
         </Button>
       ) : (
@@ -28,12 +28,11 @@ export function LandingHeader({ loggedIn }) {
           <Button
             asChild
             variant="ghost"
-            size="sm"
-            className="hidden sm:inline-flex"
+            className="hidden rounded-full sm:inline-flex"
           >
             <Link href="/login">Sign in</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild className="rounded-full px-[22px] py-[11px]">
             <Link href="/signup">Start free</Link>
           </Button>
         </div>
@@ -42,49 +41,65 @@ export function LandingHeader({ loggedIn }) {
   );
 }
 
-export function LandingHero({ loggedIn }) {
+export function LandingHero({ signedIn }) {
   return (
-    <section className="mx-auto grid w-full max-w-6xl gap-10 px-5 pb-16 pt-10 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16 lg:pb-24 lg:pt-20">
+    <section className="mx-auto grid w-full max-w-[1312px] items-center gap-12 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1fr_460px] lg:gap-16 lg:px-16 lg:pb-[68px] lg:pt-[52px]">
       <div>
-        <h1 className="text-balance font-display text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-          Your money, habits, and journal — finally in one place.
-        </h1>
-        <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-          selfView is a private record of your financial life, your habits, and
-          your days — with a weekly AI briefing that reads all three and tells
-          you what connects them.
+        <p className="kicker mb-[22px] text-[13px] text-clay-700">
+          For people with no time to track anything
         </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-          {loggedIn ? (
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/app">
-                Open selfView <ArrowRight className="h-4 w-4" />
-              </Link>
+        <h1 className="max-w-[15ch] text-balance font-display text-[42px] leading-[1.02] tracking-[-0.02em] sm:text-6xl lg:text-[76px]">
+          Your whole life on one quiet page.
+        </h1>
+        <p className="mt-[26px] max-w-[44ch] text-base leading-[1.6] text-sand-700 sm:text-[19px]">
+          Money, habits and journal in one place. Log ten seconds a day — we do
+          the reading and hand you the single thing worth knowing.
+        </p>
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+          {signedIn ? (
+            <Button
+              asChild
+              className="w-full rounded-full px-[30px] py-[15px] text-base sm:w-auto"
+            >
+              <Link href="/app">Open selfView</Link>
             </Button>
           ) : (
             <>
-              <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href="/signup">
-                  Start your record <ArrowRight className="h-4 w-4" />
-                </Link>
+              <Button
+                asChild
+                className="w-full rounded-full px-[30px] py-[15px] text-base sm:w-auto"
+              >
+                <Link href="/signup">Start free</Link>
               </Button>
               <Button
                 asChild
-                variant="ghost"
-                size="lg"
-                className="w-full sm:w-auto"
+                variant="outline"
+                className="w-full rounded-full px-[26px] py-[15px] text-base sm:w-auto"
               >
-                <a href="#pillars">See what&apos;s inside</a>
+                <a href="#pillars">See a real week</a>
               </Button>
             </>
           )}
         </div>
-        <p className="mt-6 text-xs leading-relaxed text-muted-foreground/80">
-          Free to start · Your journal works offline · No ads, no trackers
+        <p className="mt-[22px] text-sm text-sand-600">
+          No card. Your data stays yours — export it any day.
         </p>
       </div>
 
-      <HeroLifeline />
+      {/* Organic frames the hero art as a circle, with a sage disc breaking
+          out behind it. The frame holds the Lifeline until a photograph
+          replaces it. */}
+      <div className="relative mx-auto w-full max-w-[460px]">
+        <div
+          aria-hidden
+          className="absolute -right-[26px] -top-[26px] hidden h-[180px] w-[180px] rounded-full bg-sage-200 lg:block"
+        />
+        <div className="relative aspect-square overflow-hidden rounded-full bg-sand-100 elev-md">
+          <div className="flex h-full w-full items-center justify-center p-12">
+            <HeroLifeline />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

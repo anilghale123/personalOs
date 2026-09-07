@@ -66,7 +66,7 @@ export function PlannerCalendar({ weekStart, onSelect, refreshKey = 0 }) {
   const todayKey = toDateKey();
 
   return (
-    <div className="rounded-xl border bg-card p-3">
+    <div className="rounded-2xl bg-card elev-sm p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium">
           {format(viewMonth, "MMMM yyyy")}
@@ -128,7 +128,7 @@ export function PlannerCalendar({ weekStart, onSelect, refreshKey = 0 }) {
                 "grid w-full grid-cols-[repeat(7,minmax(0,1fr))_48px] items-center gap-0.5 rounded-lg p-1 transition-colors",
                 selected
                   ? "bg-accent ring-1 ring-primary"
-                  : "hover:bg-accent/60"
+                  : "hover:bg-sand-200/60"
               )}
             >
               {week.days.map((day) => {

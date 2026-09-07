@@ -24,11 +24,11 @@ export function InsightDetail({ insight }) {
   const [showStats, setShowStats] = React.useState(false);
 
   return (
-    <article className="space-y-6">
+    <article className="max-w-[820px]">
       <div>
         <Link
           href="/app"
-          className="inline-flex min-h-[40px] items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="mb-[22px] inline-flex min-h-[40px] items-center gap-1.5 font-display text-sm text-primary hover:underline"
         >
           <ArrowLeft className="h-4 w-4" />
           Discoveries
@@ -36,19 +36,19 @@ export function InsightDetail({ insight }) {
       </div>
 
       {/* ① The statement */}
-      <header>
-        <DomainChips domains={insight.domains} className="mb-3" />
-        <h1 className="font-display text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+      <header className="mb-9">
+        <DomainChips domains={insight.domains} className="mb-[18px]" />
+        <h1 className="max-w-[26ch] text-balance font-display text-[28px] leading-[1.1] tracking-tight sm:text-4xl lg:text-[46px]">
           {insight.statement}
         </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
           <ConfidencePill insight={insight} />
-          <span className="tnum text-xs text-muted-foreground">
+          <span className="tnum text-[15px] text-sand-600">
             {insight.n} days · {insight.windowFrom} to {insight.windowTo}
           </span>
         </div>
         {insight.status === "stale" && (
-          <p className="mt-3 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          <p className="mt-4 rounded-md border border-dashed border-sand-400 px-3 py-2 text-sm text-sand-600">
             This pattern no longer holds. It was last confirmed on{" "}
             {formatDay(insight.lastConfirmedAt)} — the history below is kept so
             you can see how it faded.
@@ -171,13 +171,13 @@ function NarrationBlock({ insight }) {
   };
 
   return (
-    <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <h2 className="mb-3 text-sm font-medium">What this means</h2>
+    <section className="border-b border-border pb-[34px]">
+      <h2 className="mb-2.5 font-display text-[20px]">What this means</h2>
 
       {narration ? (
         <>
-          <p className="text-sm leading-relaxed text-muted-foreground">{narration}</p>
-          <p className="mt-2 text-xs italic text-muted-foreground/70">
+          <p className="max-w-[62ch] text-base leading-[1.7] text-sand-800 sm:text-[18px]">{narration}</p>
+          <p className="mt-2.5 text-sm italic text-sand-600">
             Interpretation, written from the figures above — no new numbers.
           </p>
         </>
@@ -192,7 +192,7 @@ function NarrationBlock({ insight }) {
         <div className="mt-4 rounded-lg bg-muted/40 p-3">
           <p className="mb-1.5 text-xs font-medium">Why might this be?</p>
           <p className="text-sm leading-relaxed text-muted-foreground">{explanation}</p>
-          <p className="mt-2 text-xs italic text-muted-foreground/70">
+          <p className="mt-2.5 text-sm italic text-sand-600">
             Possibilities, not conclusions. None of these has been tested.
           </p>
         </div>
@@ -230,8 +230,8 @@ function NarrationBlock({ insight }) {
 
 function Section({ title, children }) {
   return (
-    <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <h2 className="mb-3 text-sm font-medium">{title}</h2>
+    <section className="border-b border-border py-[34px]">
+      <h2 className="mb-2.5 font-display text-[20px]">{title}</h2>
       {children}
     </section>
   );
@@ -348,8 +348,8 @@ function FeedbackRow({ insight }) {
   ];
 
   return (
-    <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <h2 className="mb-3 text-sm font-medium">Was this worth knowing?</h2>
+    <section className="rounded-2xl bg-card elev-sm p-4 sm:p-5">
+      <h2 className="mb-3.5 font-display text-[20px]">Was this worth knowing?</h2>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const Icon = option.icon;
@@ -364,7 +364,7 @@ function FeedbackRow({ insight }) {
                 "inline-flex min-h-[40px] items-center gap-2 rounded-md border px-3 text-sm transition-colors",
                 active
                   ? "border-foreground/20 bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  : "text-muted-foreground hover:bg-sand-200/60 hover:text-foreground"
               )}
             >
               <Icon className="h-4 w-4" />

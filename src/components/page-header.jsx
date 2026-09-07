@@ -1,25 +1,18 @@
 /**
- * Notion-style page header — large title, optional subtitle and actions.
+ * Screen header, Organic form — a tracked uppercase kicker sitting above a
+ * large display title, actions aligned to the baseline on the right.
+ *
+ * The `icon` prop is still accepted so callers need not change, but Organic
+ * headers carry no icon: the kicker does that work.
  */
-export function PageHeader({ icon: Icon, title, subtitle, children }) {
+export function PageHeader({ title, subtitle, children }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex items-start gap-3">
-        {Icon && (
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
-            <Icon className="h-5 w-5" />
-          </div>
-        )}
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {subtitle}
-            </p>
-          )}
-        </div>
+    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-11">
+      <div>
+        {subtitle && <p className="kicker mb-2.5">{subtitle}</p>}
+        <h1 className="font-display text-[26px] leading-[1.12] tracking-tight sm:text-[32px]">
+          {title}
+        </h1>
       </div>
       {children && (
         <div className="flex shrink-0 items-center gap-2">{children}</div>

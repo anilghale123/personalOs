@@ -115,7 +115,7 @@ export function GoalDetailClient({ initialGoal }) {
               className={cn(
                 "flex items-center gap-3 rounded-lg border px-3 py-2.5",
                 m.isComplete &&
-                  "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
+                  "bg-sage-200 text-sage-900"
               )}
             >
               <button
@@ -123,7 +123,7 @@ export function GoalDetailClient({ initialGoal }) {
                 className={cn(
                   "flex h-5 w-5 items-center justify-center rounded-md border",
                   m.isComplete
-                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    ? "bg-sage-700 text-sage-100"
                     : "border-input"
                 )}
               >

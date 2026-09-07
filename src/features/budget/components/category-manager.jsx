@@ -141,7 +141,7 @@ export function CategoryManager({ categories }) {
           </Button>
         </EmptyState>
       ) : (
-        <div className="divide-y rounded-xl border bg-card">
+        <div className="divide-y rounded-2xl bg-card elev-sm">
           {topLevel.map((c) => (
             <div key={c._id} className="px-2 py-1">
               <CategoryRow

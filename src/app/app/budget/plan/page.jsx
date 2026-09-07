@@ -8,7 +8,7 @@ export default function BudgetPlanPage() {
       <PageHeader
         icon={Wallet}
         title="Budget"
-        subtitle="Set a weekly or monthly cap, then watch how spending tracks against it."
+        subtitle="Your cap, and how spending tracks against it"
       />
       <BudgetPlanScreen />
     </>

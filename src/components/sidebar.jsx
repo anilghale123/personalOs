@@ -59,33 +59,25 @@ function isActivePath(pathname, href) {
 }
 
 function NavLink({ item, pathname, nested = false }) {
-  const Icon = item.icon;
   const active = isActivePath(pathname, item.href);
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg text-sm transition-colors",
-        nested ? "px-2.5 py-1.5" : "px-2.5 py-2",
+        "group relative flex items-center rounded-md text-[15px] transition-colors",
+        nested ? "px-3 py-1.5" : "px-3 py-2.5",
         active
-          ? "bg-accent font-medium text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+          ? "bg-sand-200 font-semibold text-foreground"
+          : "text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
       )}
     >
-      {active && (
-        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brand" />
-      )}
-      <Icon
-        className={cn("h-4 w-4 shrink-0", active ? "text-brand" : undefined)}
-      />
       <span className="flex-1">{item.label}</span>
     </Link>
   );
 }
 
 function NavGroup({ item, pathname }) {
-  const Icon = item.icon;
   const inSection = isActivePath(pathname, item.href);
   const [open, setOpen] = React.useState(inSection);
 
@@ -100,25 +92,22 @@ function NavGroup({ item, pathname }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[15px] transition-colors",
           inSection
-            ? "font-medium text-foreground"
-            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+            ? "font-semibold text-foreground"
+            : "text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
         )}
       >
-        <Icon
-          className={cn("h-4 w-4 shrink-0", inSection && "text-brand")}
-        />
         <span className="flex-1 text-left">{item.label}</span>
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+            "h-3.5 w-3.5 shrink-0 text-sand-600 transition-transform",
             open && "rotate-180"
           )}
         />
       </button>
       {open && (
-        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/70 pl-2">
+        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border pl-2">
           {item.children.map((child) => (
             <NavLink
               key={child.href}
@@ -135,12 +124,12 @@ function NavGroup({ item, pathname }) {
 
 function NavContent({ user, pathname, onOpenProfile }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="px-5 py-5">
+    <div className="flex h-full flex-col gap-6 px-[18px] py-[26px]">
+      <div className="px-2.5">
         <BrandMark />
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <nav className="flex-1 space-y-[3px] overflow-y-auto">
         {NAV.map((item) =>
           item.children ? (
             <NavGroup key={item.href} item={item} pathname={pathname} />
@@ -150,23 +139,21 @@ function NavContent({ user, pathname, onOpenProfile }) {
         )}
       </nav>
 
-      <div className="border-t p-3">
-        <div className="flex items-center gap-1 rounded-lg px-1 py-1 hover:bg-accent/60">
+      <div>
+        <div className="flex items-center gap-1 rounded-md bg-sand-200 p-2.5">
           <button
             type="button"
             onClick={onOpenProfile}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1.5 py-1 text-left"
+            className="flex min-w-0 flex-1 items-center gap-[11px] text-left"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold uppercase">
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-clay-300 text-[13px] font-bold uppercase text-clay-900">
               {(user?.name || user?.email || "U").charAt(0)}
             </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-sm font-medium">
+            <div className="min-w-0 flex-1 leading-[1.25]">
+              <p className="truncate text-sm font-semibold">
                 {user?.name || "User"}
               </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {user?.email}
-              </p>
+              <p className="truncate text-xs text-sand-600">{user?.email}</p>
             </div>
           </button>
           <ThemeToggle />
@@ -175,7 +162,7 @@ function NavContent({ user, pathname, onOpenProfile }) {
         <Button
           variant="ghost"
           size="sm"
-          className="mt-1 w-full justify-start text-muted-foreground"
+          className="mt-1 w-full justify-start text-sand-600"
           onClick={() => signOut({ callbackUrl: "/login" })}
         >
           <LogOut className="h-4 w-4" />
@@ -197,7 +184,7 @@ export function Sidebar({ user }) {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-card md:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] border-r bg-background md:block">
         <NavContent
           user={displayUser}
           pathname={pathname}

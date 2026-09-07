@@ -3,61 +3,137 @@
 @tailwind utilities;
 
 @layer base {
-  /* selfView tokens — dark-first, light follows the system setting.
-     Roles: Ink (page) · Surface (cards) · Line (borders) · Brass (signature
-     accent, spent sparingly) · Positive/Negative (semantics). */
+  /* Organic — the redesign's token system. Warm paper ground, terracotta
+     accent, olive second accent. Role names are unchanged from the previous
+     Ink/Brass set so every existing consumer keeps working; only the values
+     moved. Ramps (sand/clay/sage) are the design system's own scales, and
+     they invert under .dark so a panel painted sand-200 stays a panel. */
   :root {
-    --background: 60 4% 97%;
-    --foreground: 240 6% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 6% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 6% 10%;
-    --primary: 240 6% 10%;
-    --primary-foreground: 60 4% 97%;
-    --secondary: 240 5% 93%;
-    --secondary-foreground: 240 6% 20%;
-    --muted: 240 5% 93%;
-    --muted-foreground: 240 4% 42%;
-    --accent: 240 5% 92%;
-    --accent-foreground: 240 6% 16%;
-    --destructive: 0 58% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --positive: 158 45% 34%;
-    --negative: 0 58% 50%;
-    --border: 240 6% 88%;
-    --input: 240 6% 86%;
-    --ring: 39 60% 45%;
-    --radius: 0.625rem;
-    /* Brass — the signature accent. */
-    --brand: 38 69% 39%;
-    --brand-foreground: 45 30% 96%;
+    --background: 37 59.2% 90.4%; /* paper #f5ead8 */
+    --foreground: 20 5% 12%; /* ink #201e1d */
+    --card: 35 50% 95.3%; /* sand-100 */
+    --card-foreground: 20 5% 12%;
+    --popover: 35 50% 95.3%;
+    --popover-foreground: 20 5% 12%;
+    --primary: 24 55.3% 50%; /* terracotta #c67139 */
+    --primary-foreground: 37 59.2% 90.4%;
+    --secondary: 38 35.8% 89.6%; /* sand-200 */
+    --secondary-foreground: 40 11.8% 24.9%;
+    --muted: 38 35.8% 89.6%;
+    --muted-foreground: 37 10.2% 46.3%; /* sand-600 */
+    --accent: 38 35.8% 89.6%;
+    --accent-foreground: 40 11.8% 24.9%;
+    --destructive: 8 62% 46%;
+    --destructive-foreground: 35 50% 95.3%;
+    --positive: 82 22.2% 31.8%; /* sage-700 */
+    --negative: 8 62% 46%;
+    --border: 37 25.5% 81.6%; /* sand-300 */
+    --input: 37 25.5% 81.6%;
+    --ring: 24 55.3% 50%;
+    --radius: 1rem; /* Organic radius-md, 16px */
+    --brand: 24 55.3% 50%;
+    --brand-foreground: 37 59.2% 90.4%;
+    /* Organic's raised ground — cards that sit on paper, not above it. */
+    --surface: 38 48.7% 84.7%;
+
+    --sand-100: 35 50% 95.3%;
+    --sand-200: 38 35.8% 89.6%;
+    --sand-300: 37 25.5% 81.6%;
+    --sand-400: 38 17.6% 70%;
+    --sand-500: 38 12.6% 57.8%;
+    --sand-600: 37 10.2% 46.3%;
+    --sand-700: 36 11.1% 35.3%;
+    --sand-800: 40 11.8% 24.9%;
+    --sand-900: 40 10.8% 16.3%;
+
+    --clay-100: 21 100% 96.1%;
+    --clay-200: 22 100% 90.8%;
+    --clay-300: 22 100% 82.4%;
+    --clay-400: 23 88.5% 69.2%;
+    --clay-500: 23 63.4% 56.1%;
+    --clay-600: 24 59.6% 43.7%;
+    --clay-700: 25 68.7% 32.5%;
+    --clay-800: 24 69.5% 23.1%;
+    --clay-900: 24 60% 15.7%;
+
+    --sage-100: 84 71.4% 93.1%;
+    --sage-200: 83 50% 86.7%;
+    --sage-300: 82 36.3% 77.8%;
+    --sage-400: 83 26% 66.1%;
+    --sage-500: 83 19.1% 53.9%;
+    --sage-600: 81 19.4% 42.4%;
+    --sage-700: 82 22.2% 31.8%;
+    --sage-800: 81 24.6% 22.4%;
+    --sage-900: 82 26% 14.3%;
+
+    /* Elevation — soft ink-tinted shadows on the light ground. */
+    --shadow-sm: 0 1px 2px hsl(40 10.8% 16.3% / 0.14);
+    --shadow-md: 0 3px 10px hsl(40 10.8% 16.3% / 0.16);
+    --shadow-lg: 0 12px 32px hsl(40 10.8% 16.3% / 0.22);
   }
 
+  /* Organic after dark. The system's own guidance: the light theme carries
+     depth in soft shadow, the dark one in a hairline edge plus ambient
+     darkness — so shadows shrink and borders do the separating. */
   .dark {
-    --background: 240 9% 6.5%;
-    --foreground: 240 6% 93%;
-    --card: 240 8% 10%;
-    --card-foreground: 240 6% 93%;
-    --popover: 240 8% 10%;
-    --popover-foreground: 240 6% 93%;
-    --primary: 240 6% 93%;
-    --primary-foreground: 240 9% 8%;
-    --secondary: 240 7% 14%;
-    --secondary-foreground: 240 5% 72%;
-    --muted: 240 7% 14%;
-    --muted-foreground: 235 6% 62%;
-    --accent: 240 7% 16%;
-    --accent-foreground: 240 6% 88%;
-    --destructive: 0 62% 58%;
-    --destructive-foreground: 0 0% 98%;
-    --positive: 158 42% 50%;
-    --negative: 0 62% 62%;
-    --border: 240 8% 16%;
-    --input: 240 7% 16%;
-    --ring: 39 70% 55%;
-    --brand: 39 75% 55%;
-    --brand-foreground: 35 40% 10%;
+    --background: 40 10% 8%;
+    --foreground: 38 35.8% 89.6%;
+    --card: 40 11% 12%;
+    --card-foreground: 38 35.8% 89.6%;
+    --popover: 40 11% 12%;
+    --popover-foreground: 38 35.8% 89.6%;
+    --primary: 23 88.5% 69.2%; /* clay lifts on a dark ground */
+    --primary-foreground: 24 60% 15.7%;
+    --secondary: 40 11.8% 18%;
+    --secondary-foreground: 38 17.6% 70%;
+    --muted: 40 11.8% 18%;
+    --muted-foreground: 38 12.6% 57.8%;
+    --accent: 40 11.8% 20%;
+    --accent-foreground: 38 26% 80%;
+    --destructive: 8 65% 60%;
+    --destructive-foreground: 40 10% 8%;
+    --positive: 83 26% 66.1%;
+    --negative: 8 65% 60%;
+    --border: 40 11.8% 22%;
+    --input: 40 11.8% 22%;
+    --ring: 23 88.5% 69.2%;
+    --brand: 23 88.5% 69.2%;
+    --brand-foreground: 24 60% 15.7%;
+    --surface: 40 10.8% 16.3%;
+
+    --sand-100: 40 10% 10%;
+    --sand-200: 40 11% 14%;
+    --sand-300: 40 11% 19%;
+    --sand-400: 40 11% 26%;
+    --sand-500: 38 11% 38%;
+    --sand-600: 38 12% 52%;
+    --sand-700: 38 16% 66%;
+    --sand-800: 38 26% 80%;
+    --sand-900: 37 40% 91%;
+
+    --clay-100: 24 45% 14%;
+    --clay-200: 24 55% 19%;
+    --clay-300: 25 60% 27%;
+    --clay-400: 24 60% 38%;
+    --clay-500: 23 63% 52%;
+    --clay-600: 23 75% 62%;
+    --clay-700: 23 88% 72%;
+    --clay-800: 22 100% 84%;
+    --clay-900: 21 100% 92%;
+
+    --sage-100: 82 22% 13%;
+    --sage-200: 81 24% 18%;
+    --sage-300: 82 22% 25%;
+    --sage-400: 81 19% 36%;
+    --sage-500: 83 19% 50%;
+    --sage-600: 83 24% 62%;
+    --sage-700: 82 33% 74%;
+    --sage-800: 83 45% 84%;
+    --sage-900: 84 60% 92%;
+
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
+    --shadow-md: 0 3px 10px hsl(0 0% 0% / 0.45);
+    --shadow-lg: 0 12px 32px hsl(0 0% 0% / 0.55);
   }
 }
 
@@ -69,6 +145,18 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
+  }
+  /* Organic sets headings in the display face at a tight leading. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display), var(--font-body), ui-sans-serif, sans-serif;
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
   }
   /* iOS zooms on focused inputs under 16px — never go below it on mobile. */
   input,
@@ -105,6 +193,23 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 9999px;
+  }
+  /* Organic's elevation scale, as utilities. */
+  .elev-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  .elev-md {
+    box-shadow: var(--shadow-md);
+  }
+  .elev-lg {
+    box-shadow: var(--shadow-lg);
+  }
+  /* The uppercase micro-label Organic uses above almost every section. */
+  .kicker {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--sand-600));
   }
 }
 

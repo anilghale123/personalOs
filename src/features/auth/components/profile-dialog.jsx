@@ -312,7 +312,7 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                     "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
                     dateFormat === option.id
                       ? "border-primary bg-primary/5"
-                      : "hover:bg-accent/60",
+                      : "hover:bg-sand-200/60",
                     savingDateFormat && "pointer-events-none opacity-60"
                   )}
                 >

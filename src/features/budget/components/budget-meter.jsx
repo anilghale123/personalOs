@@ -5,15 +5,15 @@ import { formatMoney } from "@/lib/money";
 import { budgetStatus } from "../utils";
 
 const BAR_TONE = {
-  ok: "bg-emerald-500",
-  warning: "bg-amber-500",
+  ok: "bg-positive",
+  warning: "bg-clay-500",
   over: "bg-destructive",
   none: "bg-muted-foreground/30",
 };
 
 const TEXT_TONE = {
-  ok: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-amber-600 dark:text-amber-400",
+  ok: "text-positive",
+  warning: "text-clay-700",
   over: "text-destructive",
   none: "text-muted-foreground",
 };

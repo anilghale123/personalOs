@@ -63,7 +63,7 @@ export function BrandMark({ className, markClassName, wordClassName }) {
       />
       <span
         className={cn(
-          "font-display text-lg font-semibold tracking-tight",
+          "font-display text-lg tracking-tight",
           wordClassName
         )}
       >

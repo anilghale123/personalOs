@@ -157,7 +157,7 @@ export function VaultClient({ portfolio, transactions }) {
                             className={cn(
                               "inline-flex items-center gap-0.5 tabular-nums",
                               p.pnl >= 0
-                                ? "text-emerald-600 dark:text-emerald-400"
+                                ? "text-positive"
                                 : "text-destructive"
                             )}
                           >

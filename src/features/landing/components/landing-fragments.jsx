@@ -26,7 +26,7 @@ export function WealthFragment() {
       <p className="tnum mt-2 text-xl font-semibold tracking-tight">
         Rs 12,84,300
       </p>
-      <p className="tnum mt-0.5 text-xs text-emerald-500">
+      <p className="tnum mt-0.5 text-xs text-positive">
         +Rs 28,410 this month
       </p>
       <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 text-xs">

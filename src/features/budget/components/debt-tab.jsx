@@ -66,8 +66,8 @@ function DebtLedger({ debt }) {
                 className={cn(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
                   isPayment
-                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    ? "bg-positive/15 text-positive"
+                    : "bg-clay-200 text-clay-900"
                 )}
                 aria-hidden="true"
               >
@@ -143,7 +143,7 @@ function DebtCard({ debt, onEdit, onRecord }) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card",
+        "rounded-2xl bg-card elev-sm",
         debt.status === "closed" && "opacity-70"
       )}
     >
@@ -215,7 +215,7 @@ function DebtCard({ debt, onEdit, onRecord }) {
           <div
             className={cn(
               "h-full rounded-full transition-all",
-              totals.isCleared ? "bg-emerald-500" : "bg-primary"
+              totals.isCleared ? "bg-positive" : "bg-primary"
             )}
             style={{ width: `${totals.progress}%` }}
           />

@@ -1,3 +1,12 @@
+/** Expands one Organic ramp into Tailwind's 100–900 shade map. */
+const ramp = (name) =>
+  Object.fromEntries(
+    [100, 200, 300, 400, 500, 600, 700, 800, 900].map((step) => [
+      step,
+      `hsl(var(--${name}-${step}))`,
+    ])
+  );
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -54,13 +63,21 @@ module.exports = {
         },
         positive: "hsl(var(--positive))",
         negative: "hsl(var(--negative))",
+        surface: "hsl(var(--surface))",
+        // Organic's three tonal ramps, on one shared lightness scale so the
+        // same step of any role matches the others in visual value. They
+        // invert under .dark, so a step keeps its job in both themes.
+        sand: ramp("sand"),
+        clay: ramp("clay"),
+        sage: ramp("sage"),
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         "2xl": "1rem",
-        "3xl": "1.25rem",
+        // Organic radius-lg — the big panels and framed screens.
+        "3xl": "1.75rem",
       },
       fontFamily: {
         sans: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],

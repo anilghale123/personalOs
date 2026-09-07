@@ -34,7 +34,7 @@ export function LandingPrivacy() {
       id="privacy"
       className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 pt-24 sm:px-8 sm:pt-32"
     >
-      <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
+      <h2 className="font-display text-2xl tracking-tight sm:text-3xl lg:text-4xl">
         Private by design
       </h2>
       <p className="mt-3 max-w-xl leading-relaxed text-muted-foreground sm:text-lg">

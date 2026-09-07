@@ -10,7 +10,7 @@ export default function ImportPage() {
       <PageHeader
         icon={Upload}
         title="Import Transactions"
-        subtitle="Upload a broker CSV to populate your portfolio."
+        subtitle="Upload a broker CSV"
       >
         <Button asChild variant="outline" size="sm">
           <Link href="/app/portfolio">

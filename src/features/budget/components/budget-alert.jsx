@@ -7,8 +7,8 @@ import { budgetStatus } from "../utils";
 
 const TONE = {
   warning:
-    "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200",
-  over: "border-destructive/40 bg-destructive/10 text-destructive dark:text-red-300",
+    "border-clay-300 bg-clay-100 text-clay-900",
+  over: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 
 /**

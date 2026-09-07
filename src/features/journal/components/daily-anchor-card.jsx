@@ -38,7 +38,7 @@ function SaveStatus({ status }) {
     <span
       className={cn(
         "text-xs",
-        dirty ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+        dirty ? "text-clay-700" : "text-muted-foreground"
       )}
     >
       {STATUS_TEXT[status] || STATUS_TEXT.saved}
@@ -168,7 +168,7 @@ export function DailyAnchorCard() {
   const dayLabel = format(new Date(`${activeDate}T12:00:00`), "EEEE, MMMM d, yyyy");
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+    <div className="overflow-hidden rounded-2xl bg-card elev-sm shadow-sm">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <div className="flex items-center gap-1">
@@ -225,7 +225,7 @@ export function DailyAnchorCard() {
             onChange={(e) => updateJournal({ title: e.target.value })}
             placeholder="Untitled"
             aria-label="Entry title"
-            className="w-full border-0 bg-transparent font-display text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40 sm:text-3xl"
+            className="w-full border-0 bg-transparent font-display text-2xl tracking-tight outline-none placeholder:text-muted-foreground/40 sm:text-3xl"
           />
 
           {/* Properties */}

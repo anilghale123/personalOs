@@ -12,20 +12,20 @@ export const MOODS = [
 
 /** Solid mood colours — used for calendar dots and legends. */
 export const MOOD_DOT = {
-  amazing: "bg-emerald-400",
+  amazing: "bg-sage-600",
   good: "bg-lime-400",
-  okay: "bg-amber-400",
+  okay: "bg-sand-500",
   bad: "bg-orange-400",
-  awful: "bg-rose-400",
+  awful: "bg-clay-600",
 };
 
 /** Soft mood tints — used to colour calendar day cells. */
 export const MOOD_TINT = {
-  amazing: "bg-emerald-400/25",
+  amazing: "bg-sage-400/40",
   good: "bg-lime-400/25",
-  okay: "bg-amber-400/25",
+  okay: "bg-sand-400/40",
   bad: "bg-orange-400/30",
-  awful: "bg-rose-400/30",
+  awful: "bg-clay-600/30",
 };
 
 export function moodLabel(key) {
@@ -54,7 +54,7 @@ export function MoodPicker({ value, onChange }) {
               "flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 text-sm transition-colors",
               active
                 ? "border-foreground/20 bg-accent"
-                : "border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-sand-200/60 hover:text-foreground"
             )}
           >
             <span className="text-base leading-none">{m.emoji}</span>

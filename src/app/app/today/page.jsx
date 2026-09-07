@@ -117,7 +117,7 @@ export default async function OverviewPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="font-display text-2xl tracking-tight sm:text-3xl">
           Good {greeting()}, {firstName}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -128,7 +128,7 @@ export default async function OverviewPage() {
       {/* The Lifeline — the week, as recorded */}
       <Link
         href="/app/journal"
-        className="block rounded-xl border bg-card px-4 py-3.5 transition-colors hover:border-foreground/20 sm:px-5"
+        className="block rounded-2xl bg-card elev-sm px-4 py-3.5 transition-colors hover:border-foreground/20 sm:px-5"
         aria-label="Your week on record — open the journal"
       >
         <div className="flex items-end justify-between gap-4">
@@ -141,7 +141,7 @@ export default async function OverviewPage() {
             {lifelineDays.map((d) => (
               <span
                 key={d.key}
-                className="w-5 text-center text-[10px] uppercase text-muted-foreground/80"
+                className="w-5 text-center text-[10px] uppercase text-sand-600"
               >
                 {d.label}
               </span>
@@ -209,7 +209,7 @@ export default async function OverviewPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            <p className="tnum font-display text-3xl font-semibold">
+            <p className="tnum font-display text-3xl">
               {formatNPR(portfolioValue)}
             </p>
             <p
@@ -239,7 +239,7 @@ export default async function OverviewPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-end justify-between">
-              <span className="tnum font-display text-3xl font-semibold">
+              <span className="tnum font-display text-3xl">
                 {weekPct}%
               </span>
               <span className="tnum text-xs text-muted-foreground">
@@ -296,7 +296,7 @@ export default async function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-2">
-              <span className="tnum font-display text-3xl font-semibold">
+              <span className="tnum font-display text-3xl">
                 {streak}
               </span>
               <span className="text-sm text-muted-foreground">

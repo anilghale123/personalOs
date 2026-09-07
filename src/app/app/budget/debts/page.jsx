@@ -8,7 +8,7 @@ export default function DebtsPage() {
       <PageHeader
         icon={Handshake}
         title="Debts"
-        subtitle="Track what you owe and what others owe you."
+        subtitle="What you owe, and what is owed to you"
       />
       <DebtsScreen />
     </>

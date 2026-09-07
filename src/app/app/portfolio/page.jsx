@@ -21,7 +21,7 @@ export default async function PortfolioPage() {
       <PageHeader
         icon={Wallet}
         title="Portfolio"
-        subtitle="Your NEPSE holdings, P&L and transaction history."
+        subtitle="NEPSE holdings, P&L and history"
       >
         <Button asChild variant="outline" size="sm">
           <Link href="/app/portfolio/sip">

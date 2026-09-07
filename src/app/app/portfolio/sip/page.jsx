@@ -15,7 +15,7 @@ export default async function SipPage() {
       <PageHeader
         icon={Repeat}
         title="SIP Manager"
-        subtitle="Track systematic investment plans and their installments."
+        subtitle="Systematic investment plans and installments"
       >
         <Button asChild variant="outline" size="sm">
           <Link href="/app/portfolio">

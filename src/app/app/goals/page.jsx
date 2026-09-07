@@ -23,7 +23,7 @@ export default async function GoalsPage() {
       <PageHeader
         icon={Target}
         title="Goals & Habits"
-        subtitle="Plan your week, build habits and track long-term goals."
+        subtitle="The week, your habits, the long game"
       />
       <div className="space-y-8">
         <WeeklyGoals initialGoals={weeklyGoals} weekLabel={weekLabel()} />

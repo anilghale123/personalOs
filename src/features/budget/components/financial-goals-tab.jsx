@@ -100,7 +100,7 @@ function GoalCard({ goal, onEdit, onContribute }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-2xl bg-card elev-sm">
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -166,7 +166,7 @@ function GoalCard({ goal, onEdit, onContribute }) {
           <div
             className={cn(
               "h-full rounded-full transition-all",
-              totals.isAchieved ? "bg-emerald-500" : "bg-brand"
+              totals.isAchieved ? "bg-positive" : "bg-brand"
             )}
             style={{ width: `${totals.progress}%` }}
           />

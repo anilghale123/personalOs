@@ -46,7 +46,7 @@ function ChartTooltip({ active, payload, unit, labelKey = "date" }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
-    <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-md">
+    <div className="rounded-2xl bg-card elev-sm px-3 py-2 text-xs shadow-md">
       {row[labelKey] && <p className="font-medium">{row[labelKey]}</p>}
       {payload.map((entry) => (
         <p key={entry.dataKey} className="text-muted-foreground">

@@ -133,14 +133,14 @@ export function ImportClient() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <CheckCircle2 className="h-4 w-4 text-positive" />
               Import complete
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="rounded-lg bg-secondary p-3">
-                <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                <p className="text-2xl font-semibold text-positive">
                   {result.imported}
                 </p>
                 <p className="text-xs text-muted-foreground">Imported</p>

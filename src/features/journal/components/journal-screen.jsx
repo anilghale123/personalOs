@@ -116,7 +116,7 @@ export function JournalScreen({ initialData }) {
         </div>
 
         {calendarOpen && (
-          <div className="mt-4 max-h-[min(70vh,520px)] overflow-y-auto overscroll-contain rounded-xl border bg-card p-4 shadow-sm scrollbar-thin">
+          <div className="mt-4 max-h-[min(70vh,520px)] overflow-y-auto overscroll-contain rounded-2xl bg-card elev-sm p-4 shadow-sm scrollbar-thin">
             <CalendarSidebar
               mobile
               onDateSelect={() => setCalendarOpen(false)}

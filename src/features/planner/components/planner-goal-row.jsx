@@ -16,31 +16,27 @@ function DayToggle({ status, isToday, onChange }) {
       onClick={() => onChange(NEXT[status])}
       aria-label={`Mark ${status === "done" ? "missed" : status === "missed" ? "pending" : "done"}`}
       className={cn(
-        "flex h-full min-h-[46px] w-full items-center justify-center border-l transition-colors",
-        status === "done" && "bg-emerald-500/10 hover:bg-emerald-500/20",
-        status === "missed" && "bg-red-500/10 hover:bg-red-500/20",
+        "m-1 flex min-h-[44px] items-center justify-center rounded-[8px] transition-colors",
+        status === "done" && "bg-sage-500 text-sand-100 hover:bg-sage-600",
+        status === "missed" && "bg-clay-300 text-clay-900 hover:bg-clay-400",
         status === "pending" &&
-          cn("hover:bg-muted/60", isToday && "bg-primary/5")
+          cn(
+            "border border-border text-sand-400 hover:bg-sand-200",
+            isToday && "border-primary/40"
+          )
       )}
     >
       {/* Keyed by status so the pop replays on every change. */}
       {status === "done" && (
-        <Check
-          key="done"
-          className="h-4 w-4 animate-check-pop text-emerald-600 dark:text-emerald-400"
-        />
+        <Check key="done" className="h-4 w-4 animate-check-pop" />
       )}
       {status === "missed" && (
-        <X
-          key="missed"
-          className="h-4 w-4 animate-check-pop text-red-600 dark:text-red-400"
-        />
+        <X key="missed" className="h-4 w-4 animate-check-pop" />
       )}
       {status === "pending" && (
-        <span
-          key="pending"
-          className="h-3.5 w-3.5 rounded-full border border-dashed border-muted-foreground/40"
-        />
+        <span key="pending" className="text-[15px] leading-none">
+          ·
+        </span>
       )}
     </button>
   );
@@ -83,7 +79,7 @@ function PlannerGoalRowInner({
   const done = statuses.filter((s) => s === "done").length;
 
   return (
-    <div className={cn("group grid border-b last:border-b-0", gridCols)}>
+    <div className={cn("group grid border-b border-border last:border-b-0", gridCols)}>
       {/* Goals column */}
       <div className="flex flex-col justify-center gap-0.5 p-2">
         {editing ? (
@@ -105,13 +101,13 @@ function PlannerGoalRowInner({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="text-left text-sm font-medium leading-snug hover:text-primary"
+            className="text-left text-[15px] leading-snug hover:text-primary"
           >
             {goal.title}
           </button>
         )}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] tabular-nums text-muted-foreground">
+          <span className="text-[11px] tabular-nums text-sand-600">
             {done}/7 done
           </span>
           <button

@@ -64,7 +64,7 @@ export function LandingWhy() {
       id="why-one"
       className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 pt-24 sm:px-8 sm:pt-32"
     >
-      <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
+      <h2 className="font-display text-2xl tracking-tight sm:text-3xl lg:text-4xl">
         Why one app instead of four
       </h2>
       <div className="mt-5 max-w-xl space-y-4 leading-relaxed text-muted-foreground sm:text-lg">

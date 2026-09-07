@@ -352,7 +352,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
         )}
 
         {/* Planner grid */}
-        <div className="overflow-x-auto rounded-xl border bg-card">
+        <div className="overflow-x-auto rounded-2xl bg-card elev-sm">
           <div
             className={cn(
               "min-w-[680px] transition-opacity",

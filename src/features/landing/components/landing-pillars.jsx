@@ -38,7 +38,7 @@ export function LandingPillars() {
       id="pillars"
       className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 pt-24 sm:px-8 sm:pt-32"
     >
-      <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
+      <h2 className="font-display text-2xl tracking-tight sm:text-3xl lg:text-4xl">
         Four records of the same life
       </h2>
       <p className="mt-3 max-w-xl leading-relaxed text-muted-foreground sm:text-lg">
@@ -52,7 +52,7 @@ export function LandingPillars() {
             className="grid items-center gap-5 sm:grid-cols-2 sm:gap-10 lg:gap-16"
           >
             <div className={i % 2 === 1 ? "sm:order-2" : ""}>
-              <h3 className="font-display text-lg font-semibold sm:text-xl">
+              <h3 className="font-display text-lg sm:text-xl">
                 {pillar.name}
               </h3>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base">

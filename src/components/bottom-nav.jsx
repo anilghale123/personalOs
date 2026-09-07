@@ -12,7 +12,6 @@ import {
   TrendingUp,
   CalendarDays,
   LogOut,
-  MoreHorizontal,
   X,
   User,
   Sparkles,
@@ -60,13 +59,12 @@ export function BottomNav({ user }) {
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/90 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 backdrop-blur-[8px] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Primary"
       >
-        <div className="grid grid-cols-4">
+        <div className="flex gap-1 px-3.5 pb-[22px] pt-2.5">
           {TABS.map((tab) => {
-            const Icon = tab.icon;
             const active = isActive(pathname, tab.href);
             return (
               <Link
@@ -74,14 +72,13 @@ export function BottomNav({ user }) {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-0.5 transition-colors",
+                  "flex min-h-[52px] flex-1 items-center justify-center rounded-md text-[11px] transition-colors",
                   active
-                    ? "text-brand"
-                    : "text-muted-foreground active:text-foreground"
+                    ? "bg-sand-200 font-semibold text-foreground"
+                    : "text-sand-600 active:bg-sand-200/60"
                 )}
               >
-                <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
-                <span className="text-[11px] font-medium">{tab.label}</span>
+                {tab.label}
               </Link>
             );
           })}
@@ -90,14 +87,13 @@ export function BottomNav({ user }) {
             onClick={() => setMoreOpen(true)}
             aria-label="More"
             className={cn(
-              "flex min-h-[56px] flex-col items-center justify-center gap-0.5 transition-colors",
+              "flex min-h-[52px] flex-1 items-center justify-center rounded-md text-[11px] transition-colors",
               moreActive
-                ? "text-brand"
-                : "text-muted-foreground active:text-foreground"
+                ? "bg-sand-200 font-semibold text-foreground"
+                : "text-sand-600 active:bg-sand-200/60"
             )}
           >
-            <MoreHorizontal className="h-5 w-5" strokeWidth={moreActive ? 2.4 : 2} />
-            <span className="text-[11px] font-medium">More</span>
+            More
           </button>
         </div>
       </nav>
@@ -112,7 +108,7 @@ export function BottomNav({ user }) {
             role="dialog"
             aria-modal="true"
             aria-label="More"
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t bg-card animate-slide-up"
+            className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-card animate-slide-up elev-lg"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="flex items-center justify-between px-5 pt-4">
@@ -121,7 +117,7 @@ export function BottomNav({ user }) {
                 type="button"
                 onClick={() => setMoreOpen(false)}
                 aria-label="Close"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-sand-600 hover:bg-sand-200"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -137,10 +133,10 @@ export function BottomNav({ user }) {
                     href={link.href}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      "flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-[15px] transition-colors",
+                      "flex min-h-[48px] items-center gap-3 rounded-md px-4 text-[15px] transition-colors",
                       active
-                        ? "bg-accent font-medium text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                        ? "bg-sand-200 font-semibold text-foreground"
+                        : "text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
                     )}
                   >
                     <Icon className="h-5 w-5" />
@@ -150,10 +146,10 @@ export function BottomNav({ user }) {
               })}
             </nav>
 
-            <div className="space-y-1 border-t px-3 py-3">
+            <div className="space-y-1 border-t border-border px-3 py-3">
               <InstallButton className="min-h-[44px] w-full justify-start" />
-              <div className="flex min-h-[44px] items-center justify-between rounded-lg px-3">
-                <span className="text-sm text-muted-foreground">Theme</span>
+              <div className="flex min-h-[44px] items-center justify-between rounded-md px-3">
+                <span className="text-sm text-sand-700">Theme</span>
                 <ThemeToggle />
               </div>
               <button
@@ -162,7 +158,7 @@ export function BottomNav({ user }) {
                   setMoreOpen(false);
                   setProfileOpen(true);
                 }}
-                className="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
               >
                 <User className="h-5 w-5" />
                 {user?.name || "Profile"}
@@ -170,7 +166,7 @@ export function BottomNav({ user }) {
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
               >
                 <LogOut className="h-5 w-5" />
                 Sign out

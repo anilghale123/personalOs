@@ -133,7 +133,7 @@ export function PlannerHistory({ activeWeekStart, onOpenWeek, refreshKey = 0 }) 
                 type="button"
                 onClick={() => onOpenWeek(week.weekStart)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left transition-colors hover:bg-accent/50",
+                  "flex w-full items-center gap-3 rounded-2xl bg-card elev-sm p-3 text-left transition-colors hover:bg-accent/50",
                   week.weekStart === activeWeekStart && "ring-1 ring-primary"
                 )}
               >
@@ -163,7 +163,7 @@ export function PlannerHistory({ activeWeekStart, onOpenWeek, refreshKey = 0 }) 
                     <span className="tabular-nums">
                       {week.goalCount} goal{week.goalCount === 1 ? "" : "s"}
                     </span>
-                    <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+                    <span className="tabular-nums text-positive">
                       {week.done}/{cells} done
                     </span>
                     {week.missed > 0 && (
@@ -191,7 +191,7 @@ export function PlannerHistory({ activeWeekStart, onOpenWeek, refreshKey = 0 }) 
 
 function Stat({ label, value, hint }) {
   return (
-    <div className="rounded-xl border bg-card p-3">
+    <div className="rounded-2xl bg-card elev-sm p-3">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>

@@ -3,6 +3,15 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/* Organic reads density in sage, in four discrete steps — the token form
+   so the ramp inverts with the theme rather than staying light-mode green. */
+const HEAT_STEPS = [
+  "hsl(var(--sand-200))",
+  "hsl(var(--sage-200))",
+  "hsl(var(--sage-400))",
+  "hsl(var(--sage-600))",
+];
+
 const CELL = 12;
 const GAP = 3;
 const WEEKS = 53;
@@ -84,11 +93,11 @@ export function HabitHeatmap({ values = {}, maxIntensity = 1, onCellClick }) {
 
   function colorFor(cell) {
     if (cell.future) return "transparent";
-    if (cell.intensity <= 0) return "hsl(var(--muted))";
+    if (cell.intensity <= 0) return HEAT_STEPS[0];
     const ratio = Math.min(cell.intensity / maxIntensity, 1);
-    // emerald scale
-    const light = 88 - ratio * 50;
-    return `hsl(152 60% ${light}%)`;
+    if (ratio < 0.34) return HEAT_STEPS[1];
+    if (ratio < 0.67) return HEAT_STEPS[2];
+    return HEAT_STEPS[3];
   }
 
   return (
@@ -150,18 +159,13 @@ export function HabitHeatmap({ values = {}, maxIntensity = 1, onCellClick }) {
 /** Legend strip for the heatmap intensity scale. */
 export function HeatmapLegend() {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span>Less</span>
-      {[0, 0.33, 0.66, 1].map((r) => (
+    <div className="flex items-center gap-2 text-[13px] text-sand-600">
+      <span>Fewer</span>
+      {HEAT_STEPS.map((background, i) => (
         <span
-          key={r}
-          className="h-3 w-3 rounded-sm border border-border"
-          style={{
-            background:
-              r === 0
-                ? "hsl(var(--muted))"
-                : `hsl(152 60% ${88 - r * 50}%)`,
-          }}
+          key={i}
+          className="block h-[9px] w-[9px] rounded-[3px]"
+          style={{ background }}
         />
       ))}
       <span>More</span>

@@ -70,7 +70,7 @@ export function QuickNoteCard({ note }) {
   const card = (
     <div
       className={cn(
-        "group rounded-xl border bg-card p-3 transition-colors",
+        "group rounded-2xl bg-card elev-sm p-3 transition-colors",
         note.pinned
           ? "border-brand/40 bg-brand/[0.04]"
           : "hover:border-foreground/20",

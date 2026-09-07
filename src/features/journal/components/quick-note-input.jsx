@@ -47,14 +47,14 @@ export function QuickNoteInput() {
               "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
               type === t.key
                 ? "border-foreground/25 bg-accent font-medium"
-                : "border-transparent text-muted-foreground hover:bg-accent/60"
+                : "border-transparent text-muted-foreground hover:bg-sand-200/60"
             )}
           >
             {t.emoji} {t.label}
           </button>
         ))}
       </div>
-      <div className="flex items-end gap-2 rounded-xl border bg-card p-2 shadow-sm focus-within:border-foreground/25">
+      <div className="flex items-end gap-2 rounded-2xl bg-card elev-sm p-2 shadow-sm focus-within:border-foreground/25">
         <textarea
           ref={ref}
           rows={1}

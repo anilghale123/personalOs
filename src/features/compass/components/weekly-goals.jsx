@@ -21,9 +21,9 @@ import {
 
 const CATEGORIES = ["study", "health", "finance", "work", "personal"];
 const CATEGORY_TONE = {
-  study: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  study: "bg-sage-200 text-sage-900",
   health: "bg-green-500/10 text-green-700 dark:text-green-400",
-  finance: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  finance: "bg-clay-200 text-clay-900",
   work: "bg-purple-500/10 text-purple-700 dark:text-purple-400",
   personal: "bg-pink-500/10 text-pink-700 dark:text-pink-400",
 };
@@ -146,7 +146,7 @@ export function WeeklyGoals({ initialGoals, weekLabel }) {
                         className={cn(
                           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                           item.isComplete
-                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            ? "bg-sage-700 text-sage-100"
                             : "border-input"
                         )}
                       >
