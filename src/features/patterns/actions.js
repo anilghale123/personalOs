@@ -9,8 +9,8 @@ import Expense from "@/models/Expense";
 import Category from "@/models/Category";
 import { toDateKey } from "@/lib/utils";
 import { weekStartKey } from "@/lib/week";
-import { computeCoverage, getDailySignals } from "./signals";
-import { renderStatement, DEFAULT_WINDOW_DAYS, MIN_ACTIVE_DAYS, READINESS_DOMAINS, RUN_TTL_HOURS } from "./constants";
+import { getDailySignals } from "./signals";
+import { renderStatement, RUN_TTL_HOURS } from "./constants";
 import { addDays } from "./dates";
 import { buildHabitNotes, buildMoneyNotes, orderNotes } from "./briefing";
 
@@ -93,18 +93,22 @@ export async function getDiscoveriesData() {
   const userId = session.user.id;
 
   await connectDB();
-  const [docs, lastRun, readiness] = await Promise.all([
+  // Two indexed reads and nothing else. Coverage used to be computed
+  // here too, and a ninety-day scan across six collections held up the
+  // whole home page — including the money and habit sections, which do
+  // not need it. It is now fetched from /api/patterns/readiness only if
+  // the user opens pattern discovery.
+  const [docs, lastRun] = await Promise.all([
     // The home feed shows live findings only; stale and dismissed ones
     // live in the archive at /app/discoveries.
     Insight.find({ userId, status: "active" }).lean(),
     PatternRun.findOne({ userId, error: null }).sort({ runAt: -1 }).lean(),
-    readinessFor(userId),
   ]);
 
   const lastRunAt = lastRun?.runAt ? new Date(lastRun.runAt).toISOString() : null;
   return {
     insights: docs.map(toFeedItem),
-    readiness,
+    readiness: null,
     meta: {
       lastRunAt,
       nextRunAt: lastRunAt
@@ -153,42 +157,6 @@ export async function getInsightDetail(id) {
 }
 
 /**
- * Per-domain coverage over the run window — what the "still learning"
- * panel is built from.
- *
- * Deliberately **not** exported: every export from a `"use server"` module
- * is a callable server action, and this one takes a `userId`. Keeping it
- * module-private means it can only ever be reached through a caller that
- * has already resolved the session.
- */
-async function readinessFor(userId) {
-  const to = toDateKey();
-  const from = addDays(to, -(DEFAULT_WINDOW_DAYS - 1));
-  const coverage = computeCoverage(await getDailySignals(userId, from, to));
-
-  return {
-    from,
-    to,
-    windowDays: DEFAULT_WINDOW_DAYS,
-    activeDays: coverage.activeDays,
-    minActiveDays: MIN_ACTIVE_DAYS,
-    hasMinimumActivity: coverage.activeDays >= MIN_ACTIVE_DAYS,
-    domains: READINESS_DOMAINS.map((domain) => {
-      const covered = coverage[domain.id] ?? 0;
-      return {
-        id: domain.id,
-        label: domain.label,
-        unlocks: domain.unlocks,
-        covered,
-        target: domain.target,
-        shortfall: Math.max(domain.target - covered, 0),
-        ready: covered >= domain.target,
-      };
-    }),
-  };
-}
-
-/**
  * The weekly briefing — this week's planner checkmarks and spending,
  * already turned into plain sentences. Deterministic: no model is
  * involved, so every number in the text came from the rows below.
@@ -217,8 +185,12 @@ export async function getWeeklyBriefing() {
     )
   );
 
-  const [goals, weekExpenses, lastWeekExpenses, categories] = await Promise.all([
+  const lastWsKey = addDays(wsKey, -7);
+  const [goals, lastWeekGoals, weekExpenses, lastWeekExpenses, categories] = await Promise.all([
     PlannerGoal.find({ userId, weekStart: wsKey }).sort({ createdAt: 1 }).lean(),
+    // Last week's rows, only so a dropped habit's gap doesn't reset to
+    // zero every Monday and read as if it were merely off to a slow start.
+    PlannerGoal.find({ userId, weekStart: lastWsKey }).select("title days").lean(),
     Expense.find({
       userId,
       deletedAt: null,
@@ -256,8 +228,13 @@ export async function getWeeklyBriefing() {
     }
   }
 
+  const goalsWithHistory = goals.map((goal) => ({
+    ...goal,
+    priorGap: trailingGap(lastWeekGoals.find((g) => g.title === goal.title)),
+  }));
+
   return {
-    habitNotes: orderNotes(buildHabitNotes(goals, elapsedDays, name)),
+    habitNotes: orderNotes(buildHabitNotes(goalsWithHistory, elapsedDays, name)),
     moneyNotes: buildMoneyNotes({
       weekPaisa,
       lastWeekPaisa,
@@ -268,6 +245,22 @@ export async function getWeeklyBriefing() {
     hasGoals: goals.length > 0,
     elapsedDays,
   };
+}
+
+/**
+ * Untouched days at the *end* of a finished week — how far back a gap
+ * already ran before this week started. A week with any tick in it still
+ * contributes the days after that tick.
+ */
+function trailingGap(goal) {
+  if (!goal) return 0;
+  const keys = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let gap = 0;
+  for (let i = keys.length - 1; i >= 0; i--) {
+    if (goal.days?.[keys[i]] === "done") break;
+    gap++;
+  }
+  return gap;
 }
 
 /**

@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { useBudgetStore } from "../store";
 import { BUDGET_PERIODS } from "../constants";
-import { budgetPeriodLabel, categoryMap, categoryOptions } from "../utils";
+import { categoryMap, categoryOptions } from "../utils";
 import { BudgetAlert } from "./budget-alert";
 import { BudgetMeter } from "./budget-meter";
 
@@ -67,6 +67,22 @@ function AmountEditor({ initial, onSave, onCancel, label }) {
         <X className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+/**
+ * Says out loud which expenses the headline figure was added up from.
+ * A total with no stated window is the fastest way to make someone
+ * believe the app is wrong about their own money.
+ */
+function SpentFootnote({ summary }) {
+  const count = summary.expenseCount ?? 0;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {count} {count === 1 ? "expense" : "expenses"} between{" "}
+      <span className="tabular-nums">{summary.periodStart}</span> and{" "}
+      <span className="tabular-nums">{summary.periodEnd}</span>
+    </p>
   );
 }
 
@@ -137,6 +153,7 @@ function TotalBudgetCard({ summary, periodLabel, onSave }) {
               spent
             </span>
           </p>
+          <SpentFootnote summary={summary} />
           <BudgetMeter
             size="large"
             spentPaisa={summary.spentPaisa}
@@ -151,6 +168,9 @@ function TotalBudgetCard({ summary, periodLabel, onSave }) {
               spent so far
             </span>
           </p>
+          <div className="mt-2">
+            <SpentFootnote summary={summary} />
+          </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Set a total budget to get a spending status and a warning when you go over.
           </p>
@@ -370,7 +390,9 @@ export function BudgetTab({ categories }) {
   }
   if (!summary) return null;
 
-  const periodLabel = budgetPeriodLabel(period);
+  // The label comes from the summary: only the server knows whether the
+  // window was measured in Gregorian or Bikram Sambat months.
+  const periodLabel = summary.periodLabel ?? "";
   const periodWord = period === "weekly" ? "this week" : "this month";
   const taken = new Set(summary.categories.map((c) => c.categoryId));
   const overCategories = summary.categories.filter(

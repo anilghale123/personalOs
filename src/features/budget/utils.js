@@ -6,10 +6,19 @@ import {
   format,
 } from "date-fns";
 import { weekRange } from "@/lib/week";
+import { bsMonthAdRange, bsMonthLabel, bsMonthOf } from "@/lib/nepali-date";
 import { BUDGET_WARNING_RATIO } from "./constants";
 
-/** 'YYYY-MM-DD' start/end for the given period, anchored at `date` (defaults to now). */
-export function periodRange(period, date = new Date()) {
+/**
+ * 'YYYY-MM-DD' start/end for the given period, anchored at `date`.
+ *
+ * `cal` picks the calendar a *month* is measured in: 'en' (Gregorian) or
+ * 'np' (Bikram Sambat). Weeks and years stay Gregorian — the monthly
+ * record on the expenses screen is the only view that switches calendars,
+ * and the budget has to agree with it or the same person is shown two
+ * different totals for "this month".
+ */
+export function periodRange(period, date = new Date(), cal = "en") {
   if (period === "week") {
     const { weekStart, weekEnd } = weekRange(date);
     return { start: format(weekStart, "yyyy-MM-dd"), end: format(weekEnd, "yyyy-MM-dd") };
@@ -21,6 +30,15 @@ export function periodRange(period, date = new Date()) {
     };
   }
   // month (default)
+  if (cal === "np") {
+    const bs = bsMonthOf(format(date, "yyyy-MM-dd"));
+    // Outside the BS table we fall through to the Gregorian month rather
+    // than reporting an empty range.
+    if (bs) {
+      const { from, to } = bsMonthAdRange(bs.year, bs.month);
+      if (from && to) return { start: from, end: to };
+    }
+  }
   return {
     start: format(startOfMonth(date), "yyyy-MM-dd"),
     end: format(endOfMonth(date), "yyyy-MM-dd"),
@@ -55,15 +73,24 @@ export function periodKey(period) {
 }
 
 /** 'YYYY-MM-DD' start/end for a Budget period, anchored at `date`. */
-export function budgetPeriodRange(period, date = new Date()) {
-  return periodRange(periodKey(period), date);
+export function budgetPeriodRange(period, date = new Date(), cal = "en") {
+  return periodRange(periodKey(period), date, cal);
 }
 
-/** Human label for the period a budget covers, e.g. "Aug 18 – Aug 24". */
-export function budgetPeriodLabel(period, date = new Date()) {
-  const { start, end } = budgetPeriodRange(period, date);
+/**
+ * Human label for the period a budget covers — "Aug 18 – Aug 24" for a
+ * week, and for a Nepali month the BS month name with the AD span it
+ * covers, so the number and the dates behind it are never a mystery.
+ */
+export function budgetPeriodLabel(period, date = new Date(), cal = "en") {
+  const { start, end } = budgetPeriodRange(period, date, cal);
   const fmt = (key) => format(new Date(`${key}T12:00:00`), "MMM d");
-  return `${fmt(start)} – ${fmt(end)}`;
+  const span = `${fmt(start)} – ${fmt(end)}`;
+  if (period === "monthly" && cal === "np") {
+    const bs = bsMonthOf(start);
+    if (bs) return `${bsMonthLabel(bs.year, bs.month)} · ${span}`;
+  }
+  return span;
 }
 
 /**

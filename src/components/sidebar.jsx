@@ -30,9 +30,7 @@ import { ProfileDialog } from "@/features/auth/components/profile-dialog";
  * else is where the data comes from.
  */
 const NAV = [
-  { href: "/app", label: "Discoveries", icon: Sparkles },
-  { href: "/app/today", label: "Today", icon: LayoutDashboard },
-  { href: "/app/journal", label: "Journal", icon: BookOpen },
+  { href: "/app", label: "Home", icon: Sparkles },
   {
     href: "/app/budget",
     label: "Money",
@@ -41,11 +39,13 @@ const NAV = [
       { href: "/app/budget/expenses", label: "Expenses", icon: Receipt },
       { href: "/app/budget/plan", label: "Budget", icon: Wallet },
       { href: "/app/budget/debts", label: "Debts", icon: Handshake },
-      { href: "/app/budget/goals", label: "Goals", icon: PiggyBank },
+      { href: "/app/budget/goals", label: "Savings goals", icon: PiggyBank },
     ],
   },
-  { href: "/app/goals", label: "Habits & Goals", icon: Target },
   { href: "/app/planner", label: "Planner", icon: CalendarDays },
+  { href: "/app/goals", label: "Habits & Goals", icon: Target },
+  { href: "/app/journal", label: "Journal", icon: BookOpen },
+  { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];
 

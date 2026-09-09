@@ -5,12 +5,12 @@ import { DiscoveriesScreen } from "@/features/patterns/components/discoveries-sc
 export const dynamic = "force-dynamic";
 
 /**
- * Discoveries — the front door.
+ * Home — the front door.
  *
- * Renders only what is already stored, so the page paints without waiting
- * on a multi-collection scan. If that stored set is past its TTL, the
- * client kicks off a run in the background and the feed updates when it
- * lands. The old dashboard is intact at /app/today.
+ * Money and habits first, both cheap to produce. Pattern discovery only
+ * ships what is already stored; running the engine is an explicit tap on
+ * this screen, never a background side effect of arriving. The old
+ * dashboard is intact at /app/today.
  */
 export default async function DiscoveriesPage() {
   const session = await auth();

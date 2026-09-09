@@ -6,25 +6,32 @@
 
 import Budget from "@/models/Budget";
 import Expense from "@/models/Expense";
+import User from "@/models/User";
 import { sumMinor } from "@/lib/money";
-import { budgetPeriodRange } from "./utils";
+import { budgetPeriodRange, budgetPeriodLabel } from "./utils";
 
 const keyOf = (b) => `${b.scope}:${b.categoryId || "total"}`;
 
 /**
- * The budgets that apply to `periodStart`. A budget set in an earlier
- * period still applies if it was saved with `carryForward`, so the user
- * doesn't have to re-enter the same number every week or month.
+ * The budgets that apply to the period `start`..`end`. A budget set in an
+ * earlier period still applies if it was saved with `carryForward`, so
+ * the user doesn't have to re-enter the same number every week or month.
+ *
+ * "Belongs to this period" is a range test rather than an exact match on
+ * `periodStart`: a Nepali month runs from the middle of one Gregorian
+ * month to the middle of the next, so a budget saved before the calendar
+ * preference changed can carry a `periodStart` that sits inside the
+ * current period without being equal to it.
  */
-function applicableBudgets(all, periodStart) {
+function applicableBudgets(all, start, end) {
   const byKey = new Map();
   // `all` arrives newest-first, so the first hit for a key wins.
   for (const b of all) {
     const key = keyOf(b);
     if (byKey.has(key)) continue;
-    if (b.periodStart === periodStart) {
+    if (b.periodStart >= start && b.periodStart <= end) {
       byKey.set(key, { ...b, carried: false });
-    } else if (b.carryForward) {
+    } else if (b.periodStart < start && b.carryForward) {
       byKey.set(key, { ...b, carried: true });
     }
   }
@@ -32,16 +39,32 @@ function applicableBudgets(all, periodStart) {
 }
 
 /**
+ * The calendar the user reads months in. Resolved here so every caller —
+ * page, API route and detector alike — lands on the same window without
+ * having to remember to pass it.
+ */
+export async function userCalendar(userId) {
+  const user = await User.findById(userId).select("preferences.dateFormat").lean();
+  return user?.preferences?.dateFormat === "nepali" ? "np" : "en";
+}
+
+/**
  * Budget limits and actual spend for one period.
  * @param {string} userId
  * @param {'weekly'|'monthly'} period
- * @param {Date} [date] anchor — defaults to now
+ * @param {object} [options]
+ * @param {Date} [options.date] anchor — defaults to now
+ * @param {'en'|'np'} [options.cal] month calendar — defaults to the
+ *   user's own preference, so "this month" here means the same month the
+ *   expenses list is showing them
  */
-export async function computeBudgetSummary(userId, period = "monthly", date = new Date()) {
-  const { start, end } = budgetPeriodRange(period, date);
+export async function computeBudgetSummary(userId, period = "monthly", options = {}) {
+  const { date = new Date() } = options;
+  const cal = options.cal ?? (await userCalendar(userId));
+  const { start, end } = budgetPeriodRange(period, date, cal);
 
   const [stored, expenses] = await Promise.all([
-    Budget.find({ userId, period, periodStart: { $lte: start } })
+    Budget.find({ userId, period, periodStart: { $lte: end } })
       .sort({ periodStart: -1 })
       .lean(),
     Expense.find({
@@ -53,7 +76,7 @@ export async function computeBudgetSummary(userId, period = "monthly", date = ne
       .lean(),
   ]);
 
-  const budgets = applicableBudgets(stored, start);
+  const budgets = applicableBudgets(stored, start, end);
   const spentPaisa = sumMinor(expenses);
 
   const spentByCategory = {};
@@ -76,8 +99,12 @@ export async function computeBudgetSummary(userId, period = "monthly", date = ne
 
   return {
     period,
+    cal,
     periodStart: start,
     periodEnd: end,
+    // Rendered here because only the server knows which calendar the
+    // window was measured in.
+    periodLabel: budgetPeriodLabel(period, date, cal),
     totalBudgetPaisa: total?.amountPaisa || 0,
     totalBudgetId: total ? String(total._id) : null,
     totalCarried: Boolean(total?.carried),

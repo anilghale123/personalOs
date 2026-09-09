@@ -22,16 +22,21 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 
+/**
+ * Money leads the tabs after Home — it is the section that gets opened
+ * daily. Journal moved into the More sheet: it is a place people go
+ * deliberately, not something they tap between other things.
+ */
 const TABS = [
-  { href: "/app", label: "Discover", icon: Sparkles },
+  { href: "/app", label: "Home", icon: Sparkles },
   { href: "/app/budget", label: "Money", icon: Receipt },
-  { href: "/app/journal", label: "Journal", icon: BookOpen },
+  { href: "/app/planner", label: "Planner", icon: CalendarDays },
 ];
 
 const MORE_LINKS = [
-  { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/goals", label: "Goals & habits", icon: Target },
-  { href: "/app/planner", label: "Planner", icon: CalendarDays },
+  { href: "/app/journal", label: "Journal", icon: BookOpen },
+  { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];
 

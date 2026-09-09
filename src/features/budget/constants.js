@@ -44,9 +44,10 @@ export const RECURRENCE_FREQUENCIES = [
   { id: "yearly", label: "Yearly" },
 ];
 
+/** Monthly leads — it is how almost everyone actually thinks about a budget. */
 export const BUDGET_PERIODS = [
-  { id: "weekly", label: "Weekly" },
   { id: "monthly", label: "Monthly" },
+  { id: "weekly", label: "Weekly" },
 ];
 
 export const DEBT_KINDS = [

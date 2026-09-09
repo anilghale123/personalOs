@@ -4,7 +4,7 @@ import connectDB from "@/lib/mongoose";
 import Budget from "@/models/Budget";
 import Category from "@/models/Category";
 import { toMinorUnits } from "@/lib/money";
-import { computeBudgetSummary } from "@/features/budget/summary";
+import { computeBudgetSummary, userCalendar } from "@/features/budget/summary";
 import { budgetPeriodRange } from "@/features/budget/utils";
 import { BUDGET_PERIODS } from "@/features/budget/constants";
 
@@ -70,7 +70,8 @@ export async function PUT(request) {
     }
   }
 
-  const { start } = budgetPeriodRange(period);
+  const cal = await userCalendar(session.user.id);
+  const { start } = budgetPeriodRange(period, new Date(), cal);
   const filter = {
     userId: session.user.id,
     period,
@@ -95,6 +96,6 @@ export async function PUT(request) {
     );
   }
 
-  const summary = await computeBudgetSummary(session.user.id, period);
+  const summary = await computeBudgetSummary(session.user.id, period, { cal });
   return NextResponse.json(summary);
 }

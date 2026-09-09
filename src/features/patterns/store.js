@@ -25,11 +25,14 @@ export const usePatternStore = create((set, get) => ({
   runStatus: "idle",
   hydrated: false,
 
-  /** Seed from the server-rendered payload. */
+  /**
+   * Seed from the server-rendered payload. Coverage is not part of that
+   * payload any more, so a lazily-loaded one is never clobbered here.
+   */
   hydrate: ({ insights, readiness, meta }) =>
     set({
       insights: insights ?? [],
-      readiness: readiness ?? null,
+      readiness: readiness ?? get().readiness ?? null,
       meta: meta ?? null,
       hydrated: true,
     }),
@@ -41,6 +44,25 @@ export const usePatternStore = create((set, get) => ({
     if (!meta.hasEverRun) return true;
     if (!meta.nextRunAt) return true;
     return new Date() >= new Date(meta.nextRunAt);
+  },
+
+  /**
+   * How much data the engine can see. Fetched lazily — it is a ninety-day
+   * scan across six collections, and it is only ever read to explain why
+   * a run found nothing, so nothing on the home page should wait on it.
+   */
+  readinessStatus: "idle",
+  loadReadiness: async () => {
+    if (get().readiness || get().readinessStatus === "loading") return;
+    set({ readinessStatus: "loading" });
+    try {
+      const res = await fetch("/api/patterns/readiness");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      set({ readiness: data.primary ?? null, readinessStatus: "ready" });
+    } catch {
+      set({ readinessStatus: "error" });
+    }
   },
 
   /**

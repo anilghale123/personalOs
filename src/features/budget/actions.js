@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth";
 import { sumMinor } from "@/lib/money";
 import { DEFAULT_CATEGORIES } from "./constants";
 import { periodRange } from "./utils";
-import { computeBudgetSummary } from "./summary";
+import { computeBudgetSummary, userCalendar } from "./summary";
 
 function plain(doc) {
   return JSON.parse(JSON.stringify(doc));
@@ -91,9 +91,17 @@ export async function getExpenses(filters = {}) {
   return { expenses: plain(expenses), totalPaisa };
 }
 
-/** Convenience wrapper — this month's expenses (used as the Budget page's default view). */
+/**
+ * Convenience wrapper — this month's expenses (the Budget page's default
+ * view). "This month" follows the user's calendar preference so the
+ * server-rendered first paint matches the month the list opens on.
+ */
 export async function getCurrentMonthExpenses() {
-  const { start, end } = periodRange("month");
+  const session = await auth();
+  if (!session?.user?.id) return { expenses: [], totalPaisa: 0 };
+  await connectDB();
+  const cal = await userCalendar(session.user.id);
+  const { start, end } = periodRange("month", new Date(), cal);
   return getExpenses({ dateFrom: start, dateTo: end, sort: "date_desc" });
 }
 

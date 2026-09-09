@@ -28,96 +28,151 @@ function npr(rupees) {
  * missed — the briefing talks about checkmarks, and an unticked past day
  * honestly has no checkmark.
  *
+ * `gap` is how many days have passed since the last tick, counting back
+ * from today. When the goal has no tick at all this week, `priorGap`
+ * (trailing untouched days at the end of last week) is added, so the
+ * briefing can say "nine days" instead of resetting the count every
+ * Monday and letting a dropped habit look fresh.
+ *
  * @param {object} goal         planner goal with `days`
  * @param {number} elapsedDays  days from Monday to today, inclusive (1–7)
+ * @param {number} [priorGap]   untouched trailing days from last week
  */
-export function summariseGoalWeek(goal, elapsedDays) {
+export function summariseGoalWeek(goal, elapsedDays, priorGap = 0) {
   const elapsed = Math.max(1, Math.min(7, elapsedDays));
   let done = 0;
   for (let i = 0; i < elapsed; i++) {
     if (goal.days?.[DAY_KEYS[i]] === "done") done++;
   }
+
+  let gap = 0;
+  for (let i = elapsed - 1; i >= 0; i--) {
+    if (goal.days?.[DAY_KEYS[i]] === "done") break;
+    gap++;
+  }
+  if (done === 0) gap += Math.max(0, priorGap);
+
   return {
     title: goal.title,
     done,
     elapsed,
     missed: elapsed - done,
     remaining: DAY_KEYS.length - elapsed,
+    gap,
   };
 }
 
+/** "IELTS, breathing and 2 more" — never a bullet list of every goal. */
+function listOf(titles, max = 4) {
+  const shown = titles.slice(0, max);
+  const extra = titles.length - shown.length;
+  if (extra > 0) return `${shown.join(", ")} and ${extra} more`;
+  if (shown.length === 1) return shown[0];
+  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+}
+
+/** How long a gap has been open, in words rather than a raw count. */
+function dayPhrase(days) {
+  if (days >= 21) return "three weeks";
+  if (days >= 14) return "two weeks";
+  if (days >= 8) return "over a week";
+  if (days === 7) return "a week";
+  if (days <= 1) return "a day";
+  return `${days} days`;
+}
+
+const isAre = (n) => (n === 1 ? "is" : "are");
+
 /**
- * Habit notes for the week so far — praise where it's earned, a direct
- * call-out where a goal is being dropped, and a push where it's slipping.
+ * Habit notes for the week so far — **grouped, not enumerated**.
  *
- * @param {object[]} goals      this week's planner goals
+ * One sentence per goal turns a ten-goal planner into a ten-line list
+ * nobody reads. Goals are bucketed by how the week is actually going and
+ * each bucket gets a single sentence naming the goals in it, so the
+ * briefing stays four lines whether you track three habits or fifteen.
+ *
+ * @param {object[]} goals      this week's planner goals, each optionally
+ *                              carrying `priorGap` from last week
  * @param {number} elapsedDays  days from Monday to today, inclusive
  * @param {string} name         the user's first name
  */
 export function buildHabitNotes(goals, elapsedDays, name) {
-  const notes = [];
-  for (const goal of goals ?? []) {
-    const g = summariseGoalWeek(goal, elapsedDays);
-    const ratio = g.done / g.elapsed;
+  const summaries = (goals ?? []).map((g) =>
+    summariseGoalWeek(g, elapsedDays, g.priorGap ?? 0)
+  );
+  if (!summaries.length) return [];
 
-    if (g.done === 7) {
-      notes.push(
-        note(
-          "praise",
-          `Seven out of seven on ${g.title} — a flawless week, ${name}. This is what a habit looks like when it sticks.`
-        )
-      );
-    } else if (g.done === g.elapsed && g.elapsed >= 3) {
-      notes.push(
-        note(
-          "praise",
-          `${g.title}: ${g.done} for ${g.done} so far. A perfect week in the making, ${name} — protect the streak.`
-        )
-      );
-    } else if (g.done === g.elapsed) {
-      notes.push(
-        note(
-          "praise",
-          `Good start, ${name} — ${g.title} is ticked every day so far. Keep it moving.`
-        )
-      );
-    } else if (g.done === 0 && g.elapsed >= 2) {
-      notes.push(
-        note(
-          "miss",
-          `${name}, ${g.title} hasn't had a single checkmark this week. If it still matters — and it does — do the smallest version of it today, so it doesn't quietly disappear.`
-        )
-      );
-    } else if (g.done === 0) {
-      notes.push(
-        note(
-          "nudge",
-          `New week, ${name} — ${g.title} is still waiting for its first tick.`
-        )
-      );
-    } else if (ratio >= 0.6) {
-      notes.push(
-        note(
-          "praise",
-          `You're holding ${g.title} — ${g.done} of ${g.elapsed} days. Great going, ${name}; finish the week strong.`
-        )
-      );
-    } else if (ratio < 0.34) {
-      notes.push(
-        note(
-          "nudge",
-          `${g.title} is slipping, ${name} — ${g.done} of ${g.elapsed} days so far. One tick today changes the story of this week.`
-        )
-      );
-    } else {
-      notes.push(
-        note(
-          "nudge",
-          `A mixed week on ${g.title} — ${g.done} of ${g.elapsed} days. The miss matters less than what you do tomorrow.`
-        )
-      );
-    }
+  const dropped = [];   // not a single tick
+  const slipping = [];  // ticked, but the minority of days
+  const holding = [];   // more days on than off
+  const strong = [];    // near-perfect
+
+  for (const g of summaries) {
+    const ratio = g.done / g.elapsed;
+    if (g.done === 0) dropped.push(g);
+    else if (ratio >= 0.8) strong.push(g);
+    else if (ratio >= 0.5) holding.push(g);
+    else slipping.push(g);
   }
+
+  const notes = [];
+
+  if (dropped.length) {
+    // Longest gap first — it is both the worst news and the most useful.
+    const worst = [...dropped].sort((a, b) => b.gap - a.gap)[0];
+    const titles = [...dropped]
+      .sort((a, b) => b.gap - a.gap)
+      .map((g) => g.title);
+
+    notes.push(
+      note(
+        "miss",
+        dropped.length === 1
+          ? `${name}, ${worst.title} hasn't had a checkmark in ${dayPhrase(worst.gap)}. Do the smallest version of it today — that is how it survives.`
+          : `${name}, you're missing ${listOf(titles)} — ${worst.title} the longest, ${dayPhrase(worst.gap)} now. Pick one and do it today.`
+      )
+    );
+  }
+
+  if (slipping.length) {
+    const titles = slipping.map((g) => g.title);
+    const done = slipping.reduce((sum, g) => sum + g.done, 0);
+    const possible = slipping.reduce((sum, g) => sum + g.elapsed, 0);
+    notes.push(
+      note(
+        "nudge",
+        `${listOf(titles)} ${isAre(slipping.length)} slipping — ${done} of ${possible} days between them. One tick each today changes the story of this week.`
+      )
+    );
+  }
+
+  if (holding.length) {
+    const titles = holding.map((g) => g.title);
+    notes.push(
+      note(
+        "info",
+        `${listOf(titles)} ${isAre(holding.length)} holding — more days on than off. Finish the week strong, ${name}.`
+      )
+    );
+  }
+
+  if (strong.length) {
+    const titles = strong.map((g) => g.title);
+    const perfect = strong.every((g) => g.done === g.elapsed);
+    const full = perfect && strong[0].elapsed === 7;
+
+    notes.push(
+      note(
+        "praise",
+        full
+          ? `A flawless week, ${name} — ${listOf(titles)} ticked every single day.`
+          : perfect
+          ? `Great, ${name} — you're consistently doing ${listOf(titles)}, every day so far this week.`
+          : `Great, ${name} — you're staying consistent with ${listOf(titles)}. That's the part that compounds.`
+      )
+    );
+  }
+
   return notes;
 }
 

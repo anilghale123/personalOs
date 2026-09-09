@@ -36,62 +36,83 @@ function NoteList({ notes }) {
   );
 }
 
+/** Shared shell so Money and Habits read as two halves of one briefing. */
+function BriefingCard({ icon: Icon, title, children }) {
+  return (
+    <section className="rounded-3xl bg-sage-200 px-6 py-6 sm:px-[34px] sm:py-7">
+      <h2 className="mb-3.5 flex items-center gap-2 font-display text-[20px] text-sage-900">
+        <Icon className="h-[18px] w-[18px] text-sage-700" />
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
 /**
- * "Your week, in plain words" — the week's habits and spending said the
- * way an honest friend would say them. The sentences arrive ready-made
- * from the server; this component only renders them.
+ * Money, in plain words — the first thing on the home screen, because it
+ * is the thing people open this app to check.
  */
-export function WeeklyBriefing({ briefing }) {
-  if (!briefing) return null;
-  const { habitNotes = [], moneyNotes = [], hasGoals } = briefing;
-  if (!habitNotes.length && !moneyNotes.length && hasGoals) return null;
+export function MoneyBriefing({ briefing }) {
+  const notes = briefing?.moneyNotes ?? [];
 
   return (
-    <section className="mt-[34px] rounded-3xl bg-sage-200 px-6 py-7 sm:px-[34px] sm:py-[30px]">
-      <h2 className="font-display text-[20px] text-sage-900">
-        Your week, in plain words
-      </h2>
+    <BriefingCard icon={Wallet} title="Your money this week">
+      {notes.length > 0 ? (
+        <NoteList notes={notes} />
+      ) : (
+        <p className="text-[15px] leading-[1.65] text-sage-900">
+          Nothing to say about money yet —{" "}
+          <Link
+            href="/app/budget/expenses"
+            className="text-sage-800 underline underline-offset-[3px] hover:text-sage-900"
+          >
+            log an expense
+          </Link>{" "}
+          and check back.
+        </p>
+      )}
 
-      <div className="mt-4 space-y-5">
-        <div>
-          <h3 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-sage-800">
-            <ListChecks className="h-3.5 w-3.5" />
-            Habits &amp; goals
-          </h3>
-          {habitNotes.length > 0 ? (
-            <NoteList notes={habitNotes} />
-          ) : (
-            <p className="text-[15px] leading-[1.65] text-sage-900">
-              No goals listed for this week yet.{" "}
-              <Link href="/app/planner" className="text-sage-800 underline underline-offset-[3px] hover:text-sage-900">
-                List them in the Planner
-              </Link>{" "}
-              and your score keeps itself here.
-            </p>
-          )}
-        </div>
+      <Link
+        href="/app/budget/expenses"
+        className="mt-4 inline-flex min-h-[40px] items-center rounded-full bg-sage-300/70 px-4 text-sm font-medium text-sage-900 transition-colors hover:bg-sage-300"
+      >
+        Open Money
+      </Link>
+    </BriefingCard>
+  );
+}
 
-        <div className="border-t border-sage-300 pt-4">
-          <h3 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-sage-800">
-            <Wallet className="h-3.5 w-3.5" />
-            Money
-          </h3>
-          {moneyNotes.length > 0 ? (
-            <NoteList notes={moneyNotes} />
-          ) : (
-            <p className="text-[15px] leading-[1.65] text-sage-900">
-              Nothing to say about money yet —{" "}
-              <Link
-                href="/app/budget/expenses"
-                className="text-sage-800 underline underline-offset-[3px] hover:text-sage-900"
-              >
-                log an expense
-              </Link>{" "}
-              and check back.
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
+/**
+ * Habits and goals, grouped rather than enumerated. The sentences arrive
+ * ready-made from the server; this component only renders them.
+ */
+export function HabitsBriefing({ briefing }) {
+  const notes = briefing?.habitNotes ?? [];
+
+  return (
+    <BriefingCard icon={ListChecks} title="Your habits &amp; goals">
+      {notes.length > 0 ? (
+        <NoteList notes={notes} />
+      ) : (
+        <p className="text-[15px] leading-[1.65] text-sage-900">
+          No goals listed for this week yet.{" "}
+          <Link
+            href="/app/planner"
+            className="text-sage-800 underline underline-offset-[3px] hover:text-sage-900"
+          >
+            List them in the Planner
+          </Link>{" "}
+          and your score keeps itself here.
+        </p>
+      )}
+
+      <Link
+        href="/app/planner"
+        className="mt-4 inline-flex min-h-[40px] items-center rounded-full bg-sage-300/70 px-4 text-sm font-medium text-sage-900 transition-colors hover:bg-sage-300"
+      >
+        Open Planner
+      </Link>
+    </BriefingCard>
   );
 }

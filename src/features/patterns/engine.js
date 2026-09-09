@@ -403,11 +403,12 @@ async function budgetContext(userId, signals) {
   await Promise.all(
     months.map(async (month) => {
       try {
-        const summary = await computeBudgetSummary(
-          userId,
-          "monthly",
-          new Date(`${month}-01T12:00:00`)
-        );
+        const summary = await computeBudgetSummary(userId, "monthly", {
+          date: new Date(`${month}-01T12:00:00`),
+          // The window is bucketed by Gregorian month here, so the
+          // budget has to be read in the same calendar.
+          cal: "en",
+        });
         monthlyBudgets[month] = summary.totalBudgetPaisa || 0;
       } catch {
         monthlyBudgets[month] = 0;

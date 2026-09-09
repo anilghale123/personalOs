@@ -7,6 +7,7 @@ import {
   getFinancialGoals,
 } from "@/features/budget/actions";
 import { BudgetHydrator } from "@/features/budget/components/budget-hydrator";
+import { MoneyTabs } from "@/features/budget/components/money-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function BudgetLayout({ children }) {
         initialDebts={debts}
         initialFinancialGoals={financialGoals}
       />
+      <MoneyTabs />
       {children}
     </>
   );
