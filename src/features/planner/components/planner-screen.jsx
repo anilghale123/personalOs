@@ -5,7 +5,6 @@ import { addDays, parseISO, format } from "date-fns";
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
   Plus,
   Search,
   Target,
@@ -20,7 +19,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
 import { PlannerGoalRow } from "./planner-goal-row";
-import { PlannerCalendar } from "./planner-calendar";
 import { PlannerHistory } from "./planner-history";
 
 const GRID_COLS = "grid-cols-[minmax(150px,1.8fr)_repeat(7,minmax(0,1fr))]";
@@ -33,10 +31,9 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   const [saving, setSaving] = React.useState(0);
   const [newTitle, setNewTitle] = React.useState("");
   const [view, setView] = React.useState("week");
-  const [showCalendar, setShowCalendar] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState("all");
-  // Bumped after every edit so the calendar and history refetch their tallies.
+  // Bumped after every edit so history refetches its tallies.
   const [refreshKey, setRefreshKey] = React.useState(0);
   // Guards against a slow fetch overwriting the grid after navigation.
   const weekRef = React.useRef(initialWeekStart);
@@ -48,8 +45,8 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   const pendingRef = React.useRef(new Map());
   const refreshTimer = React.useRef(null);
 
-  // Toggles often come in bursts; the calendar/history refetch once the
-  // burst settles instead of on every single tap.
+  // Toggles often come in bursts; history refetches once the burst
+  // settles instead of on every single tap.
   const scheduleRefresh = React.useCallback(() => {
     clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => setRefreshKey((n) => n + 1), 600);
@@ -87,7 +84,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
     );
   }
 
-  /** Open a week from the calendar or history and show its grid. */
+  /** Open a week from history and show its grid. */
   function openWeek(ws) {
     setView("week");
     if (ws !== weekStart) loadWeek(ws);
@@ -199,9 +196,10 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   );
   const todayKey = toDateKey();
   const start = parseISO(weekStart);
+  // No year — the pager reads as a week, not a date stamp.
   const label = `${format(start, "MMM d")} – ${format(
     addDays(start, 6),
-    "MMM d, yyyy"
+    "MMM d"
   )}`;
   const currentWeek = weekStartKey();
   const isCurrentWeek = weekStart === currentWeek;
@@ -268,12 +266,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
           sit directly under it, so a phone spends no extra rows on chrome. */}
       <div className="space-y-2.5">
         <h1 className="font-display text-[26px] leading-[1.12] tracking-tight sm:text-[32px]">
-          Weekly Planner{" "}
-          {view === "week" && (
-            <span className="whitespace-nowrap text-sm font-normal tracking-normal text-muted-foreground sm:text-base">
-              ({label})
-            </span>
-          )}
+          Weekly Planner
         </h1>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
@@ -295,53 +288,40 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
       </div>
 
       <TabsContent value="week" className="mt-0 space-y-3">
-        {/* Week navigation */}
-        <div className="flex flex-wrap items-center gap-1">
+        {/* Week navigation — the range sits between the arrows, and the
+            one button jumps home, so this is the only row it costs. */}
+        <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon"
+            className="shrink-0"
             onClick={() => shiftWeek(-1)}
             aria-label="Previous week"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button
-            variant={isCurrentWeek ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => loadWeek(currentWeek)}
-            disabled={isCurrentWeek}
-          >
-            This week
-          </Button>
+          <p className="min-w-0 flex-1 text-center text-sm font-medium">
+            {label}
+          </p>
           <Button
             variant="outline"
             size="icon"
+            className="shrink-0"
             onClick={() => shiftWeek(1)}
             aria-label="Next week"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button
-            variant={showCalendar ? "secondary" : "outline"}
+            variant={isCurrentWeek ? "secondary" : "outline"}
             size="sm"
-            className="ml-auto"
-            onClick={() => setShowCalendar((s) => !s)}
-            aria-expanded={showCalendar}
+            className="shrink-0"
+            onClick={() => loadWeek(currentWeek)}
+            disabled={isCurrentWeek}
           >
-            <CalendarDays className="h-4 w-4" />
-            {showCalendar ? "Hide calendar" : "Jump to week"}
+            This week
           </Button>
         </div>
-
-        {showCalendar && (
-          <PlannerCalendar
-            weekStart={weekStart}
-            onSelect={(ws) => {
-              if (ws !== weekStart) loadWeek(ws);
-            }}
-            refreshKey={refreshKey}
-          />
-        )}
 
         {/* Add a goal — on a phone this stands where the search box and
             filter chips do on a wide screen. */}
