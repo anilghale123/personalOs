@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -50,10 +49,14 @@ function groupByDate(expenses) {
   }));
 }
 
-export function ExpenseList({ categories, earliestDate: initialEarliestDate, dateFormat }) {
+export function ExpenseList({
+  categories,
+  earliestDate: initialEarliestDate,
+  dateFormat,
+  filters,
+}) {
   const expenses = useBudgetStore((s) => s.expenses);
   const totalPaisa = useBudgetStore((s) => s.totalPaisa);
-  const loadExpenses = useBudgetStore((s) => s.loadExpenses);
   const summary = useBudgetStore((s) => s.summary);
   const budgetPeriod = useBudgetStore((s) => s.budgetPeriod);
   // The store copy refreshes on every fetch; the prop covers first paint.
@@ -68,43 +71,28 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
     ? compareMonthCursors(cursorForDateKey(earliestDate, cal), currentCursor) < 0
     : false;
 
-  // A discovery's evidence rows link here with the day already selected,
-  // so the user lands on exactly the expenses a finding was computed from.
-  const searchParams = useSearchParams();
-  const initialFrom = searchParams.get("dateFrom") ?? "";
-  const initialTo = searchParams.get("dateTo") ?? "";
-
-  // With a monthly record the list opens on the current month, unless a
-  // deep-link already pinned a range.
-  const openingRange = React.useMemo(() => {
-    if (initialFrom || initialTo || !initialEarliestDate) return null;
-    const cur = currentMonthCursor(cal, toDateKey());
-    const earliest = cursorForDateKey(initialEarliestDate, cal);
-    return compareMonthCursors(earliest, cur) < 0 ? monthCursorRange(cur) : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const [q, setQ] = React.useState("");
-  const [categoryId, setCategoryId] = React.useState("");
-  const [paymentMethod, setPaymentMethod] = React.useState("");
-  const [dateFrom, setDateFrom] = React.useState(initialFrom || openingRange?.from || "");
-  const [dateTo, setDateTo] = React.useState(initialTo || openingRange?.to || "");
-  const [sort, setSort] = React.useState("date_desc");
-  const [showFilters, setShowFilters] = React.useState(
-    Boolean(initialFrom || initialTo)
-  );
+  // The filter set lives in the screen above — the Filter tab on phones
+  // edits the same state while this list is unmounted.
+  const {
+    q,
+    setQ,
+    categoryId,
+    setCategoryId,
+    paymentMethod,
+    setPaymentMethod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    sort,
+    setSort,
+    showFilters,
+    setShowFilters,
+    clearFilters,
+  } = filters;
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
-
-  // Debounced re-fetch whenever any filter changes.
-  React.useEffect(() => {
-    const t = setTimeout(() => {
-      loadExpenses({ q, categoryId, paymentMethod, dateFrom, dateTo, sort });
-    }, 250);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, categoryId, paymentMethod, dateFrom, dateTo, sort]);
 
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
   const options = React.useMemo(() => categoryOptions(categories), [categories]);
@@ -139,14 +127,6 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
     () => (grouped ? groupByDate(expenses) : []),
     [expenses, grouped]
   );
-
-  function clearFilters() {
-    setQ("");
-    setCategoryId("");
-    setPaymentMethod("");
-    setDateFrom("");
-    setDateTo("");
-  }
 
   function goToCursor(cursor) {
     const range = monthCursorRange(cursor);
@@ -189,10 +169,11 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
             className="h-9 pl-8"
           />
         </div>
+        {/* Phones reach the same filters through the Filter tab instead */}
         <Button
           variant={showFilters || activeFilters ? "secondary" : "outline"}
           size="sm"
-          className="h-9"
+          className="hidden h-9 md:inline-flex"
           onClick={() => setShowFilters((s) => !s)}
           aria-expanded={showFilters}
         >
@@ -210,8 +191,22 @@ export function ExpenseList({ categories, earliestDate: initialEarliestDate, dat
         </Button>
       </div>
 
+      {/* Phones set filters in their own tab — say so here, and offer the
+          way out, so an unexpectedly short list is never a mystery. */}
+      {activeFilters > 0 && (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="flex w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 py-2 text-xs font-medium text-primary md:hidden"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {activeFilters} filter{activeFilters > 1 ? "s" : ""} on
+          <X className="ml-auto h-3.5 w-3.5" />
+        </button>
+      )}
+
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card elev-sm p-3">
+        <div className="hidden flex-wrap items-center gap-2 rounded-2xl bg-card elev-sm p-3 md:flex">
           <Select
             className="h-8 w-44"
             value={categoryId}

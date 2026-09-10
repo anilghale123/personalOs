@@ -5,6 +5,8 @@ import { Info, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useBudgetStore } from "../store";
 import { ExpenseList } from "./expense-list";
+import { ExpenseFilterPanel } from "./expense-filter-panel";
+import { useExpenseFilters } from "./expense-filters";
 import { CategoryManager } from "./category-manager";
 
 const HINT_KEY = "budget-hint-dismissed";
@@ -43,6 +45,10 @@ function BudgetHint() {
 
 export function ExpensesScreen({ earliestDate, dateFormat }) {
   const categories = useBudgetStore((s) => s.categories);
+  const cal = dateFormat === "nepali" ? "np" : "en";
+  // Owned here, not in the list: on a phone the filters get their own
+  // tab, so the list is unmounted while they're being changed.
+  const filters = useExpenseFilters({ earliestDate, cal });
 
   return (
     <div className="space-y-4">
@@ -50,6 +56,9 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
       <Tabs defaultValue="expenses">
         <TabsList>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="filter" className="md:hidden">
+            Filter
+          </TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
         </TabsList>
 
@@ -58,7 +67,12 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
             categories={categories}
             earliestDate={earliestDate}
             dateFormat={dateFormat}
+            filters={filters}
           />
+        </TabsContent>
+
+        <TabsContent value="filter" className="md:hidden">
+          <ExpenseFilterPanel categories={categories} filters={filters} />
         </TabsContent>
 
         <TabsContent value="categories">

@@ -5,7 +5,6 @@ import { addDays, parseISO, format } from "date-fns";
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarRange,
   CalendarDays,
   Plus,
   Search,
@@ -230,31 +229,69 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   const visibleGoals = searched.filter((g) => activeFilter.match(goalTally(g)));
   const isFiltered = filter !== "all" || q.length > 0;
 
+  /**
+   * The add-goal control. Rendered twice — once above the grid for
+   * phones, once as the grid's last row on wider screens — so it isn't
+   * stranded behind a horizontal scroll on a small display. Both share
+   * this component's `newTitle`, so only the visible one is ever typed in.
+   */
+  const addGoalRow = (className) => (
+    <div className={className}>
+      <Input
+        value={newTitle}
+        onChange={(e) => setNewTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") addGoal();
+        }}
+        placeholder={
+          isPastWeek
+            ? "Add a goal to this past week"
+            : "Add a goal — e.g. Morning workout"
+        }
+        className="h-9 min-w-0 flex-1 bg-background"
+      />
+      <Button
+        size="sm"
+        className="shrink-0"
+        onClick={addGoal}
+        disabled={!newTitle.trim()}
+      >
+        <Plus className="h-4 w-4" />
+        Add goal
+      </Button>
+    </div>
+  );
+
   return (
     <Tabs value={view} onValueChange={setView} className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-1.5 text-base font-semibold">
-            <CalendarRange className="h-4 w-4 text-muted-foreground" />
-            {view === "history" ? "Week history" : label}
-          </h2>
+      {/* Header — the week range rides along with the title, and the tabs
+          sit directly under it, so a phone spends no extra rows on chrome. */}
+      <div className="space-y-2.5">
+        <h1 className="font-display text-[26px] leading-[1.12] tracking-tight sm:text-[32px]">
+          Weekly Planner{" "}
+          {view === "week" && (
+            <span className="whitespace-nowrap text-sm font-normal tracking-normal text-muted-foreground sm:text-base">
+              ({label})
+            </span>
+          )}
+        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="week">Planner</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
           <p className="text-xs text-muted-foreground">
             {view === "history"
-              ? "Look back at how your past weeks went — pick one to reopen it."
+              ? "Pick a week to reopen it."
               : saving > 0
               ? "Saving…"
               : goals.length > 0
-              ? `${overall}% of goals completed${
+              ? `${overall}% completed${
                   isCurrentWeek ? " this week" : isPastWeek ? " that week" : ""
                 }`
-              : "Add goals below, then tap a day to mark it done."}
+              : "Add a goal, then tap a day."}
           </p>
         </div>
-        <TabsList>
-          <TabsTrigger value="week">Planner</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
       </div>
 
       <TabsContent value="week" className="mt-0 space-y-3">
@@ -306,9 +343,13 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
           />
         )}
 
-        {/* Filters */}
+        {/* Add a goal — on a phone this stands where the search box and
+            filter chips do on a wide screen. */}
+        {addGoalRow("flex items-center gap-2 rounded-2xl bg-card elev-sm p-2 md:hidden")}
+
+        {/* Search + filters — a phone shows every goal instead */}
         {goals.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <div className="relative w-full sm:w-56">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -403,7 +444,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
                 <EmptyState
                   icon={Target}
                   title="No goals for this week"
-                  description="Add a goal below and check off each day as you complete it."
+                  description="Add a goal, then check off each day as you complete it."
                 />
               </div>
             ) : visibleGoals.length === 0 ? (
@@ -437,26 +478,10 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
               ))
             )}
 
-            {/* Add-goal row */}
-            <div className="flex items-center gap-2 border-t bg-muted/30 p-2">
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addGoal();
-                }}
-                placeholder={
-                  isPastWeek
-                    ? "Add a goal to this past week"
-                    : "Add a goal — e.g. Morning workout"
-                }
-                className="h-9 flex-1 bg-background"
-              />
-              <Button size="sm" onClick={addGoal} disabled={!newTitle.trim()}>
-                <Plus className="h-4 w-4" />
-                Add goal
-              </Button>
-            </div>
+            {/* Add-goal row (phones have it above the grid instead) */}
+            {addGoalRow(
+              "hidden items-center gap-2 border-t bg-muted/30 p-2 md:flex"
+            )}
           </div>
         </div>
 
