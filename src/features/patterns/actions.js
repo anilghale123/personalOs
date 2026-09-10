@@ -9,9 +9,16 @@ import Expense from "@/models/Expense";
 import Category from "@/models/Category";
 import { toDateKey } from "@/lib/utils";
 import { weekStartKey } from "@/lib/week";
+import {
+  currentMonthCursor,
+  monthCursorLabel,
+  monthCursorRange,
+  shiftMonthCursor,
+} from "@/lib/months";
+import { userCalendar } from "@/features/budget/summary";
 import { getDailySignals } from "./signals";
 import { renderStatement, RUN_TTL_HOURS } from "./constants";
-import { addDays } from "./dates";
+import { addDays, dayDiff } from "./dates";
 import { buildHabitNotes, buildMoneyNotes, orderNotes } from "./briefing";
 
 /**
@@ -157,9 +164,16 @@ export async function getInsightDetail(id) {
 }
 
 /**
- * The weekly briefing — this week's planner checkmarks and spending,
- * already turned into plain sentences. Deterministic: no model is
- * involved, so every number in the text came from the rows below.
+ * The briefing — planner checkmarks and spending, already turned into
+ * plain sentences. Deterministic: no model is involved, so every number
+ * in the text came from the rows below.
+ *
+ * The two halves run on different clocks on purpose. Habits are a weekly
+ * practice and the planner itself is a week, so those stay Mon–today.
+ * Money is monthly — rent, salary, subscriptions and every budget land
+ * on a month — and it is measured in whichever calendar the user reads
+ * their money in, so "this month" here means the same month the expenses
+ * screen is showing them.
  *
  * Reads the planner week directly rather than through getPlannerWeek —
  * the briefing must never trigger the copy-forward side effect.
@@ -186,7 +200,21 @@ export async function getWeeklyBriefing() {
   );
 
   const lastWsKey = addDays(wsKey, -7);
-  const [goals, lastWeekGoals, weekExpenses, lastWeekExpenses, categories] = await Promise.all([
+
+  // The money window: this month to date, in the user's own calendar.
+  const cal = await userCalendar(userId);
+  const monthCursor = currentMonthCursor(cal, todayKey);
+  const { from: monthFrom } = monthCursorRange(monthCursor);
+  const { from: prevFrom, to: prevTo } = monthCursorRange(
+    shiftMonthCursor(monthCursor, -1)
+  );
+  // Compare like with like — the same opening stretch of last month, or
+  // the 3rd of every month would report a triumph.
+  const monthElapsedDays = Math.max(1, dayDiff(monthFrom, todayKey) + 1);
+  const prevSpanEnd = addDays(prevFrom, monthElapsedDays - 1);
+  const prevCompareTo = prevSpanEnd < prevTo ? prevSpanEnd : prevTo;
+
+  const [goals, lastWeekGoals, monthExpenses, lastMonthExpenses, categories] = await Promise.all([
     PlannerGoal.find({ userId, weekStart: wsKey }).sort({ createdAt: 1 }).lean(),
     // Last week's rows, only so a dropped habit's gap doesn't reset to
     // zero every Monday and read as if it were merely off to a slow start.
@@ -194,35 +222,35 @@ export async function getWeeklyBriefing() {
     Expense.find({
       userId,
       deletedAt: null,
-      date: { $gte: wsKey, $lte: todayKey },
+      date: { $gte: monthFrom, $lte: todayKey },
     }).lean(),
     Expense.find({
       userId,
       deletedAt: null,
-      date: { $gte: addDays(wsKey, -7), $lte: addDays(wsKey, -1) },
+      date: { $gte: prevFrom, $lte: prevCompareTo },
     }).lean(),
     Category.find({ userId }).select("name icon").lean(),
   ]);
 
   const catMap = Object.fromEntries(categories.map((c) => [String(c._id), c]));
   const sum = (rows) => rows.reduce((s, e) => s + (e.amountPaisa || 0), 0);
-  const weekPaisa = sum(weekExpenses);
-  const lastWeekPaisa = sum(lastWeekExpenses);
+  const monthPaisa = sum(monthExpenses);
+  const lastMonthPaisa = sum(lastMonthExpenses);
 
   const byCategory = new Map();
-  for (const e of weekExpenses) {
+  for (const e of monthExpenses) {
     const id = String(e.categoryId);
     byCategory.set(id, (byCategory.get(id) || 0) + (e.amountPaisa || 0));
   }
   let top = null;
-  if (weekPaisa > 0) {
+  if (monthPaisa > 0) {
     for (const [id, paisa] of byCategory) {
       if (!top || paisa > top.paisa) {
         const cat = catMap[id];
         top = {
           name: cat?.name || "Uncategorised",
           paisa,
-          share: paisa / weekPaisa,
+          share: paisa / monthPaisa,
         };
       }
     }
@@ -236,12 +264,14 @@ export async function getWeeklyBriefing() {
   return {
     habitNotes: orderNotes(buildHabitNotes(goalsWithHistory, elapsedDays, name)),
     moneyNotes: buildMoneyNotes({
-      weekPaisa,
-      lastWeekPaisa,
+      monthPaisa,
+      lastMonthPaisa,
+      lastMonthPartial: prevCompareTo < prevTo,
       top,
       categoryCount: byCategory.size,
       name,
     }),
+    monthLabel: monthCursorLabel(monthCursor),
     hasGoals: goals.length > 0,
     elapsedDays,
   };

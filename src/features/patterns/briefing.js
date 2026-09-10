@@ -194,64 +194,83 @@ function categorySuggestion(categoryName) {
   if (/subscri|internet|phone|recharge|bill|utilit/.test(n)) {
     return "These repeat every month — check you're not paying for something you stopped using.";
   }
-  return "Worth a second look before next week — small leaks sink budgets.";
+  return "Worth a second look before next month — small leaks sink budgets.";
 }
 
 /**
- * Money notes for the week so far.
+ * Money notes for the month so far.
+ *
+ * The money half of the briefing runs on calendar months, not weeks:
+ * rent, salary, subscriptions and budgets all land monthly, so a
+ * seven-day window kept calling a normal rent week a spending problem.
+ *
+ * `lastMonthPaisa` is the *same opening stretch* of the previous month
+ * rather than the whole of it — comparing three days against thirty-one
+ * would report a triumph every month on the 3rd.
  *
  * @param {object} input
- * @param {number} input.weekPaisa       this week's total (Mon–today)
- * @param {number} input.lastWeekPaisa   the full previous week
- * @param {object|null} input.top        { name, icon, paisa, share } — the
- *                                       biggest category this week
- * @param {number} input.categoryCount   distinct categories used this week
- * @param {string} input.name            the user's first name
+ * @param {number} input.monthPaisa       this month's total so far
+ * @param {number} input.lastMonthPaisa   last month over the same stretch
+ * @param {boolean} [input.lastMonthPartial] true when that stretch stops
+ *                                        short of the full month
+ * @param {object|null} input.top         { name, paisa, share } — the
+ *                                        biggest category this month
+ * @param {number} input.categoryCount    distinct categories used
+ * @param {string} input.name             the user's first name
  */
-export function buildMoneyNotes({ weekPaisa, lastWeekPaisa, top, categoryCount, name }) {
+export function buildMoneyNotes({
+  monthPaisa,
+  lastMonthPaisa,
+  lastMonthPartial = false,
+  top,
+  categoryCount,
+  name,
+}) {
   const notes = [];
-  const week = weekPaisa / 100;
-  const last = lastWeekPaisa / 100;
+  const month = monthPaisa / 100;
+  const last = lastMonthPaisa / 100;
+  // What the comparison is actually against, said plainly.
+  const against = lastMonthPartial ? "the same stretch of last month" : "last month";
 
-  if (weekPaisa === 0) {
+  if (monthPaisa === 0) {
     notes.push(
       note(
         "info",
-        lastWeekPaisa > 0
-          ? `Nothing logged yet this week — last week you tracked ${npr(last)}. Log as you go, ${name}, or the record lies to you later.`
+        lastMonthPaisa > 0
+          ? `Nothing logged yet this month — by this point last month you had tracked ${npr(last)}. Log as you go, ${name}, or the record lies to you later.`
           : `No spending logged yet, ${name}. The money side of this briefing only works if every expense goes in as it happens.`
       )
     );
     return notes;
   }
 
-  if (lastWeekPaisa > 0) {
-    const change = (weekPaisa - lastWeekPaisa) / lastWeekPaisa;
+  if (lastMonthPaisa > 0) {
+    const change = (monthPaisa - lastMonthPaisa) / lastMonthPaisa;
     if (change <= -0.1) {
       notes.push(
         note(
           "praise",
-          `You've spent ${npr(week)} this week — ${Math.abs(Math.round(change * 100))}% less than last week. That's discipline, ${name}.`
+          `You've spent ${npr(month)} this month — ${Math.abs(Math.round(change * 100))}% less than ${against}. That's discipline, ${name}.`
         )
       );
     } else if (change >= 0.15) {
       notes.push(
         note(
           "nudge",
-          `Spending is running ${Math.round(change * 100)}% above last week — ${npr(week)} against ${npr(last)}. Worth a glance at where it went.`
+          `Spending is running ${Math.round(change * 100)}% above ${against} — ${npr(month)} against ${npr(last)}. Worth a glance at where it went.`
         )
       );
     } else {
       notes.push(
         note(
           "info",
-          `You've logged ${npr(week)} this week — about the same as last week.`
+          `You've logged ${npr(month)} this month — about the same as ${against}.`
         )
       );
     }
   } else {
     notes.push(
-      note("info", `You've logged ${npr(week)} this week — the first week on record.`)
+      note("info", `You've logged ${npr(month)} this month — the first month on record.`)
     );
   }
 
@@ -260,14 +279,14 @@ export function buildMoneyNotes({ weekPaisa, lastWeekPaisa, top, categoryCount, 
     notes.push(
       note(
         "nudge",
-        `${name}, ${top.name} is eating ${pct}% of this week's spending (${npr(top.paisa / 100)}). ${categorySuggestion(top.name)}`
+        `${name}, ${top.name} is eating ${pct}% of this month's spending (${npr(top.paisa / 100)}). ${categorySuggestion(top.name)}`
       )
     );
   } else if (categoryCount >= 3) {
     notes.push(
       note(
         "praise",
-        `Your spending is nicely spread this week — no single category is eating the budget. Nicely done, ${name}.`
+        `Your spending is nicely spread this month — no single category is eating the budget. Nicely done, ${name}.`
       )
     );
   }

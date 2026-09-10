@@ -145,8 +145,8 @@ describe("buildHabitNotes", () => {
 describe("buildMoneyNotes", () => {
   it("encourages logging when nothing is tracked", () => {
     const notes = buildMoneyNotes({
-      weekPaisa: 0,
-      lastWeekPaisa: 0,
+      monthPaisa: 0,
+      lastMonthPaisa: 0,
       top: null,
       categoryCount: 0,
       name: "Anil",
@@ -158,8 +158,8 @@ describe("buildMoneyNotes", () => {
 
   it("praises a real drop in spending", () => {
     const notes = buildMoneyNotes({
-      weekPaisa: 400000,
-      lastWeekPaisa: 600000,
+      monthPaisa: 400000,
+      lastMonthPaisa: 600000,
       top: null,
       categoryCount: 2,
       name: "Anil",
@@ -167,24 +167,54 @@ describe("buildMoneyNotes", () => {
     expect(notes[0].tone).toBe("praise");
     expect(notes[0].text).toContain("33% less");
     expect(notes[0].text).toContain("NPR 4,000");
+    expect(notes[0].text).toContain("this month");
   });
 
-  it("flags a big week-over-week rise", () => {
+  it("flags a big month-over-month rise", () => {
     const notes = buildMoneyNotes({
-      weekPaisa: 800000,
-      lastWeekPaisa: 500000,
+      monthPaisa: 800000,
+      lastMonthPaisa: 500000,
       top: null,
       categoryCount: 2,
       name: "Anil",
     });
     expect(notes[0].tone).toBe("nudge");
     expect(notes[0].text).toContain("60% above");
+    expect(notes[0].text).toContain("last month");
+  });
+
+  /**
+   * Mid-month, the comparison is against a part of last month, and the
+   * sentence has to say so — otherwise "40% less than last month" on the
+   * 5th is a number that means nothing.
+   */
+  it("says when the comparison is only part of last month", () => {
+    const partial = buildMoneyNotes({
+      monthPaisa: 300000,
+      lastMonthPaisa: 500000,
+      lastMonthPartial: true,
+      top: null,
+      categoryCount: 2,
+      name: "Anil",
+    });
+    expect(partial[0].text).toContain("the same stretch of last month");
+
+    const whole = buildMoneyNotes({
+      monthPaisa: 300000,
+      lastMonthPaisa: 500000,
+      lastMonthPartial: false,
+      top: null,
+      categoryCount: 2,
+      name: "Anil",
+    });
+    expect(whole[0].text).not.toContain("stretch");
+    expect(whole[0].text).toContain("less than last month");
   });
 
   it("names a dominant category and suggests for it", () => {
     const notes = buildMoneyNotes({
-      weekPaisa: 500000,
-      lastWeekPaisa: 0,
+      monthPaisa: 500000,
+      lastMonthPaisa: 0,
       top: { name: "Food & Dining", paisa: 300000, share: 0.6 },
       categoryCount: 3,
       name: "Anil",
@@ -192,13 +222,14 @@ describe("buildMoneyNotes", () => {
     const top = notes.find((n) => n.text.includes("Food & Dining"));
     expect(top.tone).toBe("nudge");
     expect(top.text).toContain("60%");
+    expect(top.text).toContain("this month's spending");
     expect(top.text).toContain("home");
   });
 
   it("never invents a figure — every number comes from the input", () => {
     const notes = buildMoneyNotes({
-      weekPaisa: 123456,
-      lastWeekPaisa: 234567,
+      monthPaisa: 123456,
+      lastMonthPaisa: 234567,
       top: { name: "Transport", paisa: 50000, share: 0.41 },
       categoryCount: 4,
       name: "Anil",

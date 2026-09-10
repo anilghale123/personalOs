@@ -37,13 +37,18 @@ function NoteList({ notes }) {
 }
 
 /** Shared shell so Money and Habits read as two halves of one briefing. */
-function BriefingCard({ icon: Icon, title, children }) {
+function BriefingCard({ icon: Icon, title, subtitle, children }) {
   return (
     <section className="rounded-3xl bg-sage-200 px-6 py-6 sm:px-[34px] sm:py-7">
-      <h2 className="mb-3.5 flex items-center gap-2 font-display text-[20px] text-sage-900">
+      <h2 className="flex items-center gap-2 font-display text-[20px] text-sage-900">
         <Icon className="h-[18px] w-[18px] text-sage-700" />
         {title}
       </h2>
+      {subtitle ? (
+        <p className="mb-3.5 mt-0.5 text-[13px] text-sage-800">{subtitle}</p>
+      ) : (
+        <div className="mb-3.5" />
+      )}
       {children}
     </section>
   );
@@ -52,12 +57,22 @@ function BriefingCard({ icon: Icon, title, children }) {
 /**
  * Money, in plain words — the first thing on the home screen, because it
  * is the thing people open this app to check.
+ *
+ * Monthly, not weekly: the bills that move this number are monthly, and
+ * so is every budget the user set, so a week-long window kept reading as
+ * alarm when nothing was actually wrong. The label names the month in
+ * the user's own calendar, which for a Nepali month is the only way the
+ * dates behind the number are not a mystery.
  */
 export function MoneyBriefing({ briefing }) {
   const notes = briefing?.moneyNotes ?? [];
 
   return (
-    <BriefingCard icon={Wallet} title="Your money this week">
+    <BriefingCard
+      icon={Wallet}
+      title="Your money this month"
+      subtitle={briefing?.monthLabel}
+    >
       {notes.length > 0 ? (
         <NoteList notes={notes} />
       ) : (

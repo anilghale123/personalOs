@@ -22,6 +22,7 @@ import { useBudgetStore } from "../store";
 import { goalTotals } from "../utils";
 import { GoalDialog } from "./goal-dialog";
 import { ContributionDialog } from "./contribution-dialog";
+import { TotalTargetDialog } from "./total-target-dialog";
 
 function ContributionList({ goal }) {
   const deleteContribution = useBudgetStore((s) => s.deleteContribution);
@@ -203,6 +204,7 @@ export function FinancialGoalsTab() {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [contributeTo, setContributeTo] = React.useState(null);
+  const [targetsOpen, setTargetsOpen] = React.useState(false);
 
   const totals = React.useMemo(() => {
     let savedPaisa = 0;
@@ -254,8 +256,10 @@ export function FinancialGoalsTab() {
           <StatCard
             label="Total target"
             value={formatMoney(totals.targetPaisa)}
-            hint={`${goals.length} ${goals.length === 1 ? "goal" : "goals"}`}
+            hint={`${goals.length} ${goals.length === 1 ? "goal" : "goals"} · tap to adjust`}
             icon={Target}
+            onEdit={() => setTargetsOpen(true)}
+            editLabel="Edit total target"
           />
           <StatCard
             label="Reached"
@@ -291,6 +295,11 @@ export function FinancialGoalsTab() {
       )}
 
       <GoalDialog open={formOpen} onOpenChange={setFormOpen} goal={editing} />
+      <TotalTargetDialog
+        open={targetsOpen}
+        onOpenChange={setTargetsOpen}
+        goals={goals}
+      />
       <ContributionDialog
         open={Boolean(contributeTo)}
         onOpenChange={(open) => !open && setContributeTo(null)}
