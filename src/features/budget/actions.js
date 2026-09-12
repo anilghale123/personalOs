@@ -8,6 +8,7 @@ import FinancialGoal from "@/models/FinancialGoal";
 import User from "@/models/User";
 import { auth } from "@/lib/auth";
 import { buildExpenseFilter } from "./expense-filter";
+import { cachedMoney, cachedReference, tags } from "@/lib/cache";
 import { DEFAULT_CATEGORIES } from "./constants";
 import { periodRange } from "./utils";
 import { computeBudgetSummary, userCalendar } from "./summary";
@@ -50,12 +51,25 @@ export async function ensureDefaultCategories() {
 /** All categories for the current user (archived included by default — callers filter). */
 export async function getCategories() {
   const session = await auth();
-  if (!session?.user?.id) return [];
+  const userId = session?.user?.id;
+  if (!userId) return [];
   await connectDB();
-  const categories = await Category.find({ userId: session.user.id })
-    .sort({ sortOrder: 1, createdAt: 1 })
-    .lean();
-  return plain(categories);
+
+  /**
+   * Cached, because the Money layout refetches this on every navigation into
+   * or within the section, and a category list changes about once a month.
+   * Invalidated by tag on any category or expense write, so the cache is only
+   * ever serving data nobody has touched.
+   */
+  return cachedReference(
+    async () => {
+      const categories = await Category.find({ userId })
+        .sort({ sortOrder: 1, createdAt: 1 })
+        .lean();
+      return plain(categories);
+    },
+    { userId, key: "categories-full", tags: [tags.categories(userId)] }
+  );
 }
 
 /**
@@ -160,21 +174,36 @@ export async function getBudgetSummary(period = "monthly") {
 /** All debts for the current user, open ones first. */
 export async function getDebts() {
   const session = await auth();
-  if (!session?.user?.id) return [];
+  const userId = session?.user?.id;
+  if (!userId) return [];
   await connectDB();
-  const debts = await Debt.find({ userId: session.user.id })
-    .sort({ status: 1, createdAt: -1 })
-    .lean();
-  return plain(debts);
+
+  // Tier 1: derived money, so tag invalidation only — never a bare TTL.
+  return cachedMoney(
+    async () => {
+      const debts = await Debt.find({ userId })
+        .sort({ status: 1, createdAt: -1 })
+        .lean();
+      return plain(debts);
+    },
+    { userId, key: "debts", tags: [tags.debts(userId), tags.money(userId)] }
+  );
 }
 
 /** All savings goals for the current user, active ones first. */
 export async function getFinancialGoals() {
   const session = await auth();
-  if (!session?.user?.id) return [];
+  const userId = session?.user?.id;
+  if (!userId) return [];
   await connectDB();
-  const goals = await FinancialGoal.find({ userId: session.user.id })
-    .sort({ status: 1, createdAt: -1 })
-    .lean();
-  return plain(goals);
+
+  return cachedMoney(
+    async () => {
+      const goals = await FinancialGoal.find({ userId })
+        .sort({ status: 1, createdAt: -1 })
+        .lean();
+      return plain(goals);
+    },
+    { userId, key: "financial-goals", tags: [tags.goals(userId), tags.money(userId)] }
+  );
 }

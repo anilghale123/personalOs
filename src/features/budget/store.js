@@ -11,6 +11,17 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 const PAGE_SIZE = 50;
 
 /**
+ * How long a cached category breakdown stays usable.
+ *
+ * Two minutes, and the number is safe because correctness does not rest on
+ * it: every expense mutation clears the cache outright via `refreshSummary`.
+ * The TTL only bounds staleness from changes made *elsewhere* — another tab,
+ * or a phone — which is exactly the case where being a minute behind costs
+ * nothing.
+ */
+const BREAKDOWN_TTL_MS = 2 * 60 * 1000;
+
+/**
  * Budget store — categories + expenses for the currently loaded filter
  * set, with optimistic mutations (matching the vault/planner stores).
  * Delete is soft (marks `deletedAt`) so callers can offer an undo toast
@@ -318,8 +329,71 @@ export const useBudgetStore = create((set, get) => ({
    * A no-op until the summary has been loaded at least once.
    */
   refreshSummary() {
+    // Any expense change invalidates every cached category breakdown. Dropped
+    // wholesale rather than patched: a single expense can move between
+    // categories, so working out which entries are still valid costs more than
+    // recomputing the one the user is looking at.
+    set({ breakdownCache: {} });
     if (!get().summary) return;
     get().loadSummary();
+  },
+
+  /* ── Category breakdown (the Filter tab) ──────────────────────────── */
+
+  /**
+   * Cached breakdowns, keyed by filter.
+   *
+   * The Filter tab is unmounted whenever another tab is showing, so its
+   * effect re-ran on every single visit — a 250ms debounce and then a network
+   * round trip to recompute numbers that had not changed. Holding the result
+   * here means reopening the tab with the same filters paints instantly.
+   */
+  breakdownCache: {},
+
+  /**
+   * Is there a usable cached breakdown for these filters?
+   *
+   * Lets the panel decide whether to debounce. A cache hit should paint
+   * immediately; only a real request needs the keystroke coalescing.
+   */
+  hasFreshBreakdown(filters) {
+    const params = new URLSearchParams();
+    for (const key of ["paymentMethod", "dateFrom", "dateTo", "q"]) {
+      if (filters[key]) params.set(key, filters[key]);
+    }
+    const cached = get().breakdownCache[params.toString()];
+    return Boolean(cached && Date.now() - cached.at < BREAKDOWN_TTL_MS);
+  },
+
+  /**
+   * Fetch a breakdown, or return the cached one.
+   *
+   * @param {object} filters the non-category filters the panel applies
+   * @param {{signal?: AbortSignal}} [options]
+   * @returns {Promise<{rows: object[], fromCache: boolean}>}
+   */
+  async loadBreakdown(filters, { signal } = {}) {
+    const params = new URLSearchParams();
+    for (const key of ["paymentMethod", "dateFrom", "dateTo", "q"]) {
+      if (filters[key]) params.set(key, filters[key]);
+    }
+    const key = params.toString();
+
+    const cached = get().breakdownCache[key];
+    if (cached && Date.now() - cached.at < BREAKDOWN_TTL_MS) {
+      return { rows: cached.rows, fromCache: true };
+    }
+
+    const res = await fetch(`/api/budget/expenses/breakdown?${key}`, { signal });
+    if (!res.ok) throw new Error("Could not load the breakdown");
+    const data = await res.json();
+    const rows = data.rows ?? [];
+
+    set({
+      breakdownCache: { ...get().breakdownCache, [key]: { rows, at: Date.now() } },
+    });
+
+    return { rows, fromCache: false };
   },
 
   /** Set or clear one budget line — an amount of 0 removes it. */

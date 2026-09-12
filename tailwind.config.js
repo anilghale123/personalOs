@@ -130,6 +130,11 @@ module.exports = {
           "60%": { transform: "scale(1.15)", opacity: "1" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        // The loading shimmer. Travels fully off the right edge before
+        // repeating, so the sweep reads as one pass rather than a flicker.
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -141,6 +146,8 @@ module.exports = {
         "overlay-in": "overlay-in 0.2s ease-out",
         "overlay-out": "overlay-out 0.14s ease-in forwards",
         "check-pop": "check-pop 0.18s ease-out",
+        // Slow enough to read as deliberate, not frantic.
+        shimmer: "shimmer 1.6s ease-in-out infinite",
       },
     },
   },

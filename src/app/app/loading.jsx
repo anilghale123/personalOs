@@ -1,30 +1,44 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonParagraph } from "@/components/ui/skeleton";
 
 /**
- * Navigation fallback for every dashboard page. Next.js renders this
- * instantly when a route is clicked, while the destination page's
- * server data loads — so switching pages always gives visible feedback.
+ * Fallback for the `/app` segment — the Home screen, and the default for any
+ * dashboard route without a nearer `loading.jsx`.
+ *
+ * Shaped like Home specifically (greeting, money and habits briefings, then
+ * the discovery panel) rather than as generic grey boxes. A placeholder that
+ * matches the destination makes the arrival feel like the content resolving
+ * rather than the layout being replaced.
  */
 export default function DashboardLoading() {
   return (
     <div className="animate-fade-in" aria-busy="true" aria-label="Loading page">
-      {/* Page header placeholder */}
-      <div className="mb-8 flex items-start gap-3">
-        <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-        <div className="space-y-2 pt-1">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-72 max-w-full" />
-        </div>
-      </div>
+      {/* Greeting */}
+      <header className="mb-8 space-y-2.5">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className="h-8 w-64 max-w-full" />
+      </header>
 
-      {/* Content placeholder */}
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Skeleton className="h-24 w-full rounded-xl" />
-          <Skeleton className="h-24 w-full rounded-xl" />
-          <Skeleton className="h-24 w-full rounded-xl" />
+      <div className="max-w-[860px] space-y-4">
+        {/* Money and habits briefings */}
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div
+            key={i}
+            className="space-y-3 rounded-2xl bg-card elev-sm p-5"
+            style={{ opacity: i === 0 ? 1 : 0.75 }}
+          >
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-md" />
+              <Skeleton className="h-4 w-28" />
+            </div>
+            <SkeletonParagraph lines={2} />
+          </div>
+        ))}
+
+        {/* The collapsed pattern-discovery panel */}
+        <div className="space-y-3 rounded-3xl border border-sand-300 bg-card px-5 py-5 opacity-60">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-3.5 w-full max-w-md" />
         </div>
-        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     </div>
   );

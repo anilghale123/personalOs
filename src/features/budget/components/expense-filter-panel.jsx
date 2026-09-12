@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useBudgetStore } from "../store";
 import { categoryMap } from "../utils";
 import { PAYMENT_METHODS, SORT_OPTIONS } from "../constants";
 
@@ -29,12 +30,13 @@ function withCategories(rows, catMap) {
 }
 
 /**
- * The Filter tab — phones only.
+ * The Filter tab, at every screen size.
  *
- * A wide screen can afford a filter bar above the list; a phone cannot.
- * This is that bar given a tab of its own, led by the thing the filters
- * are usually reaching for anyway: what each category cost over the
- * current range. Tapping a category row filters the list to it.
+ * It began as a phones-only alternative to a filter bar above the list, but
+ * the bar and the tab were two implementations of one thing — and the tab is
+ * the better one, because it leads with what people are actually reaching for
+ * when they filter: what each category cost over the current range. Tapping a
+ * category row filters the list to it. The desktop bar is gone.
  */
 export function ExpenseFilterPanel({ categories, filters }) {
   const {
@@ -55,37 +57,56 @@ export function ExpenseFilterPanel({ categories, filters }) {
   const [rows, setRows] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
+  const loadBreakdown = useBudgetStore((s) => s.loadBreakdown);
+  const hasFreshBreakdown = useBudgetStore((s) => s.hasFreshBreakdown);
 
-  // The breakdown deliberately ignores the category filter — picking a
-  // category must narrow the list without collapsing the very summary
-  // that was used to pick it.
+  /**
+   * The breakdown deliberately ignores the category filter — picking a
+   * category must narrow the list without collapsing the very summary that
+   * was used to pick it.
+   *
+   * Served from the store's cache when one is warm, which matters because
+   * this panel lives in a tab: switching away unmounts it, so it used to
+   * refetch on *every* visit, behind a 250ms debounce, to recompute numbers
+   * that had not changed. A cache hit now renders synchronously with no
+   * debounce and no request at all — the debounce exists to coalesce
+   * keystrokes in the search box, and there are no keystrokes to coalesce
+   * when the answer is already known.
+   */
   React.useEffect(() => {
     const controller = new AbortController();
-    const t = setTimeout(async () => {
-      const params = new URLSearchParams();
-      if (paymentMethod) params.set("paymentMethod", paymentMethod);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      if (q) params.set("q", q);
+    const filters = { paymentMethod, dateFrom, dateTo, q };
+    let timer;
+
+    const run = async () => {
       try {
-        const res = await fetch(
-          `/api/budget/expenses/breakdown?${params.toString()}`,
-          { signal: controller.signal }
-        );
-        if (!res.ok) throw new Error("Could not load the breakdown");
-        const data = await res.json();
-        setRows(withCategories(data.rows || [], catMap));
+        const { rows: fresh } = await loadBreakdown(filters, {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) {
+          setRows(withCategories(fresh, catMap));
+          setLoading(false);
+        }
       } catch {
-        if (!controller.signal.aborted) setRows([]);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setRows([]);
+          setLoading(false);
+        }
       }
-    }, 250);
+    };
+
+    if (hasFreshBreakdown(filters)) {
+      run();
+    } else {
+      setLoading(true);
+      timer = setTimeout(run, 250);
+    }
+
     return () => {
       controller.abort();
-      clearTimeout(t);
+      if (timer) clearTimeout(timer);
     };
-  }, [paymentMethod, dateFrom, dateTo, q, catMap]);
+  }, [paymentMethod, dateFrom, dateTo, q, catMap, loadBreakdown, hasFreshBreakdown]);
 
   const total = rows.reduce((sum, r) => sum + r.totalPaisa, 0);
   const max = rows.reduce((m, r) => Math.max(m, r.totalPaisa), 0);

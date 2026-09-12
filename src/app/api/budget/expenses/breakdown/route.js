@@ -64,13 +64,34 @@ export const GET = withRoute(
 
     const totalPaisa = rows.reduce((sum, r) => sum + r.totalPaisa, 0);
 
-    return json({
-      rows: rows.map((r) => ({
-        categoryId: r._id ? String(r._id) : null,
-        totalPaisa: r.totalPaisa,
-        count: r.count,
-      })),
-      totalPaisa,
-    });
+    return json(
+      {
+        rows: rows.map((r) => ({
+          categoryId: r._id ? String(r._id) : null,
+          totalPaisa: r.totalPaisa,
+          count: r.count,
+        })),
+        totalPaisa,
+      },
+      {
+        headers: {
+          /**
+           * A short browser cache, on top of the store's own.
+           *
+           * `private` because this is one user's spending — it must never be
+           * held by a shared proxy or CDN. 60 seconds covers the case the
+           * store cannot: a full page reload, which discards client state but
+           * re-requests the same breakdown. `stale-while-revalidate` lets a
+           * reload paint instantly from cache while the fresh copy arrives.
+           *
+           * Safe at this duration because a mutation clears the client cache
+           * outright and `revalidateTag` clears the server's, so the only
+           * staleness left is from another device — where a minute behind
+           * changes no decision.
+           */
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+        },
+      }
+    );
   }
 );
