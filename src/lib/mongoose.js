@@ -3,9 +3,19 @@ import dns from "node:dns";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI is not defined in .env.local");
-}
+/**
+ * The missing-URI check lives inside `connectDB()`, not out here.
+ *
+ * At module scope it threw on *import*, and almost every route imports this
+ * transitively — including the landing page, via `auth`. So a missing
+ * `MONGODB_URI` did not degrade the app, it returned 500 for every URL on the
+ * site, including `/api/health`, which is precisely the endpoint you would be
+ * looking at to find out what was wrong.
+ *
+ * Failing inside the function means the failure lands on the requests that
+ * actually need a database, with a message naming the cause, while the
+ * landing page and health check keep working and can tell you so.
+ */
 
 /**
  * `mongodb+srv://` connection strings require a DNS SRV lookup. Many ISP,
@@ -14,7 +24,10 @@ if (!MONGODB_URI) {
  * Cloudflare) first — keeping the system resolver as a fallback — makes
  * those lookups succeed.
  */
-if (MONGODB_URI.startsWith("mongodb+srv://")) {
+// Optional-chained on purpose: with the import-time guard removed, an unset
+// URI reaches here as undefined, and `undefined.startsWith` would throw at
+// module scope — recreating the site-wide outage this change exists to fix.
+if (MONGODB_URI?.startsWith("mongodb+srv://")) {
   try {
     const system = dns.getServers();
     dns.setServers([
@@ -35,6 +48,13 @@ let cached = global.mongoose || { conn: null, promise: null };
  * @returns {Promise<typeof mongoose>}
  */
 export default async function connectDB() {
+  if (!MONGODB_URI) {
+    throw new Error(
+      "MONGODB_URI is not set — the database cannot be reached. " +
+        "Set it in the deployment environment (see .env.example)."
+    );
+  }
+
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {

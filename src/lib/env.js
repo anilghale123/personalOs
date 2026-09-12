@@ -1,17 +1,23 @@
 /**
- * Environment validation, asserted once at boot.
+ * Environment validation, reported once at boot.
  *
- * The failure mode this replaces is the quiet one. A missing `MONGODB_URI`
- * threw loudly, but a missing `AUTH_SECRET` failed at first sign-in, and a
- * missing Google pair did not fail at all — the "Continue with Google"
- * button simply did not render, which looks like a product decision rather
- * than a broken deploy.
+ * The failure mode this exists to catch is the quiet one. A missing
+ * `MONGODB_URI` threw loudly, but a missing `AUTH_SECRET` failed at first
+ * sign-in, and a missing Google pair did not fail at all — the "Continue with
+ * Google" button simply did not render, which looks like a product decision
+ * rather than a broken deploy.
  *
- * Two severities. **Required** vars abort the process: without them the app
- * is not merely degraded, it is wrong. **Warnings** are things that
- * silently disable a feature or weaken a guarantee — logged loudly at boot
- * so a deploy tells you what it is missing instead of waiting for a user
- * to find out.
+ * **Reporting, not enforcement.** An earlier version threw from the root
+ * layout, which meant one wrong variable returned 500 for every route on the
+ * site. Misconfiguration is now surfaced in three places a maintainer will
+ * actually see — the boot log, `/api/health`, and the deploy output — and in
+ * none of them is the cost a total outage. Where a dependency is genuinely
+ * required, the code that uses it fails with its own clear error, affecting
+ * only the routes that need it.
+ *
+ * Two severities, and they describe blast radius rather than tidiness:
+ * **errors** are things that will visibly break a feature, **warnings** are
+ * things that silently disable one or weaken a guarantee.
  */
 
 import { assertLimiterReady } from "@/lib/rate-limit";
@@ -97,9 +103,16 @@ export function checkEnv() {
     if (spec.check && !spec.check(value)) {
       errors.push(`${spec.key} is invalid — ${spec.checkWhy}.`);
     }
-    // A placeholder copied from .env.example is worse than a missing value,
-    // because it looks configured.
-    if (/replace-with|your-|xxx|changeme/i.test(value)) {
+    /**
+     * A placeholder copied from .env.example is worse than a missing value,
+     * because it looks configured.
+     *
+     * Matched against the phrases that actually appear in .env.example, not
+     * loose fragments. A bare `xxx` used to be on this list and would flag a
+     * perfectly good random secret that happened to contain three x's —
+     * a false alarm on a check whose whole job is credibility.
+     */
+    if (/replace-with-a-strong|your-google-oauth|your_groq_api_key|your_resend_api_key|changeme/i.test(value)) {
       errors.push(
         `${spec.key} still holds a placeholder from .env.example. Set a real value.`
       );
@@ -148,9 +161,17 @@ export function checkEnv() {
    * which `isDeployed()` identifies by the platform's own env vars.
    */
   if (isDeployed() && localhostUrl) {
-    errors.push(
+    /**
+     * A warning, not an error.
+     *
+     * This breaks OAuth callbacks. It does not break the landing page, or
+     * email sign-in, or the dashboard, or anything else — so treating it as
+     * fatal took a whole site down over one broken button. Severity here has
+     * to match the actual blast radius.
+     */
+    warnings.push(
       `NEXTAUTH_URL points at localhost (${url}) on a deployed instance — ` +
-        "every OAuth callback will fail. Set it to the real public origin."
+        "Google sign-in will fail at the callback. Set it to the real public origin."
     );
   } else if (isProductionRuntime() && localhostUrl) {
     warnings.push(
@@ -199,34 +220,64 @@ function isDeployed() {
   );
 }
 
-let checked = false;
+let reported = false;
 
 /**
- * Validate once per process and abort on a fatal problem.
+ * Report configuration problems. **Never throws.**
  *
- * Called from the root layout, so a misconfigured deploy fails on its first
- * request with a readable message rather than at 2am inside an unrelated
- * feature.
+ * This used to `assertEnv()` and throw from the root layout, which took the
+ * entire site down — every route, including the landing page and the health
+ * check — because one environment variable was wrong. That is the wrong
+ * trade: a configuration complaint must not be an outage.
+ *
+ * Two things went wrong and both are fixed here. The check ran at module
+ * scope in the layout that wraps every page, so its blast radius was total;
+ * and it treated a broken OAuth callback as fatal when the rest of the app
+ * was perfectly serviceable.
+ *
+ * So this logs loudly and returns. The problems are visible three ways —
+ * the boot log, `/api/health`, and the deploy output — none of which is a
+ * white screen for every visitor.
+ *
+ * @returns {{errors: string[], warnings: string[]}}
  */
-export function assertEnv() {
-  if (checked) return;
-  checked = true;
+export function reportEnv() {
+  const result = checkEnv();
+  if (reported) return result;
+  reported = true;
 
-  const { errors, warnings } = checkEnv();
-
-  for (const warning of warnings) {
+  for (const warning of result.warnings) {
     console.warn(`[env] ${warning}`);
   }
 
+  if (result.errors.length) {
+    // One line per problem, so a log aggregator keeps them separable.
+    console.error("[env] Configuration problems detected:");
+    for (const error of result.errors) {
+      console.error(`[env]   - ${error}`);
+    }
+    console.error(
+      "[env] The app is still serving. Features that depend on the above " +
+        "will fail until it is fixed. See .env.example."
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Throw on a fatal misconfiguration.
+ *
+ * Retained for scripts and tooling that genuinely should refuse to run — a
+ * migration against a half-configured environment, say. **Never call this
+ * from a page, layout or route**: that is exactly what caused the outage.
+ */
+export function assertEnv() {
+  const { errors } = checkEnv();
   if (errors.length) {
-    const message = [
-      "",
-      "Environment is not valid — refusing to start:",
-      ...errors.map((e) => `  • ${e}`),
-      "",
-      "See .env.example for the full list.",
-      "",
-    ].join("\n");
-    throw new Error(message);
+    throw new Error(
+      `Environment is not valid:\n${errors.map((e) => `  - ${e}`).join("\n")}` +
+        `\nSee .env.example for the full list.`
+    );
   }
 }

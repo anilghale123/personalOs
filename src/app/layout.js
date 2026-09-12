@@ -1,18 +1,19 @@
 import { Caprasimo, Figtree } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { assertEnv } from "@/lib/env";
+import { reportEnv } from "@/lib/env";
 
 /**
- * Validate the environment once, at module load.
+ * Report configuration problems once, at module load.
  *
- * Here rather than inside the component so a misconfigured deploy fails on
- * import — the first request, loudly, naming what is missing — instead of
- * later inside an unrelated feature. Missing Google credentials used to make
- * the sign-in button silently vanish, which looks like a product decision
- * rather than a broken deploy.
+ * `reportEnv` logs and returns; it must never throw. This layout wraps every
+ * route in the app, so anything thrown here 500s the entire site — landing
+ * page, login, health check and all. An earlier version did exactly that and
+ * took production down over a `NEXTAUTH_URL` that only affected Google
+ * sign-in. Configuration complaints belong in the log and in `/api/health`,
+ * not in front of every visitor.
  */
-assertEnv();
+reportEnv();
 
 const figtree = Figtree({
   subsets: ["latin"],

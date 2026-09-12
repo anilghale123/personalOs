@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import connectDB from "@/lib/mongoose";
 import { canSendEmail } from "@/lib/mailer";
 import { hasSharedLimiter } from "@/lib/rate-limit";
+import { checkEnv } from "@/lib/env";
 
 /** Never cached — a cached health check reports the past. */
 export const dynamic = "force-dynamic";
@@ -49,6 +50,27 @@ export async function GET() {
   };
   checks.ai = { ok: true, configured: Boolean(process.env.GROQ_API_KEY) };
 
+  /**
+   * Configuration state, as counts only.
+   *
+   * This is the endpoint a monitor polls, so a misconfigured deploy should be
+   * visible here rather than discovered by a user. Counts rather than the
+   * messages themselves: this route is unauthenticated, and the messages name
+   * which services are unconfigured. The full text goes to the boot log,
+   * where it is useful and not public.
+   */
+  const config = checkEnv();
+  checks.config = {
+    ok: config.errors.length === 0,
+    errors: config.errors.length,
+    warnings: config.warnings.length,
+  };
+
+  /**
+   * Only the database gates the status code. A config warning is worth
+   * reporting, but a 503 means "stop sending traffic here", and an app that
+   * serves every page correctly minus Google sign-in does not warrant that.
+   */
   const healthy = checks.database.ok;
 
   return NextResponse.json(
