@@ -22,6 +22,15 @@ const PAGE_SIZE = 50;
 const BREAKDOWN_TTL_MS = 2 * 60 * 1000;
 
 /**
+ * Rows shown when a category row is expanded.
+ *
+ * Deliberately smaller than the main list's page. This is an explanation of a
+ * total, not a second expense list — and an expanded row that pushes the rest
+ * of the filter panel off-screen has stopped being an inline detail.
+ */
+const DETAIL_PAGE_SIZE = 25;
+
+/**
  * Budget store — categories + expenses for the currently loaded filter
  * set, with optimistic mutations (matching the vault/planner stores).
  * Delete is soft (marks `deletedAt`) so callers can offer an undo toast
@@ -329,11 +338,11 @@ export const useBudgetStore = create((set, get) => ({
    * A no-op until the summary has been loaded at least once.
    */
   refreshSummary() {
-    // Any expense change invalidates every cached category breakdown. Dropped
-    // wholesale rather than patched: a single expense can move between
-    // categories, so working out which entries are still valid costs more than
-    // recomputing the one the user is looking at.
-    set({ breakdownCache: {} });
+    // Any expense change invalidates every cached breakdown *and* every
+    // cached per-category detail. Dropped wholesale rather than patched: a
+    // single expense can move between categories, so working out which
+    // entries are still valid costs more than recomputing the one being read.
+    set({ breakdownCache: {}, breakdownDetailCache: {} });
     if (!get().summary) return;
     get().loadSummary();
   },
@@ -394,6 +403,57 @@ export const useBudgetStore = create((set, get) => ({
     });
 
     return { rows, fromCache: false };
+  },
+
+  /**
+   * The expenses behind one category row, for the expandable breakdown.
+   *
+   * Reuses `/api/budget/expenses` rather than adding an endpoint: it already
+   * validates, rate limits, paginates and returns exactly these fields, and a
+   * second route computing the same thing is a second place for the two to
+   * drift apart.
+   *
+   * The *other* filters are carried through but the category comes from the
+   * row being opened — matching how the breakdown itself is built, so the
+   * numbers inside a row always add up to the total shown on it.
+   */
+  breakdownDetailCache: {},
+
+  async loadCategoryExpenses(categoryId, filters, { signal } = {}) {
+    const params = new URLSearchParams();
+    params.set("categoryId", categoryId);
+    for (const key of ["paymentMethod", "dateFrom", "dateTo", "q"]) {
+      if (filters[key]) params.set(key, filters[key]);
+    }
+    params.set("sort", "amount_desc");
+    // Enough to explain a category without becoming a second expense list;
+    // the row reports the full count either way.
+    params.set("limit", String(DETAIL_PAGE_SIZE));
+
+    const key = params.toString();
+    const cached = get().breakdownDetailCache[key];
+    if (cached && Date.now() - cached.at < BREAKDOWN_TTL_MS) {
+      return { ...cached.value, fromCache: true };
+    }
+
+    const res = await fetch(`/api/budget/expenses?${key}`, { signal });
+    if (!res.ok) throw new Error("Could not load those expenses");
+    const data = await res.json();
+
+    const value = {
+      expenses: data.expenses ?? [],
+      count: data.count ?? (data.expenses?.length ?? 0),
+      totalPaisa: data.totalPaisa ?? 0,
+    };
+
+    set({
+      breakdownDetailCache: {
+        ...get().breakdownDetailCache,
+        [key]: { value, at: Date.now() },
+      },
+    });
+
+    return { ...value, fromCache: false };
   },
 
   /** Set or clear one budget line — an amount of 0 removes it. */

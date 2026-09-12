@@ -70,7 +70,11 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
         </TabsContent>
 
         <TabsContent value="filter">
-          <ExpenseFilterPanel categories={categories} filters={filters} />
+          <ExpenseFilterPanel
+            categories={categories}
+            filters={filters}
+            cal={cal}
+          />
         </TabsContent>
 
         <TabsContent value="categories">

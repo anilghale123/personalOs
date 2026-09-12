@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useBudgetStore } from "../store";
+import { CategoryBreakdownRow } from "./category-breakdown-row";
 import { categoryMap } from "../utils";
 import { PAYMENT_METHODS, SORT_OPTIONS } from "../constants";
 
@@ -35,10 +36,17 @@ function withCategories(rows, catMap) {
  * It began as a phones-only alternative to a filter bar above the list, but
  * the bar and the tab were two implementations of one thing — and the tab is
  * the better one, because it leads with what people are actually reaching for
- * when they filter: what each category cost over the current range. Tapping a
- * category row filters the list to it. The desktop bar is gone.
+ * when they filter: what each category cost over the current range.
+ *
+ * Tapping a category **opens** it, showing the individual expenses behind the
+ * total — note, date, payment method, amount — and tapping again closes it.
+ * The total says where the money went; the notes say what it went on, which is
+ * the next question every time. Narrowing the main list to that category is a
+ * separate control inside the open row, because one tap doing both meant you
+ * could not inspect a category without also filtering the list you were
+ * checking it against.
  */
-export function ExpenseFilterPanel({ categories, filters }) {
+export function ExpenseFilterPanel({ categories, filters, cal = "en" }) {
   const {
     categoryId,
     setCategoryId,
@@ -59,6 +67,27 @@ export function ExpenseFilterPanel({ categories, filters }) {
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
   const loadBreakdown = useBudgetStore((s) => s.loadBreakdown);
   const hasFreshBreakdown = useBudgetStore((s) => s.hasFreshBreakdown);
+
+  /**
+   * Which category is expanded — one at a time.
+   *
+   * An accordion rather than independent toggles: several open rows push the
+   * date and payment controls below the fold, and the panel stops being a
+   * filter panel.
+   */
+  const [openCategoryId, setOpenCategoryId] = React.useState(null);
+
+  /**
+   * The filters an expanded row queries with.
+   *
+   * Memoised because it is an effect dependency inside the row — a fresh
+   * object every render would refetch the detail on every keystroke in the
+   * search box.
+   */
+  const detailFilters = React.useMemo(
+    () => ({ paymentMethod, dateFrom, dateTo, q }),
+    [paymentMethod, dateFrom, dateTo, q]
+  );
 
   /**
    * The breakdown deliberately ignores the category filter — picking a
@@ -136,41 +165,23 @@ export function ExpenseFilterPanel({ categories, filters }) {
           </p>
         ) : (
           <ul className="divide-y">
-            {rows.map((row) => {
-              const active = categoryId === row.id;
-              const share = max > 0 ? (row.totalPaisa / max) * 100 : 0;
-              return (
-                <li key={row.id || "uncategorised"}>
-                  <button
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setCategoryId(active ? "" : row.id)}
-                    className={cn(
-                      "relative flex min-h-[48px] w-full items-center gap-2 px-4 py-2 text-left transition-colors",
-                      active ? "bg-primary/10" : "active:bg-accent"
-                    )}
-                  >
-                    {/* Share-of-spend bar, sitting behind the label */}
-                    <span
-                      aria-hidden
-                      className="absolute inset-y-1 left-1 rounded-md bg-primary/10"
-                      style={{ width: `${Math.max(share, 2)}%` }}
-                    />
-                    <span className="relative flex min-w-0 flex-1 items-center gap-2">
-                      <span aria-hidden className="text-base">
-                        {row.category?.icon || "📦"}
-                      </span>
-                      <span className="truncate text-sm">
-                        {row.category?.name || "Uncategorised"}
-                      </span>
-                    </span>
-                    <span className="relative shrink-0 text-sm font-medium tabular-nums">
-                      {formatMoney(row.totalPaisa)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+            {rows.map((row) => (
+              <CategoryBreakdownRow
+                key={row.id || "uncategorised"}
+                row={row}
+                sharePercent={max > 0 ? (row.totalPaisa / max) * 100 : 0}
+                isOpen={openCategoryId === row.id}
+                onToggle={() =>
+                  setOpenCategoryId(openCategoryId === row.id ? null : row.id)
+                }
+                isFiltered={categoryId === row.id}
+                onFilter={() =>
+                  setCategoryId(categoryId === row.id ? "" : row.id)
+                }
+                filters={detailFilters}
+                cal={cal}
+              />
+            ))}
           </ul>
         )}
       </section>
