@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z, dateKey, text } from "@/lib/validation";
+import { invalidateJournal } from "@/lib/cache";
+import { NOTE_TYPES } from "@/features/patterns/constants";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Find or silently create the DailyJournal anchoring a given day.
@@ -18,69 +17,58 @@ async function ensureDailyJournal(userId, date) {
   );
 }
 
+const ListQuery = z.object({
+  date: dateKey,
+  limit: z.coerce.number().int().positive().max(500).catch(200),
+  skip: z.coerce.number().int().min(0).max(100_000).catch(0),
+});
+
 /**
  * GET /api/journal/notes?date=YYYY-MM-DD&limit=&skip=
  * Paginated quick notes for a day (oldest first).
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withRoute(
+  { limit: "read", query: ListQuery },
+  async ({ userId, query }) => {
+    const notes = await QuickNote.find({
+      userId,
+      date: query.date,
+      deletedAt: null,
+    })
+      .sort({ createdAt: 1 })
+      .skip(query.skip)
+      .limit(query.limit)
+      .lean();
+    return json(notes);
   }
-  const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date");
-  if (!DATE_RE.test(date || "")) {
-    return NextResponse.json({ error: "Invalid date" }, { status: 400 });
-  }
-  const limit = Math.min(Number(searchParams.get("limit")) || 200, 500);
-  const skip = Number(searchParams.get("skip")) || 0;
+);
 
-  await connectDB();
-  const notes = await QuickNote.find({
-    userId: session.user.id,
-    date,
-    deletedAt: null,
-  })
-    .sort({ createdAt: 1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-  return NextResponse.json(notes);
-}
+const CreateNote = z.object({
+  date: dateKey,
+  content: text(5000).pipe(z.string().min(1, "Note content is required.")),
+  type: z.enum(NOTE_TYPES).catch("note"),
+});
 
 /**
  * POST /api/journal/notes
  * Instantly capture a quick note. Auto-creates the day's DailyJournal.
  * Body: { date, content, type }
  */
-export async function POST(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { date, content, type } = await request.json();
-  if (!DATE_RE.test(date || "")) {
-    return NextResponse.json({ error: "Invalid date" }, { status: 400 });
-  }
-  if (!content || !content.trim()) {
-    return NextResponse.json(
-      { error: "Note content is required." },
-      { status: 400 }
-    );
-  }
+export const POST = withRoute(
+  { limit: "write", body: CreateNote },
+  async ({ userId, input }) => {
+    const journal = await ensureDailyJournal(userId, input.date);
 
-  await connectDB();
-  try {
-    const journal = await ensureDailyJournal(session.user.id, date);
     const note = await QuickNote.create({
       journalId: journal._id,
-      userId: session.user.id,
-      date,
-      content: content.trim(),
-      type: type || "note",
+      userId,
+      date: input.date,
+      content: input.content,
+      type: input.type,
     });
-    return NextResponse.json(note, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+
+    invalidateJournal(userId);
+
+    return json(note, { status: 201 });
   }
-}
+);

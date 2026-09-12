@@ -317,7 +317,22 @@ export function permutationPGroups(a, b, iterations = PERMUTATIONS) {
 
   const pooled = [...a, ...b];
   const pooledRanks = ranks(pooled);
-  const observed = Math.abs(sumFirst(pooledRanks, n1) / n1 - sumFirst(pooledRanks.slice(n1), n2) / n2);
+
+  /**
+   * The pooled rank total does not change when the labels are shuffled, so
+   * the second group's sum is always `total - firstGroupSum`.
+   *
+   * This replaced `sumFirst(scratch.slice(n1), n2)`, which allocated a fresh
+   * array and walked it on **every one of 4,000 iterations** — and a run does
+   * this for forty to sixty hypotheses. Same arithmetic, one pass instead of
+   * two and no allocation at all. Every p-value is bit-for-bit identical,
+   * which `stats.test.js` pins.
+   */
+  const rankTotal = sumFirst(pooledRanks, pooledRanks.length);
+  const firstObserved = sumFirst(pooledRanks, n1);
+  const observed = Math.abs(
+    firstObserved / n1 - (rankTotal - firstObserved) / n2
+  );
 
   const random = seededRandom(pooled);
   const scratch = [...pooledRanks];
@@ -325,9 +340,8 @@ export function permutationPGroups(a, b, iterations = PERMUTATIONS) {
 
   for (let i = 0; i < iterations; i++) {
     shuffle(scratch, random);
-    const diff = Math.abs(
-      sumFirst(scratch, n1) / n1 - sumFirst(scratch.slice(n1), n2) / n2
-    );
+    const sumA = sumFirst(scratch, n1);
+    const diff = Math.abs(sumA / n1 - (rankTotal - sumA) / n2);
     if (diff >= observed - 1e-12) atLeastAsExtreme++;
   }
 

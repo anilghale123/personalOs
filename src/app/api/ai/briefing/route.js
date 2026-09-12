@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
-import { getGroqClient, GROQ_CHAT_MODEL } from "@/lib/groq";
+import { withRoute, json, badRequest, ApiError } from "@/lib/api";
+import {
+  GROQ_CHAT_MODEL,
+  describeAiError,
+  getGroqClient,
+  isAiConfigured,
+} from "@/lib/groq";
+import { captureException } from "@/lib/logger";
 import { formatMoney } from "@/lib/money";
 import { toDateKey } from "@/lib/utils";
 import HabitLog from "@/models/HabitLog";
@@ -12,14 +16,19 @@ import Goal from "@/models/Goal";
 import Expense from "@/models/Expense";
 import Category from "@/models/Category";
 
-export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+/**
+ * POST /api/ai/briefing — the weekly cross-module briefing.
+ *
+ * The single most expensive endpoint in the app: it reads seven collections
+ * and then spends up to 900 output tokens. Rate limited hourly *and* daily,
+ * because unthrottled it was the easiest way for one authenticated user to
+ * drain the shared Groq quota for everyone.
+ */
+export const POST = withRoute({ limit: ["ai", "aiDaily"] }, async ({ userId }) => {
+  if (!isAiConfigured) {
+    throw badRequest("AI briefings are not available right now.");
   }
 
-  await connectDB();
-  const userId = session.user.id;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   // Local calendar key — the string-dated collections store local dates,
   // so a UTC-derived key would slice the window a day off in Nepal.
@@ -91,8 +100,11 @@ Keep the entire briefing under 550 words. Use bullet points where helpful.`;
       stream: false,
     });
 
-    return NextResponse.json({
-      briefing: completion.choices[0].message.content,
+    const briefing = completion.choices?.[0]?.message?.content;
+    if (!briefing) throw new Error("Empty completion from the model.");
+
+    return json({
+      briefing,
       generatedAt: new Date().toISOString(),
       dataWindow: {
         from: sevenDaysAgo.toISOString(),
@@ -100,12 +112,13 @@ Keep the entire briefing under 550 words. Use bullet points where helpful.`;
       },
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err.message || "Failed to generate briefing" },
-      { status: 500 }
-    );
+    // The prompt contains the user's journal entries and spending, so the raw
+    // error never reaches the client.
+    captureException(err, { operation: "ai-briefing", userId });
+    const { message, retryable } = describeAiError(err);
+    throw new ApiError(retryable ? 503 : 500, message, "ai_unavailable");
   }
-}
+});
 
 function summarizeHabits(logs) {
   if (!logs.length) return "No habits tracked this week.";

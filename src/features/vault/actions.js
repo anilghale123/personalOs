@@ -2,15 +2,21 @@
 
 import Papa from "papaparse";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import connectDB from "@/lib/mongoose";
 import Transaction from "@/models/Transaction";
 import StockPrice from "@/models/StockPrice";
 import SIP from "@/models/SIP";
 import { auth } from "@/lib/auth";
+import { plain } from "@/lib/serialize";
 
-function plain(doc) {
-  return JSON.parse(JSON.stringify(doc));
-}
+/** Largest broker CSV we will accept. Midas exports are a few hundred KB. */
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+/** Row ceiling, independent of byte size. */
+const MAX_IMPORT_ROWS = 20_000;
+/** Writes per bulkWrite call — keeps any single request bounded. */
+const BULK_BATCH = 500;
+
 
 /**
  * Parses a Midas broker CSV and upserts transactions.
@@ -23,59 +29,153 @@ export async function importBrokerCSV(formData) {
   if (!session?.user?.id) {
     return { imported: 0, skipped: 0, errors: ["Unauthorized"] };
   }
+
   const file = formData.get("file");
   if (!file || typeof file.text !== "function") {
     return { imported: 0, skipped: 0, errors: ["No file provided"] };
   }
+
+  // Caps first, before anything is read into memory. Without them the whole
+  // file was buffered and then processed with two awaits per row, so a
+  // 10,000-row CSV meant 20,000 sequential round-trips in one request —
+  // comfortably past the function timeout.
+  if (typeof file.size === "number" && file.size > MAX_IMPORT_BYTES) {
+    return {
+      imported: 0,
+      skipped: 0,
+      errors: [
+        `That file is ${(file.size / 1024 / 1024).toFixed(1)}MB. The limit is ${
+          MAX_IMPORT_BYTES / 1024 / 1024
+        }MB — split it and import in parts.`,
+      ],
+    };
+  }
+
   const text = await file.text();
-  const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+  const { data, errors: parseErrors } = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+  });
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return {
+      imported: 0,
+      skipped: 0,
+      errors: [
+        parseErrors?.[0]?.message
+          ? `Could not read that CSV: ${parseErrors[0].message}`
+          : "That file had no rows we could read.",
+      ],
+    };
+  }
+
+  if (data.length > MAX_IMPORT_ROWS) {
+    return {
+      imported: 0,
+      skipped: 0,
+      errors: [
+        `That file has ${data.length.toLocaleString()} rows. The limit is ${MAX_IMPORT_ROWS.toLocaleString()} per import.`,
+      ],
+    };
+  }
 
   await connectDB();
-  let imported = 0;
-  let skipped = 0;
+
   const errors = [];
+  const operations = [];
+  const seenHashes = new Set();
+  let skipped = 0;
 
   for (const row of data) {
-    try {
-      const rowHash = crypto
-        .createHash("md5")
-        .update(JSON.stringify(row))
-        .digest("hex");
+    const ticker = row["Symbol"]?.trim().toUpperCase();
+    const quantity = Number.parseFloat(row["Quantity"]);
+    const rate = Number.parseFloat(row["Rate"]);
+    const date = new Date(row["Date"]);
 
-      const ticker = row["Symbol"]?.trim().toUpperCase();
-      const quantity = parseFloat(row["Quantity"]);
-      const rate = parseFloat(row["Rate"]);
-      if (!ticker || Number.isNaN(quantity) || Number.isNaN(rate)) {
-        skipped++;
-        continue;
+    // Reject rather than store: a NaN quantity or an Invalid Date silently
+    // corrupts every portfolio total derived from it.
+    if (
+      !ticker ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(rate) ||
+      rate <= 0 ||
+      Number.isNaN(date.getTime())
+    ) {
+      skipped++;
+      continue;
+    }
+
+    const rowHash = crypto
+      .createHash("md5")
+      .update(JSON.stringify(row))
+      .digest("hex");
+
+    // A CSV that repeats a row within itself would otherwise produce two
+    // ops on the same key in one bulkWrite.
+    if (seenHashes.has(rowHash)) {
+      skipped++;
+      continue;
+    }
+    seenHashes.add(rowHash);
+
+    const commission = Number.parseFloat(row["Commission"] || "0");
+
+    operations.push({
+      updateOne: {
+        filter: { userId: session.user.id, csvRowRef: rowHash },
+        update: {
+          $setOnInsert: {
+            userId: session.user.id,
+            ticker,
+            type: row["Transaction Type"]?.toUpperCase().includes("BUY")
+              ? "BUY"
+              : "SELL",
+            quantity,
+            pricePerUnit: rate,
+            totalAmount: rate * quantity,
+            brokerCommission: Number.isFinite(commission) ? commission : 0,
+            transactionDate: date,
+            broker: "Midas",
+            csvRowRef: rowHash,
+          },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  let imported = 0;
+
+  if (operations.length) {
+    /**
+     * One round trip in batches, `ordered: false` so a duplicate does not
+     * abort the rest. Re-importing the same file is the normal case, and the
+     * unique {userId, csvRowRef} index makes it a no-op — `upsertedCount`
+     * counts only genuinely new rows.
+     *
+     * `$setOnInsert` rather than `$set` so a re-import never overwrites a
+     * row the user has since edited by hand.
+     */
+    for (let i = 0; i < operations.length; i += BULK_BATCH) {
+      const batch = operations.slice(i, i + BULK_BATCH);
+      try {
+        const result = await Transaction.bulkWrite(batch, { ordered: false });
+        imported += result.upsertedCount ?? 0;
+        skipped += batch.length - (result.upsertedCount ?? 0);
+      } catch (err) {
+        // A partial failure still reports what landed. Duplicate-key errors
+        // are expected on re-import and are not surfaced as errors.
+        const upserted = err.result?.upsertedCount ?? 0;
+        imported += upserted;
+        skipped += batch.length - upserted;
+        const realErrors = (err.writeErrors ?? []).filter((e) => e.code !== 11000);
+        if (realErrors.length) {
+          errors.push(
+            `${realErrors.length} row${realErrors.length === 1 ? "" : "s"} could not be imported.`
+          );
+        }
       }
-
-      const existing = await Transaction.findOne({
-        userId: session.user.id,
-        csvRowRef: rowHash,
-      });
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      await Transaction.create({
-        userId: session.user.id,
-        ticker,
-        type: row["Transaction Type"]?.toUpperCase().includes("BUY")
-          ? "BUY"
-          : "SELL",
-        quantity,
-        pricePerUnit: rate,
-        brokerCommission: parseFloat(row["Commission"] || "0") || 0,
-        transactionDate: new Date(row["Date"]),
-        broker: "Midas",
-        csvRowRef: rowHash,
-      });
-      imported++;
-    } catch (err) {
-      if (err.code === 11000) skipped++;
-      else errors.push(`Row error: ${err.message}`);
     }
   }
 
@@ -93,35 +193,62 @@ export async function getPortfolioSummary() {
   if (!userId) return [];
   await connectDB();
 
-  const transactions = await Transaction.find({ userId }).lean();
-  if (!transactions.length) return [];
-  const tickers = [...new Set(transactions.map((t) => t.ticker))];
+  /**
+   * One pass, grouped in Mongo.
+   *
+   * This replaced a `tickers.map()` whose body ran three `.filter()` passes
+   * over the full transaction array — O(transactions × tickers), so 2,000
+   * rows across 40 tickers meant 240,000 comparisons and the whole history
+   * crossing the wire to render one card grid. Mongo groups it on an index
+   * and returns one document per holding instead.
+   */
+  const holdings = await Transaction.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+    {
+      $group: {
+        _id: "$ticker",
+        // Signed unit total: buys add, sells subtract.
+        totalUnits: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "BUY"] }, "$quantity", { $multiply: ["$quantity", -1] }],
+          },
+        },
+        // Cost basis counts purchases only, commission included.
+        totalInvested: {
+          $sum: {
+            $cond: [
+              { $eq: ["$type", "BUY"] },
+              {
+                $add: [
+                  { $ifNull: ["$totalAmount", 0] },
+                  { $ifNull: ["$brokerCommission", 0] },
+                ],
+              },
+              0,
+            ],
+          },
+        },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  if (!holdings.length) return [];
 
   const latestPrices = await StockPrice.aggregate([
-    { $match: { ticker: { $in: tickers } } },
+    { $match: { ticker: { $in: holdings.map((h) => h._id) } } },
     { $sort: { date: -1 } },
     { $group: { _id: "$ticker", closePrice: { $first: "$closePrice" } } },
   ]);
-  const priceMap = Object.fromEntries(
-    latestPrices.map((p) => [p._id, p.closePrice])
-  );
+  const priceMap = new Map(latestPrices.map((p) => [p._id, p.closePrice]));
 
-  return tickers.map((ticker) => {
-    const txns = transactions.filter((t) => t.ticker === ticker);
-    const totalUnits = txns.reduce(
-      (sum, t) => sum + (t.type === "BUY" ? t.quantity : -t.quantity),
-      0
-    );
-    const totalInvested = txns
-      .filter((t) => t.type === "BUY")
-      .reduce(
-        (sum, t) => sum + (t.totalAmount || 0) + (t.brokerCommission || 0),
-        0
-      );
-    const lastPrice = priceMap[ticker] || 0;
+  return holdings.map((h) => {
+    const totalUnits = h.totalUnits || 0;
+    const totalInvested = h.totalInvested || 0;
+    const lastPrice = priceMap.get(h._id) || 0;
     const currentValue = totalUnits * lastPrice;
     return {
-      ticker,
+      ticker: h._id,
       totalUnits,
       totalInvested,
       currentValue,
@@ -131,6 +258,9 @@ export async function getPortfolioSummary() {
         totalInvested > 0
           ? ((currentValue - totalInvested) / totalInvested) * 100
           : 0,
+      // Distinguishes "worth nothing" from "we have no price" — the two
+      // looked identical before and both rendered as a 100% loss.
+      hasPrice: priceMap.has(h._id),
     };
   });
 }

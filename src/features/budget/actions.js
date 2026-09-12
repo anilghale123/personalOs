@@ -7,14 +7,15 @@ import Debt from "@/models/Debt";
 import FinancialGoal from "@/models/FinancialGoal";
 import User from "@/models/User";
 import { auth } from "@/lib/auth";
-import { sumMinor } from "@/lib/money";
+import { buildExpenseFilter } from "./expense-filter";
 import { DEFAULT_CATEGORIES } from "./constants";
 import { periodRange } from "./utils";
 import { computeBudgetSummary, userCalendar } from "./summary";
+import { plain } from "@/lib/serialize";
 
-function plain(doc) {
-  return JSON.parse(JSON.stringify(doc));
-}
+/** Rows per page, and the ceiling whatever a caller asks for. */
+const PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
 
 function sortFor(sort) {
   switch (sort) {
@@ -70,25 +71,47 @@ export async function getCategories() {
  */
 export async function getExpenses(filters = {}) {
   const session = await auth();
-  if (!session?.user?.id) return { expenses: [], totalPaisa: 0 };
+  const userId = session?.user?.id;
+  if (!userId) return { expenses: [], totalPaisa: 0, count: 0, hasMore: false };
   await connectDB();
 
-  const query = { userId: session.user.id, deletedAt: null };
-  if (filters.categoryId) query.categoryId = filters.categoryId;
-  if (filters.paymentMethod) query.paymentMethod = filters.paymentMethod;
-  if (filters.dateFrom || filters.dateTo) {
-    query.date = {};
-    if (filters.dateFrom) query.date.$gte = filters.dateFrom;
-    if (filters.dateTo) query.date.$lte = filters.dateTo;
-  }
-  if (filters.tag) query.tags = filters.tag;
-  if (filters.q?.trim()) {
-    query.note = { $regex: filters.q.trim(), $options: "i" };
-  }
+  /**
+   * Shares `buildExpenseFilter` with the API route rather than rebuilding the
+   * query.
+   *
+   * The duplicate this replaced carried two bugs of its own: it interpolated
+   * `filters.q` straight into a `$regex` (so a search containing `(` threw,
+   * and `(a+)+$` pinned a CPU), and it fetched every matching row to sum them
+   * in JavaScript. Two copies of query logic meant fixing the route fixed only
+   * half the app.
+   */
+  const limit = Math.min(Math.max(Number(filters.limit) || PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  const filter = buildExpenseFilter(userId, filters);
 
-  const expenses = await Expense.find(query).sort(sortFor(filters.sort)).lean();
-  const totalPaisa = sumMinor(expenses);
-  return { expenses: plain(expenses), totalPaisa };
+  const [expenses, aggregate] = await Promise.all([
+    Expense.find(filter).sort(sortFor(filters.sort)).limit(limit).lean(),
+    // Totals describe the whole filtered set while only a page is fetched.
+    Expense.aggregate([
+      { $match: buildExpenseFilter(userId, filters, { forAggregation: true }) },
+      {
+        $group: {
+          _id: null,
+          totalPaisa: { $sum: "$amountPaisa" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ]);
+
+  const totalPaisa = aggregate[0]?.totalPaisa ?? 0;
+  const count = aggregate[0]?.count ?? 0;
+
+  return {
+    expenses: plain(expenses),
+    totalPaisa,
+    count,
+    hasMore: expenses.length < count,
+  };
 }
 
 /**

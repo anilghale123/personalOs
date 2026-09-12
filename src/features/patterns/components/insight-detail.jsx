@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Check, ThumbsDown, ThumbsUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fromMinorUnits } from "@/lib/money";
@@ -10,7 +11,36 @@ import { confidenceLabel, weeksSince } from "../feed";
 import { usePatternStore } from "../store";
 import { ConfidencePill } from "./confidence-pill";
 import { DomainChips } from "./insight-card";
-import { EvidenceChart, StrengthHistoryChart } from "./evidence-chart";
+
+/**
+ * The recharts-backed charts load on demand.
+ *
+ * Recharts is over 100KB gzipped and only two screens in the app draw with
+ * it, so it has no business in the shared bundle. `ssr: false` because a
+ * chart needs measured dimensions to lay out — server-rendering it produces
+ * markup that is immediately thrown away and re-measured on the client.
+ *
+ * The placeholder reserves the chart's height so the surrounding text does
+ * not jump when it arrives.
+ */
+const ChartFallback = ({ height = 220 }) => (
+  <div
+    className="w-full animate-pulse rounded-lg bg-muted/50"
+    style={{ height }}
+    aria-hidden="true"
+  />
+);
+
+const EvidenceChart = dynamic(
+  () => import("./evidence-chart").then((m) => ({ default: m.EvidenceChart })),
+  { ssr: false, loading: () => <ChartFallback /> }
+);
+
+const StrengthHistoryChart = dynamic(
+  () =>
+    import("./evidence-chart").then((m) => ({ default: m.StrengthHistoryChart })),
+  { ssr: false, loading: () => <ChartFallback height={140} /> }
+);
 
 /**
  * One finding, in full.

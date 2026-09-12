@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z } from "@/lib/validation";
 import Insight from "@/models/Insight";
 import PatternRun from "@/models/PatternRun";
 import { renderStatement, RUN_TTL_HOURS } from "@/features/patterns/constants";
@@ -16,26 +15,27 @@ const CONFIDENCE_ORDER = { high: 0, moderate: 1, low: 2 };
  * template improvement reaches old insights too — the stored document
  * never needs a migration for wording.
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status") ?? "active";
-  if (!STATUSES.includes(status)) {
-    return NextResponse.json({ error: "Invalid status filter." }, { status: 400 });
-  }
-
-  await connectDB();
-  const userId = session.user.id;
+export const GET = withRoute(
+  {
+    limit: "read",
+    query: z.object({ status: z.enum(STATUSES).catch("active") }),
+  },
+  async ({ userId, query }) => {
+  const status = query.status;
 
   const [docs, lastRun, dismissedCount] = await Promise.all([
     Insight.find({
       userId,
       ...(status === "all" ? {} : { status }),
-    }).lean(),
+    })
+      /**
+       * Bounded. Insights are capped per family per run so this is in the
+       * dozens today, but an unbounded find that is then sorted in memory
+       * has no ceiling at all as history accumulates.
+       */
+      .sort({ lastConfirmedAt: -1 })
+      .limit(200)
+      .lean(),
     PatternRun.findOne({ userId, error: null }).sort({ runAt: -1 }).lean(),
     Insight.countDocuments({ userId, status: "dismissed" }),
   ]);
@@ -49,7 +49,7 @@ export async function GET(request) {
     );
 
   const lastRunAt = lastRun?.runAt ?? null;
-  return NextResponse.json({
+  return json({
     insights,
     meta: {
       lastRunAt,
@@ -59,7 +59,8 @@ export async function GET(request) {
       dismissedAvailable: dismissedCount,
     },
   });
-}
+  }
+);
 
 /** The feed shape: everything a card needs, nothing the DB added. */
 function toFeedItem(doc) {

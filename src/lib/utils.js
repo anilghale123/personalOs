@@ -58,3 +58,32 @@ export function formatDate(d) {
     year: "numeric",
   }).format(new Date(d));
 }
+
+/**
+ * Escape a user-supplied string for safe use inside a `RegExp`.
+ *
+ * Two separate bugs live in an unescaped `$regex`: an unbalanced `(` or a
+ * bare `?` throws and surfaces as a 500, and a crafted pattern like
+ * `(a+)+$` backtracks catastrophically and pins a CPU. Every search route
+ * that builds a regex from user input must go through here.
+ * @param {string} s
+ */
+export function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Longest search term we will compile into a regex. */
+export const MAX_SEARCH_LENGTH = 64;
+
+/**
+ * A case-insensitive "contains" matcher for a user-typed term, or `null`
+ * when the term is too short to be worth querying.
+ * @param {string} term
+ * @param {number} [minLength]
+ * @returns {RegExp|null}
+ */
+export function searchRegex(term, minLength = 1) {
+  const q = String(term ?? "").trim().slice(0, MAX_SEARCH_LENGTH);
+  if (q.length < minLength) return null;
+  return new RegExp(escapeRegex(q), "i");
+}

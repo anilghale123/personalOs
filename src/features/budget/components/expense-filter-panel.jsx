@@ -10,16 +10,22 @@ import { Select } from "@/components/ui/select";
 import { categoryMap } from "../utils";
 import { PAYMENT_METHODS, SORT_OPTIONS } from "../constants";
 
-/** Aggregate a list of expenses into per-category totals, biggest first. */
-function totalsByCategory(expenses, catMap) {
-  const totals = new Map();
-  for (const expense of expenses) {
-    const id = String(expense.categoryId || "");
-    totals.set(id, (totals.get(id) || 0) + (Number(expense.amountPaisa) || 0));
-  }
-  return [...totals.entries()]
-    .map(([id, totalPaisa]) => ({ id, totalPaisa, category: catMap[id] }))
-    .sort((a, b) => b.totalPaisa - a.totalPaisa);
+/**
+ * Attach category metadata to server-computed totals.
+ *
+ * The summing itself moved to `/api/budget/expenses/breakdown`. It used to
+ * happen here over the fetched expense list, which was correct only while that
+ * list was unpaginated — once it returned a page of 50, this described the
+ * first 50 expenses rather than the whole filtered period, and nothing on
+ * screen indicated the numbers were partial.
+ */
+function withCategories(rows, catMap) {
+  return rows.map((row) => ({
+    id: row.categoryId ?? "",
+    totalPaisa: row.totalPaisa,
+    count: row.count,
+    category: catMap[row.categoryId ?? ""],
+  }));
 }
 
 /**
@@ -62,12 +68,13 @@ export function ExpenseFilterPanel({ categories, filters }) {
       if (dateTo) params.set("dateTo", dateTo);
       if (q) params.set("q", q);
       try {
-        const res = await fetch(`/api/budget/expenses?${params.toString()}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error();
+        const res = await fetch(
+          `/api/budget/expenses/breakdown?${params.toString()}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) throw new Error("Could not load the breakdown");
         const data = await res.json();
-        setRows(totalsByCategory(data.expenses || [], catMap));
+        setRows(withCategories(data.rows || [], catMap));
       } catch {
         if (!controller.signal.aborted) setRows([]);
       } finally {

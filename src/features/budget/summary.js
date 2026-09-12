@@ -4,10 +4,11 @@
  * page's server actions can call it directly.
  */
 
+import mongoose from "mongoose";
 import Budget from "@/models/Budget";
 import Expense from "@/models/Expense";
 import User from "@/models/User";
-import { sumMinor } from "@/lib/money";
+import { cachedMoney, cachedReference, tags } from "@/lib/cache";
 import { budgetPeriodRange, budgetPeriodLabel } from "./utils";
 
 const keyOf = (b) => `${b.scope}:${b.categoryId || "total"}`;
@@ -44,8 +45,26 @@ function applicableBudgets(all, start, end) {
  * having to remember to pass it.
  */
 export async function userCalendar(userId) {
-  const user = await User.findById(userId).select("preferences.dateFormat").lean();
-  return user?.preferences?.dateFormat === "nepali" ? "np" : "en";
+  /**
+   * Cached as reference data: a calendar preference changes about never, and
+   * this was previously an extra round trip on every money read — the budget
+   * page, the expenses page and each detector all asked independently.
+   * Invalidated by the profile route when the preference actually changes.
+   */
+  return cachedReference(
+    async () => {
+      const user = await User.findById(userId)
+        .select("preferences.dateFormat")
+        .lean();
+      return user?.preferences?.dateFormat === "nepali" ? "np" : "en";
+    },
+    {
+      userId,
+      key: "user-calendar",
+      tags: [tags.profile(userId)],
+      seconds: 60 * 60,
+    }
+  );
 }
 
 /**
@@ -63,27 +82,69 @@ export async function computeBudgetSummary(userId, period = "monthly", options =
   const cal = options.cal ?? (await userCalendar(userId));
   const { start, end } = budgetPeriodRange(period, date, cal);
 
-  const [stored, expenses] = await Promise.all([
-    Budget.find({ userId, period, periodStart: { $lte: end } })
-      .sort({ periodStart: -1 })
-      .lean(),
-    Expense.find({
+  /**
+   * Tier-1 cache: derived money, invalidated by tag on every expense, budget
+   * or category write — never on a timer. A user who logs an expense and sees
+   * an unchanged total does not think "cache lag", they think the app lost
+   * their money. See the tier note in lib/cache.js.
+   *
+   * The window is part of the key, so browsing back through months caches
+   * each one separately instead of thrashing a single entry.
+   */
+  const { budgets, spentPaisa, spentByCategory, expenseCount } = await cachedMoney(
+    async () => {
+      const [stored, spendRows] = await Promise.all([
+        Budget.find({ userId, period, periodStart: { $lte: end } })
+          .sort({ periodStart: -1 })
+          .lean(),
+
+        /**
+         * Spend grouped in Mongo rather than every row fetched and reduced
+         * here. A month of expenses is small, but this runs on the budget
+         * page, the expenses page and inside the pattern engine, and the rows
+         * themselves were never needed — only the sums.
+         */
+        Expense.aggregate([
+          {
+            $match: {
+              userId: new mongoose.Types.ObjectId(userId),
+              deletedAt: null,
+              date: { $gte: start, $lte: end },
+            },
+          },
+          {
+            $group: {
+              _id: "$categoryId",
+              spentPaisa: { $sum: "$amountPaisa" },
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+      ]);
+
+      const byCategory = {};
+      let total = 0;
+      let count = 0;
+      for (const row of spendRows) {
+        byCategory[String(row._id)] = row.spentPaisa;
+        total += row.spentPaisa;
+        count += row.count;
+      }
+
+      return {
+        budgets: applicableBudgets(stored, start, end),
+        spentPaisa: total,
+        spentByCategory: byCategory,
+        expenseCount: count,
+      };
+    },
+    {
       userId,
-      deletedAt: null,
-      date: { $gte: start, $lte: end },
-    })
-      .select("amountPaisa categoryId")
-      .lean(),
-  ]);
-
-  const budgets = applicableBudgets(stored, start, end);
-  const spentPaisa = sumMinor(expenses);
-
-  const spentByCategory = {};
-  for (const e of expenses) {
-    const id = String(e.categoryId);
-    spentByCategory[id] = (spentByCategory[id] || 0) + (e.amountPaisa || 0);
-  }
+      key: "budget-summary",
+      deps: [period, cal, start, end],
+      tags: [tags.money(userId), tags.expenses(userId), tags.budgets(userId)],
+    }
+  );
 
   const total = budgets.find((b) => b.scope === "total") || null;
   const categories = budgets
@@ -110,7 +171,7 @@ export async function computeBudgetSummary(userId, period = "monthly", options =
     totalCarried: Boolean(total?.carried),
     totalCarryForward: total ? total.carryForward : true,
     spentPaisa,
-    expenseCount: expenses.length,
+    expenseCount,
     categories,
     spentByCategory,
   };

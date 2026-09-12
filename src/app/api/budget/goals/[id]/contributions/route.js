@@ -1,43 +1,63 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
-import FinancialGoal from "@/models/FinancialGoal";
-import { toMinorUnits } from "@/lib/money";
+import { withRoute, json, notFound, badRequest } from "@/lib/api";
+import {
+  z,
+  amountMajor,
+  dateKey,
+  optionalText,
+  idempotencyKey,
+} from "@/lib/validation";
+import { appendOnce } from "@/lib/idempotent";
 import { toDateKey } from "@/lib/utils";
+import FinancialGoal from "@/models/FinancialGoal";
+import { invalidateMoney } from "@/lib/cache";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ContributionBody = z.object({
+  amount: amountMajor,
+  date: dateKey.optional(),
+  note: optionalText(300),
+  /** Optional so an older client still works; sent by ours. */
+  idempotencyKey: idempotencyKey.optional(),
+});
 
 /**
  * POST /api/budget/goals/[id]/contributions — put money towards a goal.
- * Body: { amount, date?, note? }
+ *
+ * Idempotent: replaying the same `idempotencyKey` returns the goal
+ * unchanged with `replayed: true` rather than depositing twice. See
+ * lib/idempotent.js for why a guarded `$push` and not a read-then-write.
+ *
+ * Body: { amount, date?, note?, idempotencyKey? }
  */
-export async function POST(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { amount, date, note } = await request.json();
-
-  const amountPaisa = toMinorUnits(amount);
-  if (!amountPaisa || amountPaisa <= 0) {
-    return NextResponse.json({ error: "A valid amount is required." }, { status: 400 });
-  }
-
-  await connectDB();
-  const goal = await FinancialGoal.findOneAndUpdate(
-    { _id: params.id, userId: session.user.id },
-    {
-      $push: {
-        contributions: {
-          amountPaisa,
-          date: date && DATE_RE.test(date) ? date : toDateKey(),
-          note: note?.trim() || undefined,
-        },
+export const POST = withRoute(
+  {
+    limit: "write",
+    params: ["id"],
+    body: ContributionBody,
+  },
+  async ({ userId, params, input }) => {
+    const { doc, replayed, atCapacity } = await appendOnce(FinancialGoal, {
+      // userId in the filter is the ownership check — a goal belonging to
+      // someone else is indistinguishable from one that does not exist.
+      filter: { _id: params.id, userId },
+      arrayPath: "contributions",
+      entry: {
+        amountPaisa: input.amount,
+        date: input.date ?? toDateKey(),
+        note: input.note,
       },
-    },
-    { new: true, runValidators: true }
-  ).lean();
+      idempotencyKey: input.idempotencyKey,
+    });
 
-  if (!goal) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(goal, { status: 201 });
-}
+    if (atCapacity) {
+      throw badRequest(
+        `This goal has reached the maximum number of contributions we can store on one record. Close it and open a new one to carry on.`
+      );
+    }
+    if (!doc) throw notFound();
+
+    // A deposit changes the goal progress every money view shows.
+    invalidateMoney(userId);
+
+    return json({ ...doc, replayed }, { status: replayed ? 200 : 201 });
+  }
+);

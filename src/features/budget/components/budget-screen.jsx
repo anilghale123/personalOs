@@ -46,8 +46,8 @@ function BudgetHint() {
 export function ExpensesScreen({ earliestDate, dateFormat }) {
   const categories = useBudgetStore((s) => s.categories);
   const cal = dateFormat === "nepali" ? "np" : "en";
-  // Owned here, not in the list: on a phone the filters get their own
-  // tab, so the list is unmounted while they're being changed.
+  // Owned here, not in the list: the filters live in their own tab, so the
+  // list is unmounted while they are being changed.
   const filters = useExpenseFilters({ earliestDate, cal });
 
   return (
@@ -56,9 +56,7 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
       <Tabs defaultValue="expenses">
         <TabsList>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="filter" className="md:hidden">
-            Filter
-          </TabsTrigger>
+          <TabsTrigger value="filter">Filter</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
         </TabsList>
 
@@ -71,7 +69,7 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
           />
         </TabsContent>
 
-        <TabsContent value="filter" className="md:hidden">
+        <TabsContent value="filter">
           <ExpenseFilterPanel categories={categories} filters={filters} />
         </TabsContent>
 

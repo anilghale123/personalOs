@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offline — selfView</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5ead8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16150f">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!--
+  A plain, self-contained HTML file rather than a Next.js route.
+
+  This is deliberate and was arrived at the hard way. A React page cannot be
+  the offline fallback: its HTML needs JavaScript chunks to hydrate, and those
+  chunks were never fetched while online, so serving it offline produced
+  "Application error: a client-side exception has occurred" on every route.
+
+  Everything here is inline — styles, the single script, no fonts, no images
+  beyond the icon. It renders correctly with no network, no build output, and
+  no JavaScript at all.
+-->
+<style>
+  :root {
+    --ground: #f5ead8;
+    --card: #fffaf1;
+    --ink: #16150f;
+    --ink-soft: #6b6455;
+    --rule: #e3d6be;
+    --accent: #1f5f5b;
+    --accent-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #16150f;
+      --card: #1e1c15;
+      --ink: #f1ebdd;
+      --ink-soft: #a49b86;
+      --rule: #332f25;
+      --accent: #78c4b8;
+      --accent-ink: #10201e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: 100%;
+    max-width: 26rem;
+    text-align: center;
+  }
+  .badge {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  p {
+    margin: 0 auto 24px;
+    max-width: 30ch;
+    font-size: 0.94rem;
+    color: var(--ink-soft);
+  }
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  @media (min-width: 420px) {
+    .actions { flex-direction: row; justify-content: center; }
+  }
+  a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 22px;
+    border-radius: 999px;
+    font-size: 0.94rem;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: opacity 0.15s ease;
+  }
+  a.btn:hover { opacity: 0.88; }
+  a.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .primary { background: var(--accent); color: var(--accent-ink); }
+  .secondary { border-color: var(--rule); color: var(--ink); background: var(--card); }
+  .hint {
+    margin: 22px 0 0;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="badge" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M2 2l20 20"/>
+        <path d="M8.5 16.5a5 5 0 0 1 7 0"/>
+        <path d="M2 8.82a15 15 0 0 1 4.17-2.65"/>
+        <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/>
+        <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/>
+        <path d="M5 12.86a10 10 0 0 1 5.17-2.69"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+
+    <h1>You&rsquo;re offline</h1>
+    <p>
+      selfView needs a connection to load your record. Nothing has been lost &mdash;
+      this will work again the moment you&rsquo;re back.
+    </p>
+
+    <div class="actions">
+      <!-- A real link, so it works even if the script below never runs. -->
+      <a class="btn primary" id="retry" href="/app">Try again</a>
+      <a class="btn secondary" href="/">Back to home</a>
+    </div>
+
+    <p class="hint">selfView &middot; private by design</p>
+  </main>
+
+<script>
+  // Progressive enhancement only: the link above already works. The service
+  // worker appends ?from= with the page the user was actually trying to reach,
+  // so retrying returns them there instead of the dashboard.
+  (function () {
+    try {
+      var from = new URLSearchParams(location.search).get("from");
+      // Same-site paths only — this value goes straight into a navigation.
+      if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
+        document.getElementById("retry").setAttribute("href", from);
+      }
+    } catch (e) {
+      /* Leave the default href in place. */
+    }
+  })();
+</script>
+</body>
+</html>

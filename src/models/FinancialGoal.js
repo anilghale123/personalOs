@@ -6,6 +6,8 @@ const ContributionSchema = new mongoose.Schema(
     amountPaisa: { type: Number, required: true }, // integer, always positive
     date: { type: String, required: true }, // 'YYYY-MM-DD'
     note: { type: String, trim: true },
+    /** See the note on DebtEntrySchema — guards against double-counting. */
+    idempotencyKey: { type: String },
   },
   { timestamps: true }
 );

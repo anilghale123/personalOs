@@ -18,6 +18,9 @@ export function LandingHeader({ signedIn }) {
         <a href="#privacy" className="transition-colors hover:text-foreground">
           Privacy
         </a>
+        <a href="#install" className="transition-colors hover:text-foreground">
+          Get the app
+        </a>
       </nav>
       {signedIn ? (
         <Button asChild className="rounded-full px-[22px] py-[11px]">
@@ -76,13 +79,13 @@ export function LandingHero({ signedIn }) {
                 variant="outline"
                 className="w-full rounded-full px-[26px] py-[15px] text-base sm:w-auto"
               >
-                <a href="#pillars">See a real week</a>
+                <a href="#install">Get the app</a>
               </Button>
             </>
           )}
         </div>
         <p className="mt-[22px] text-sm text-sand-600">
-          No card. Your data stays yours — export it any day.
+          No card, no app store. Your data stays yours — export it any day.
         </p>
       </div>
 

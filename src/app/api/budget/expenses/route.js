@@ -1,142 +1,181 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, badRequest } from "@/lib/api";
+import {
+  z,
+  amountMajor,
+  dateKey,
+  optionalDateKey,
+  objectId,
+  optionalText,
+  tagList,
+} from "@/lib/validation";
+import { toDateKey } from "@/lib/utils";
+import { buildExpenseFilter } from "@/features/budget/expense-filter";
+import { cachedMoney, invalidateMoney, tags } from "@/lib/cache";
 import Expense from "@/models/Expense";
 import Category from "@/models/Category";
-import { sumMinor, toMinorUnits } from "@/lib/money";
-import { toDateKey } from "@/lib/utils";
 import { PAYMENT_METHODS, RECURRENCE_FREQUENCIES } from "@/features/budget/constants";
 
 const PAYMENT_IDS = PAYMENT_METHODS.map((p) => p.id);
 const FREQ_IDS = RECURRENCE_FREQUENCIES.map((f) => f.id);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function sortFor(sort) {
-  switch (sort) {
-    case "date_asc":
-      return { date: 1, createdAt: 1 };
-    case "amount_desc":
-      return { amountPaisa: -1 };
-    case "amount_asc":
-      return { amountPaisa: 1 };
-    default:
-      return { date: -1, createdAt: -1 };
-  }
-}
+/** Server-side ceiling, whatever the client asks for. */
+const MAX_LIMIT = 200;
+const DEFAULT_LIMIT = 50;
+
+const SORTS = {
+  date_desc: { date: -1, createdAt: -1 },
+  date_asc: { date: 1, createdAt: 1 },
+  amount_desc: { amountPaisa: -1 },
+  amount_asc: { amountPaisa: 1 },
+};
+
+const ListQuery = z.object({
+  categoryId: objectId.optional(),
+  paymentMethod: z.enum(PAYMENT_IDS).optional(),
+  dateFrom: dateKey.optional(),
+  dateTo: dateKey.optional(),
+  tag: z.string().max(40).optional(),
+  q: z.string().max(64).optional(),
+  sort: z.enum(Object.keys(SORTS)).catch("date_desc"),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).catch(DEFAULT_LIMIT),
+  skip: z.coerce.number().int().min(0).max(100_000).catch(0),
+});
 
 /**
- * GET /api/budget/expenses — filtered list + running total for the filter set.
- * Query: categoryId, paymentMethod, dateFrom, dateTo, tag, q, sort
+ * GET /api/budget/expenses — a page of expenses plus totals for the filter.
+ *
+ * Paginated, and the total comes from an aggregation rather than from summing
+ * the rows in JavaScript. Previously this returned *every* matching expense
+ * and totalled them in the handler, so the response grew without bound and a
+ * heavy user's filter change shipped megabytes per keystroke.
+ *
+ * The count and total are one `$group` over the same filter, so they describe
+ * the whole filtered set while only one page of documents is returned.
+ *
+ * Query: categoryId, paymentMethod, dateFrom, dateTo, tag, q, sort, limit, skip
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withRoute(
+  { limit: "read", query: ListQuery },
+  async ({ userId, query }) => {
+    const filter = buildExpenseFilter(userId, query);
+
+    const [expenses, aggregate, earliest] = await Promise.all([
+      Expense.find(filter)
+        .sort(SORTS[query.sort])
+        .skip(query.skip)
+        .limit(query.limit)
+        .lean(),
+
+      // Total and count for the *entire* filtered set, computed in Mongo.
+      Expense.aggregate([
+        { $match: buildExpenseFilter(userId, query, { forAggregation: true }) },
+        {
+          $group: {
+            _id: null,
+            totalPaisa: { $sum: "$amountPaisa" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // The oldest record on file regardless of filters — the monthly record
+      // pager needs to know how far back it can go. Cached separately because
+      // it only changes when the user's very first expense changes.
+      cachedMoney(
+        async () => {
+          const doc = await Expense.findOne({ userId, deletedAt: null })
+            .sort({ date: 1 })
+            .select("date")
+            .lean();
+          return doc?.date ?? null;
+        },
+        {
+          userId,
+          key: "earliest-expense",
+          tags: [tags.expenses(userId)],
+        }
+      ),
+    ]);
+
+    const totalPaisa = aggregate[0]?.totalPaisa ?? 0;
+    const matchCount = aggregate[0]?.count ?? 0;
+
+    return json({
+      expenses,
+      totalPaisa,
+      // Pagination metadata, matching the shape the journal routes already
+      // use so client code can share one helper.
+      count: matchCount,
+      limit: query.limit,
+      skip: query.skip,
+      hasMore: query.skip + expenses.length < matchCount,
+      earliestDate: earliest,
+    });
   }
-  const { searchParams } = new URL(request.url);
-  const query = { userId: session.user.id, deletedAt: null };
+);
 
-  const categoryId = searchParams.get("categoryId");
-  if (categoryId) query.categoryId = categoryId;
-
-  const paymentMethod = searchParams.get("paymentMethod");
-  if (paymentMethod) query.paymentMethod = paymentMethod;
-
-  const dateFrom = searchParams.get("dateFrom");
-  const dateTo = searchParams.get("dateTo");
-  if (dateFrom || dateTo) {
-    query.date = {};
-    if (dateFrom) query.date.$gte = dateFrom;
-    if (dateTo) query.date.$lte = dateTo;
-  }
-
-  const tag = searchParams.get("tag");
-  if (tag) query.tags = tag;
-
-  const q = searchParams.get("q");
-  if (q?.trim()) query.note = { $regex: q.trim(), $options: "i" };
-
-  await connectDB();
-  const [expenses, earliest] = await Promise.all([
-    Expense.find(query).sort(sortFor(searchParams.get("sort"))).lean(),
-    // The oldest record on file, regardless of the active filters — the
-    // monthly record pager needs to know how far back it can go.
-    Expense.findOne({ userId: session.user.id, deletedAt: null })
-      .sort({ date: 1 })
-      .select("date")
-      .lean(),
-  ]);
-  const totalPaisa = sumMinor(expenses);
-  return NextResponse.json({
-    expenses,
-    totalPaisa,
-    earliestDate: earliest?.date ?? null,
-  });
-}
+const CreateExpense = z.object({
+  amount: amountMajor,
+  categoryId: objectId,
+  date: optionalDateKey,
+  note: optionalText(500),
+  paymentMethod: z.enum(PAYMENT_IDS).optional(),
+  tags: tagList.optional(),
+  isRecurring: z.boolean().optional(),
+  recurrence: z
+    .object({
+      frequency: z.enum(FREQ_IDS),
+      dayOfMonth: z.coerce.number().int().min(1).max(31).optional(),
+      weekday: z.coerce.number().int().min(0).max(6).optional(),
+      nextRunDate: dateKey.optional(),
+    })
+    .optional(),
+});
 
 /**
- * POST /api/budget/expenses — create an expense. The primary "fast" flow
- * only needs amount + categoryId; everything else is optional.
+ * POST /api/budget/expenses — create an expense.
+ *
+ * The primary "fast" flow needs only amount + categoryId.
+ *
  * Body: { amount, categoryId, date?, note?, paymentMethod?, tags?,
  *         isRecurring?, recurrence? }
  */
-export async function POST(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const body = await request.json();
-  const {
-    amount,
-    categoryId,
-    date,
-    note,
-    paymentMethod,
-    tags,
-    isRecurring,
-    recurrence,
-  } = body;
+export const POST = withRoute(
+  { limit: "write", body: CreateExpense },
+  async ({ userId, input }) => {
+    if (input.isRecurring && !input.recurrence) {
+      throw badRequest(
+        "A recurring expense needs a repeat frequency."
+      );
+    }
 
-  const amountPaisa = toMinorUnits(amount);
-  if (!amountPaisa || amountPaisa <= 0) {
-    return NextResponse.json({ error: "A valid amount is required." }, { status: 400 });
-  }
-  if (!categoryId) {
-    return NextResponse.json({ error: "A category is required." }, { status: 400 });
-  }
-  const expenseDate = date && DATE_RE.test(date) ? date : toDateKey();
+    // Ownership check on the category: scoping the lookup by userId means a
+    // category id belonging to someone else reads as simply not existing.
+    const category = await Category.findOne({
+      _id: input.categoryId,
+      userId,
+    })
+      .select("_id")
+      .lean();
+    if (!category) throw badRequest("Category not found.");
 
-  if (paymentMethod && !PAYMENT_IDS.includes(paymentMethod)) {
-    return NextResponse.json({ error: "Invalid payment method." }, { status: 400 });
-  }
-  if (isRecurring && (!recurrence || !FREQ_IDS.includes(recurrence.frequency))) {
-    return NextResponse.json(
-      { error: "A valid recurrence frequency is required for recurring expenses." },
-      { status: 400 }
-    );
-  }
-
-  await connectDB();
-  const category = await Category.findOne({ _id: categoryId, userId: session.user.id }).lean();
-  if (!category) {
-    return NextResponse.json({ error: "Category not found." }, { status: 400 });
-  }
-
-  try {
     const expense = await Expense.create({
-      userId: session.user.id,
-      amountPaisa,
+      userId,
+      amountPaisa: input.amount,
       currency: "NPR",
-      categoryId,
-      date: expenseDate,
-      note: note?.trim() || undefined,
-      paymentMethod: paymentMethod || "cash",
-      tags: Array.isArray(tags) ? tags.filter(Boolean).map((t) => t.trim()) : [],
-      isRecurring: Boolean(isRecurring),
-      recurrence: isRecurring ? recurrence : undefined,
+      categoryId: input.categoryId,
+      date: input.date ?? toDateKey(),
+      note: input.note,
+      paymentMethod: input.paymentMethod || "cash",
+      tags: input.tags ?? [],
+      isRecurring: Boolean(input.isRecurring),
+      recurrence: input.isRecurring ? input.recurrence : undefined,
     });
-    return NextResponse.json(expense, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+
+    // Same request as the write, so the client's next read cannot see a
+    // stale total. See the tier note in lib/cache.js.
+    invalidateMoney(userId);
+
+    return json(expense, { status: 201 });
   }
-}
+);

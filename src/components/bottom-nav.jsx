@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutEverywhere } from "@/lib/sign-out";
 import {
   LayoutDashboard,
   Target,
@@ -36,7 +36,6 @@ const TABS = [
 const MORE_LINKS = [
   { href: "/app/goals", label: "Goals & habits", icon: Target },
   { href: "/app/journal", label: "Journal", icon: BookOpen },
-  { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];
 
@@ -170,7 +169,7 @@ export function BottomNav({ user }) {
               </button>
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => signOutEverywhere({ callbackUrl: "/login" })}
                 className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
               >
                 <LogOut className="h-5 w-5" />

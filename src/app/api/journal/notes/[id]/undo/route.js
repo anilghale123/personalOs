@@ -1,22 +1,23 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, must } from "@/lib/api";
+import { invalidateJournal } from "@/lib/cache";
 import QuickNote from "@/models/QuickNote";
 
 /** POST /api/journal/notes/[id]/undo — restore a soft-deleted note. */
-export async function POST(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withRoute(
+  { limit: "write", params: ["id"] },
+  async ({ userId, params }) => {
+    // `deletedAt: { $ne: null }` keeps this honest: restoring a note that was
+    // never deleted is a 404, not a silent success.
+    const note = must(
+      await QuickNote.findOneAndUpdate(
+        { _id: params.id, userId, deletedAt: { $ne: null } },
+        { $set: { deletedAt: null } },
+        { new: true }
+      ).lean()
+    );
+
+    invalidateJournal(userId);
+
+    return json(note);
   }
-  await connectDB();
-  const note = await QuickNote.findOneAndUpdate(
-    { _id: params.id, userId: session.user.id, deletedAt: { $ne: null } },
-    { $set: { deletedAt: null } },
-    { new: true }
-  ).lean();
-  if (!note) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json(note);
-}
+);

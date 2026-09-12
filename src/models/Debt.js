@@ -16,6 +16,15 @@ const DebtEntrySchema = new mongoose.Schema(
     amountPaisa: { type: Number, required: true }, // integer, always positive
     date: { type: String, required: true }, // 'YYYY-MM-DD' local calendar date
     note: { type: String, trim: true },
+    /**
+     * Client-generated, one per submit attempt. The route pushes only when
+     * this key is absent from `entries`, which makes a retried or
+     * double-tapped request a no-op instead of a second payment.
+     *
+     * Optional because entries written before this existed have none; a
+     * push without a key simply skips the guard.
+     */
+    idempotencyKey: { type: String },
   },
   { timestamps: true }
 );

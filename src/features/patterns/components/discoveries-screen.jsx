@@ -3,17 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import {
-  ChevronDown,
-  RefreshCw,
-  Receipt,
-  Target,
-  Sparkles,
-} from "lucide-react";
+import { ChevronDown, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lifeline } from "@/components/brand-mark";
-import { MOODS } from "@/features/journal/components/mood-picker";
 import { usePatternStore } from "../store";
 import { splitFeed } from "../feed";
 import { HeadlineInsight, InsightRow } from "./insight-card";
@@ -28,7 +20,7 @@ import { MoneyBriefing, HabitsBriefing } from "./weekly-briefing";
  * and firing it on every visit meant the whole page waited on the one
  * part of it nobody had asked for yet.
  */
-export function DiscoveriesScreen({ initial, lifeline, briefing, firstName }) {
+export function DiscoveriesScreen({ initial, briefing, firstName }) {
   const hydrate = usePatternStore((s) => s.hydrate);
 
   // Seed from the server payload before first paint.
@@ -45,50 +37,15 @@ export function DiscoveriesScreen({ initial, lifeline, briefing, firstName }) {
         </h1>
       </header>
 
-      <LifelineStrip days={lifeline} />
-
       <div className="max-w-[860px] space-y-4">
         <MoneyBriefing briefing={briefing} />
         <HabitsBriefing briefing={briefing} />
       </div>
 
       <div className="max-w-[860px]">
-        <QuickLog />
         <PatternDiscovery />
       </div>
     </>
-  );
-}
-
-/** The week as recorded — the one element that already composited domains. */
-function LifelineStrip({ days }) {
-  if (!days?.length) return null;
-  const labels = ["M", "T", "W", "T", "F", "S", "S"];
-
-  return (
-    <Link
-      href="/app/journal"
-      className="mb-6 block rounded-2xl bg-card px-4 py-3.5 elev-sm transition-colors hover:bg-sand-200 sm:px-5"
-      aria-label="Your week on record — open the journal"
-    >
-      <div className="flex items-end justify-between gap-4">
-        <Lifeline
-          values={days.map((d) => d.value)}
-          className="h-8 w-40 text-brand sm:h-9 sm:w-48"
-          animated={false}
-        />
-        <div className="flex gap-1.5">
-          {days.map((d) => (
-            <span
-              key={d.date}
-              className="w-5 text-center text-[10px] uppercase text-sand-600"
-            >
-              {labels[d.dow]}
-            </span>
-          ))}
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -285,55 +242,6 @@ function NothingFound({ hypotheses }) {
  * gets a real one-tap control here. Expenses and habits already have good
  * capture screens; these link straight to them rather than cloning them.
  */
-function QuickLog() {
-  const logMood = usePatternStore((s) => s.logMood);
-  const logged = usePatternStore((s) => s.moodLoggedToday);
-
-  return (
-    <section className="pt-[34px]">
-      <h3 className="mb-3.5 font-display text-[19px]">Quick log</h3>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {MOODS.map((mood) => (
-          <button
-            key={mood.key}
-            type="button"
-            onClick={() => logMood(mood.key)}
-            title={mood.label}
-            aria-pressed={logged === mood.key}
-            className={cn(
-              "flex min-h-[40px] items-center gap-1.5 rounded-full px-4 text-sm transition-colors",
-              logged === mood.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-sand-200 text-sand-700 hover:bg-sand-300 hover:text-foreground"
-            )}
-          >
-            <span className="text-base leading-none">{mood.emoji}</span>
-            <span className="hidden text-xs sm:inline">{mood.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-3.5 flex flex-wrap gap-2">
-        <Link
-          href="/app/budget/expenses"
-          className="inline-flex min-h-[40px] items-center gap-2 rounded-full px-2.5 text-[15px] text-sand-600 transition-colors hover:text-foreground"
-        >
-          <Receipt className="h-4 w-4" />
-          Log an expense
-        </Link>
-        <Link
-          href="/app/goals"
-          className="inline-flex min-h-[40px] items-center gap-2 rounded-full px-2.5 text-[15px] text-sand-600 transition-colors hover:text-foreground"
-        >
-          <Target className="h-4 w-4" />
-          Tick off a habit
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 /** When we last looked, and the manual "look again" control. */
 function FeedFooter({ meta, computing, onCheck }) {
   return (

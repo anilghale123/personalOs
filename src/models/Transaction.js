@@ -32,5 +32,11 @@ TransactionSchema.index(
   { unique: true, sparse: true }
 );
 
+// The activity feed sorts by date; without this the sort happened in memory
+// over every transaction the user has ever recorded.
+TransactionSchema.index({ userId: 1, transactionDate: -1 });
+// Portfolio aggregation groups a user's rows by ticker.
+TransactionSchema.index({ userId: 1, ticker: 1 });
+
 export default mongoose.models.Transaction ||
   mongoose.model("Transaction", TransactionSchema);

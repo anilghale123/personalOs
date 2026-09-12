@@ -1,104 +1,95 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z, dateKey, text, optionalText, tagList } from "@/lib/validation";
+import { invalidateJournal } from "@/lib/cache";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MOODS = ["amazing", "good", "okay", "bad", "awful"];
+
+const ReadQuery = z.object({
+  date: dateKey,
+  notesLimit: z.coerce.number().int().positive().max(500).catch(200),
+  notesSkip: z.coerce.number().int().min(0).max(100_000).catch(0),
+});
 
 /**
  * GET /api/journal?date=YYYY-MM-DD
- * Returns the daily anchor journal and all quick notes for a day.
+ * Returns the daily anchor journal and a page of quick notes for a day.
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withRoute(
+  { limit: "read", query: ReadQuery },
+  async ({ userId, query }) => {
+    const { date, notesLimit, notesSkip } = query;
+
+    const [journal, notes, notesTotal] = await Promise.all([
+      DailyJournal.findOne({ userId, date }).lean(),
+      QuickNote.find({ userId, date, deletedAt: null })
+        .sort({ createdAt: 1 })
+        .skip(notesSkip)
+        .limit(notesLimit)
+        .lean(),
+      QuickNote.countDocuments({ userId, date, deletedAt: null }),
+    ]);
+
+    return json({
+      journal: journal || null,
+      notes,
+      notesTotal,
+      notesHasMore: notesSkip + notes.length < notesTotal,
+    });
   }
-  const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date");
-  if (!DATE_RE.test(date || "")) {
-    return NextResponse.json(
-      { error: "A valid ?date=YYYY-MM-DD is required." },
-      { status: 400 }
-    );
-  }
+);
 
-  const notesLimit = Math.min(Number(searchParams.get("notesLimit")) || 200, 500);
-  const notesSkip = Number(searchParams.get("notesSkip")) || 0;
-
-  await connectDB();
-  const userId = session.user.id;
-  const [journal, notes, notesTotal] = await Promise.all([
-    DailyJournal.findOne({ userId, date }).lean(),
-    QuickNote.find({ userId, date, deletedAt: null })
-      .sort({ createdAt: 1 })
-      .skip(notesSkip)
-      .limit(notesLimit)
-      .lean(),
-    QuickNote.countDocuments({ userId, date, deletedAt: null }),
-  ]);
-
-  return NextResponse.json({
-    journal: journal || null,
-    notes,
-    notesTotal,
-    notesHasMore: notesSkip + notes.length < notesTotal,
-  });
-}
+const SaveJournal = z.object({
+  date: dateKey,
+  // Nullable: clearing a mood is meaningful, and the schema allows null.
+  mood: z.enum(MOODS).nullish(),
+  title: text(200).optional(),
+  // Capped. Journal content is documented as Markdown, so the day anything
+  // renders it as such an unbounded field becomes an injection surface too.
+  content: text(100_000).optional(),
+  tags: tagList.optional(),
+});
 
 /**
  * PUT /api/journal
  * Autosave upsert for the daily anchor journal.
  * Body: { date, mood, title, content, tags }
  */
-export async function PUT(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const body = await request.json();
-  const { date, mood, title, content, tags } = body;
-  if (!DATE_RE.test(date || "")) {
-    return NextResponse.json(
-      { error: "A valid date is required." },
-      { status: 400 }
-    );
-  }
+export const PUT = withRoute(
+  { limit: "write", body: SaveJournal },
+  async ({ userId, input }) => {
+    const set = {
+      mood: input.mood ?? null,
+      title: input.title ?? "",
+      content: input.content ?? "",
+      tags: input.tags ?? [],
+    };
 
-  await connectDB();
-  try {
-    const journal = await DailyJournal.findOneAndUpdate(
-      { userId: session.user.id, date },
-      {
-        $set: {
-          mood: mood || null,
-          title: title || "",
-          content: content || "",
-          tags: Array.isArray(tags) ? tags : [],
-        },
-        $setOnInsert: { userId: session.user.id, date },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).lean();
-    return NextResponse.json(journal);
-  } catch (err) {
-    if (err.code === 11000) {
-      // Race on first-write: the doc now exists, retry as a plain update.
-      const journal = await DailyJournal.findOneAndUpdate(
-        { userId: session.user.id, date },
-        {
-          $set: {
-            mood: mood || null,
-            title: title || "",
-            content: content || "",
-            tags: Array.isArray(tags) ? tags : [],
-          },
-        },
+    /**
+     * `upsert` races with itself on a day's first write — two autosaves
+     * landing together both try to insert. The unique {userId, date} index
+     * catches that, and the duplicate-key retry below turns it into a plain
+     * update rather than a failed save the user never sees.
+     */
+    let journal;
+    try {
+      journal = await DailyJournal.findOneAndUpdate(
+        { userId, date: input.date },
+        { $set: set, $setOnInsert: { userId, date: input.date } },
+        { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+      ).lean();
+    } catch (err) {
+      if (err.code !== 11000) throw err;
+      journal = await DailyJournal.findOneAndUpdate(
+        { userId, date: input.date },
+        { $set: set },
         { new: true }
       ).lean();
-      return NextResponse.json(journal);
     }
-    return NextResponse.json({ error: err.message }, { status: 400 });
+
+    invalidateJournal(userId);
+
+    return json(journal);
   }
-}
+);

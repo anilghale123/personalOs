@@ -1,79 +1,70 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, must } from "@/lib/api";
+import { z, amountMajor, clearableDateKey, optionalText, text } from "@/lib/validation";
+import { invalidateMoney } from "@/lib/cache";
 import FinancialGoal from "@/models/FinancialGoal";
-import { toMinorUnits } from "@/lib/money";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const STATUSES = ["active", "achieved", "archived"];
+const UpdateGoal = z
+  .object({
+    name: text(80).pipe(z.string().min(1, "A goal name is required.")).optional(),
+    target: amountMajor.optional(),
+    icon: z.string().max(8).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour.").optional(),
+    // Three states: absent = leave it, blank = clear it, value = set it.
+    targetDate: clearableDateKey,
+    note: optionalText(300),
+    status: z.enum(["active", "achieved", "archived"]).optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: "Nothing to update.",
+  });
 
 /**
  * PATCH /api/budget/goals/[id]
  * Body: any subset of { name, target, icon, color, targetDate, note, status }
  */
-export async function PATCH(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const body = await request.json();
-  const update = {};
+export const PATCH = withRoute(
+  { limit: "write", params: ["id"], body: UpdateGoal },
+  async ({ userId, params, input }) => {
+    const update = {};
+    const unset = {};
 
-  if (body.name !== undefined) {
-    if (!body.name.trim()) {
-      return NextResponse.json({ error: "A goal name is required." }, { status: 400 });
-    }
-    update.name = body.name.trim();
-  }
-  if (body.target !== undefined) {
-    const targetPaisa = toMinorUnits(body.target);
-    if (!targetPaisa || targetPaisa <= 0) {
-      return NextResponse.json({ error: "A valid target amount is required." }, { status: 400 });
-    }
-    update.targetPaisa = targetPaisa;
-  }
-  if (body.targetDate !== undefined) {
-    if (body.targetDate && !DATE_RE.test(body.targetDate)) {
-      return NextResponse.json({ error: "Invalid target date." }, { status: 400 });
-    }
-    update.targetDate = body.targetDate || undefined;
-  }
-  if (body.icon !== undefined) update.icon = body.icon;
-  if (body.color !== undefined) update.color = body.color;
-  if (body.note !== undefined) update.note = body.note.trim();
-  if (body.status !== undefined) {
-    if (!STATUSES.includes(body.status)) {
-      return NextResponse.json({ error: "Invalid status." }, { status: 400 });
-    }
-    update.status = body.status;
-  }
+    if (input.name !== undefined) update.name = input.name;
+    if (input.target !== undefined) update.targetPaisa = input.target;
+    if (input.icon !== undefined) update.icon = input.icon;
+    if (input.color !== undefined) update.color = input.color;
+    if (input.note !== undefined) update.note = input.note;
+    if (input.status !== undefined) update.status = input.status;
 
-  if (!Object.keys(update).length) {
-    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+    // `$unset`, not `$set: undefined` — Mongoose strips undefined from `$set`,
+    // so clearing a target date that way silently left the old one in place.
+    if (input.targetDate === null) unset.targetDate = "";
+    else if (input.targetDate !== undefined) update.targetDate = input.targetDate;
+
+    const goal = must(
+      await FinancialGoal.findOneAndUpdate(
+        { _id: params.id, userId },
+        {
+          ...(Object.keys(update).length ? { $set: update } : {}),
+          ...(Object.keys(unset).length ? { $unset: unset } : {}),
+        },
+        { new: true, runValidators: true }
+      ).lean()
+    );
+
+    invalidateMoney(userId);
+
+    return json(goal);
   }
-
-  await connectDB();
-  const goal = await FinancialGoal.findOneAndUpdate(
-    { _id: params.id, userId: session.user.id },
-    { $set: update },
-    { new: true, runValidators: true }
-  ).lean();
-
-  if (!goal) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(goal);
-}
+);
 
 /** DELETE /api/budget/goals/[id] — removes the goal and its contributions. */
-export async function DELETE(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withRoute(
+  { limit: "write", params: ["id"] },
+  async ({ userId, params }) => {
+    must(await FinancialGoal.findOneAndDelete({ _id: params.id, userId }).lean());
+
+    invalidateMoney(userId);
+
+    return json({ ok: true });
   }
-  await connectDB();
-  const goal = await FinancialGoal.findOneAndDelete({
-    _id: params.id,
-    userId: session.user.id,
-  }).lean();
-  if (!goal) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
-}
+);

@@ -1,86 +1,89 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, must } from "@/lib/api";
+import {
+  z,
+  amountMajor,
+  blankAsAbsent,
+  clearableDateKey,
+  finiteNumber,
+  optionalText,
+  text,
+} from "@/lib/validation";
+import { invalidateMoney } from "@/lib/cache";
 import Debt from "@/models/Debt";
-import { toMinorUnits } from "@/lib/money";
 import { DEBT_KINDS } from "@/features/budget/constants";
 
 const KINDS = DEBT_KINDS.map((k) => k.id);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const UpdateDebt = z
+  .object({
+    name: text(80).pipe(z.string().min(1, "A debt name is required.")).optional(),
+    kind: z.enum(KINDS).optional(),
+    counterparty: optionalText(80),
+    principal: amountMajor.optional(),
+    // `blankAsAbsent`, not `optionalRate` — on a PATCH an omitted rate must
+    // mean "leave it", and a schema that defaults undefined to 0 would zero
+    // the rate on every unrelated edit.
+    interestRate: blankAsAbsent(finiteNumber(0, 1000)),
+    // Three states: absent = leave it, blank = clear it, value = set it.
+    dueDate: clearableDateKey,
+    note: optionalText(300),
+    status: z.enum(["active", "closed"]).optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: "Nothing to update.",
+  });
 
 /**
  * PATCH /api/budget/debts/[id]
- * Body: any subset of { name, kind, counterparty, principal, interestRate, dueDate, note, status }
+ * Body: any subset of { name, kind, counterparty, principal, interestRate,
+ *                       dueDate, note, status }
  */
-export async function PATCH(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const body = await request.json();
-  const update = {};
+export const PATCH = withRoute(
+  { limit: "write", params: ["id"], body: UpdateDebt },
+  async ({ userId, params, input }) => {
+    const update = {};
+    const unset = {};
 
-  if (body.name !== undefined) {
-    if (!body.name.trim()) {
-      return NextResponse.json({ error: "A debt name is required." }, { status: 400 });
-    }
-    update.name = body.name.trim();
-  }
-  if (body.principal !== undefined) {
-    const principalPaisa = toMinorUnits(body.principal);
-    if (!principalPaisa || principalPaisa <= 0) {
-      return NextResponse.json({ error: "A valid amount is required." }, { status: 400 });
-    }
-    update.principalPaisa = principalPaisa;
-  }
-  if (body.kind !== undefined) {
-    if (!KINDS.includes(body.kind)) {
-      return NextResponse.json({ error: "Invalid debt kind." }, { status: 400 });
-    }
-    update.kind = body.kind;
-  }
-  if (body.dueDate !== undefined) {
-    if (body.dueDate && !DATE_RE.test(body.dueDate)) {
-      return NextResponse.json({ error: "Invalid due date." }, { status: 400 });
-    }
-    update.dueDate = body.dueDate || undefined;
-  }
-  if (body.counterparty !== undefined) update.counterparty = body.counterparty.trim();
-  if (body.note !== undefined) update.note = body.note.trim();
-  if (body.interestRate !== undefined) update.interestRate = Number(body.interestRate) || 0;
-  if (body.status !== undefined) {
-    if (!["active", "closed"].includes(body.status)) {
-      return NextResponse.json({ error: "Invalid status." }, { status: 400 });
-    }
-    update.status = body.status;
-  }
+    if (input.name !== undefined) update.name = input.name;
+    if (input.kind !== undefined) update.kind = input.kind;
+    if (input.counterparty !== undefined) update.counterparty = input.counterparty;
+    if (input.principal !== undefined) update.principalPaisa = input.principal;
+    if (input.interestRate !== undefined) update.interestRate = input.interestRate;
+    if (input.note !== undefined) update.note = input.note;
+    if (input.status !== undefined) update.status = input.status;
 
-  if (!Object.keys(update).length) {
-    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+    // `$unset`, not `$set: undefined` — Mongoose strips undefined out of
+    // `$set`, so clearing a due date that way silently left the old one.
+    if (input.dueDate === null) unset.dueDate = "";
+    else if (input.dueDate !== undefined) update.dueDate = input.dueDate;
+
+    const debt = must(
+      await Debt.findOneAndUpdate(
+        { _id: params.id, userId },
+        {
+          ...(Object.keys(update).length ? { $set: update } : {}),
+          ...(Object.keys(unset).length ? { $unset: unset } : {}),
+        },
+        { new: true, runValidators: true }
+      ).lean()
+    );
+
+    invalidateMoney(userId);
+
+    return json(debt);
   }
-
-  await connectDB();
-  const debt = await Debt.findOneAndUpdate(
-    { _id: params.id, userId: session.user.id },
-    { $set: update },
-    { new: true, runValidators: true }
-  ).lean();
-
-  if (!debt) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(debt);
-}
+);
 
 /** DELETE /api/budget/debts/[id] — removes the debt and its whole ledger. */
-export async function DELETE(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withRoute(
+  { limit: "write", params: ["id"] },
+  async ({ userId, params }) => {
+    const debt = must(
+      await Debt.findOneAndDelete({ _id: params.id, userId }).lean()
+    );
+
+    invalidateMoney(userId);
+
+    return json({ ok: true, id: String(debt._id) });
   }
-  await connectDB();
-  const debt = await Debt.findOneAndDelete({
-    _id: params.id,
-    userId: session.user.id,
-  }).lean();
-  if (!debt) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
-}
+);

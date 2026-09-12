@@ -3,9 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutEverywhere } from "@/lib/sign-out";
 import {
-  LayoutDashboard,
   Target,
   TrendingUp,
   BookOpen,
@@ -17,7 +16,9 @@ import {
   ChevronDown,
   LogOut,
   Sparkles,
+  MessageSquarePlus,
 } from "lucide-react";
+import { FeedbackDialog } from "@/features/feedback/feedback-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand-mark";
@@ -45,13 +46,12 @@ const NAV = [
   { href: "/app/planner", label: "Planner", icon: CalendarDays },
   { href: "/app/goals", label: "Habits & Goals", icon: Target },
   { href: "/app/journal", label: "Journal", icon: BookOpen },
-  { href: "/app/today", label: "Today", icon: LayoutDashboard },
   { href: "/app/portfolio", label: "Portfolio", icon: TrendingUp },
 ];
 
 function isActivePath(pathname, href) {
   // /app is Discoveries, and /app/discoveries is its archive — both light
-  // the same nav entry, but neither may claim /app/today.
+  // the same nav entry.
   if (href === "/app") {
     return pathname === "/app" || pathname.startsWith("/app/discoveries");
   }
@@ -159,11 +159,23 @@ function NavContent({ user, pathname, onOpenProfile }) {
           <ThemeToggle />
         </div>
         <InstallButton className="mt-1 w-full justify-start" />
+        <FeedbackDialog
+          trigger={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-1 w-full justify-start text-sand-600"
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              Send feedback
+            </Button>
+          }
+        />
         <Button
           variant="ghost"
           size="sm"
           className="mt-1 w-full justify-start text-sand-600"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOutEverywhere({ callbackUrl: "/login" })}
         >
           <LogOut className="h-4 w-4" />
           Sign out

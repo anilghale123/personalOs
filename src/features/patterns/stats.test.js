@@ -411,3 +411,53 @@ describe("series shaping", () => {
     expect(pairs[0].to.date).toBe("2027-01-01");
   });
 });
+
+describe("permutationPGroups — rank-total identity", () => {
+  /**
+   * The optimisation that removed a per-iteration array allocation relies on
+   * the pooled rank total being invariant under permutation, so the second
+   * group's sum is `total - firstGroupSum`. If that identity ever breaks,
+   * every group-difference p-value silently shifts.
+   */
+  it("keeps the pooled rank total invariant under shuffling", () => {
+    const a = [1, 4, 6, 9, 12];
+    const b = [2, 3, 7, 8, 15, 20];
+    const pooled = [...a, ...b];
+    const r = ranks(pooled);
+
+    const total = r.reduce((s, v) => s + v, 0);
+    // n values with no ties rank 1..n, so the total is the triangular number.
+    expect(total).toBeCloseTo((pooled.length * (pooled.length + 1)) / 2, 10);
+
+    // Any reordering preserves it.
+    const shuffled = [...r].reverse();
+    expect(shuffled.reduce((s, v) => s + v, 0)).toBeCloseTo(total, 10);
+  });
+
+  it("is deterministic across repeated calls on the same data", () => {
+    // Seeded from the data, so an insight must not drift in and out of
+    // significance between runs for no visible reason.
+    const a = [3, 5, 8, 11, 14, 16];
+    const b = [2, 4, 6, 7, 9, 10];
+    const first = permutationPGroups(a, b);
+    expect(permutationPGroups(a, b)).toBe(first);
+    expect(permutationPGroups(a, b)).toBe(first);
+  });
+
+  it("returns 1 when a group is too small to test", () => {
+    expect(permutationPGroups([1], [2, 3, 4])).toBe(1);
+    expect(permutationPGroups([1, 2, 3], [4])).toBe(1);
+  });
+
+  it("never returns exactly zero or above one", () => {
+    // Two clearly separated groups — the most extreme case available.
+    const p = permutationPGroups([1, 2, 3, 4, 5], [100, 200, 300, 400, 500]);
+    expect(p).toBeGreaterThan(0);
+    expect(p).toBeLessThanOrEqual(1);
+  });
+
+  it("finds no difference between two samples from the same values", () => {
+    const p = permutationPGroups([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]);
+    expect(p).toBeGreaterThan(0.5);
+  });
+});

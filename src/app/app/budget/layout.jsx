@@ -13,7 +13,13 @@ export const dynamic = "force-dynamic";
 
 export default async function BudgetLayout({ children }) {
   await ensureDefaultCategories();
-  const [categories, { expenses, totalPaisa }, summary, debts, financialGoals] =
+  const [
+    categories,
+    { expenses, totalPaisa, count, hasMore },
+    summary,
+    debts,
+    financialGoals,
+  ] =
     await Promise.all([
       getCategories(),
       getCurrentMonthExpenses(),
@@ -28,6 +34,8 @@ export default async function BudgetLayout({ children }) {
         initialCategories={categories}
         initialExpenses={expenses}
         initialTotalPaisa={totalPaisa}
+        initialExpenseCount={count}
+        initialHasMore={hasMore}
         initialSummary={summary}
         initialDebts={debts}
         initialFinancialGoals={financialGoals}

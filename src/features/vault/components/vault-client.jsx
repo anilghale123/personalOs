@@ -2,13 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import dynamic from "next/dynamic";
 import {
   TrendingUp,
   TrendingDown,
@@ -35,6 +29,23 @@ const PIE_COLORS = [
   "#0891b2",
   "#db2777",
 ];
+
+/**
+ * The allocation donut loads on demand — recharts is over 100KB gzipped and
+ * the holdings table, totals and P&L all render without it. `ssr: false`
+ * because a responsive chart has to measure its container before it can lay
+ * out, so server-rendered markup is discarded on hydration anyway.
+ */
+const AllocationChart = dynamic(
+  () => import("./allocation-chart").then((m) => ({ default: m.AllocationChart })),
+  {
+    ssr: false,
+    // Reserves the donut's height so the legend below it does not jump.
+    loading: () => (
+      <div className="h-full w-full animate-pulse rounded-full bg-muted/50" aria-hidden="true" />
+    ),
+  }
+);
 
 export function VaultClient({ portfolio, transactions }) {
   const totals = portfolio.reduce(
@@ -185,32 +196,7 @@ export function VaultClient({ portfolio, transactions }) {
               {pieData.length > 0 ? (
                 <>
                   <div className="h-44">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={42}
-                          outerRadius={70}
-                          paddingAngle={2}
-                        >
-                          {pieData.map((_, i) => (
-                            <Cell
-                              key={i}
-                              fill={PIE_COLORS[i % PIE_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(v) => formatNPR(v)}
-                          contentStyle={{
-                            fontSize: 12,
-                            borderRadius: 8,
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <AllocationChart data={pieData} colors={PIE_COLORS} />
                   </div>
                   <div className="mt-3 space-y-1.5">
                     {pieData.map((d, i) => (

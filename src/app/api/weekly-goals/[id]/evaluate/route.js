@@ -1,35 +1,42 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, must } from "@/lib/api";
+import { z, optionalText } from "@/lib/validation";
+import { invalidateHabits } from "@/lib/cache";
 import WeeklyGoal from "@/models/WeeklyGoal";
+
+const Evaluation = z.object({
+  // The schema declares min 1 / max 5; unvalidated input reached it as a
+  // Mongoose ValidationError surfacing as a 500.
+  rating: z.coerce.number().int().min(1).max(5),
+  reflection: optionalText(4000),
+  completionRate: z.coerce.number().min(0).max(100).optional(),
+});
 
 /**
  * PATCH — record the end-of-week evaluation for a weekly goal.
- * Body: { rating, reflection, completionRate }
+ * Body: { rating, reflection?, completionRate? }
  */
-export async function PATCH(request, { params }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { rating, reflection, completionRate } = await request.json();
-  await connectDB();
+export const PATCH = withRoute(
+  { limit: "write", params: ["id"], body: Evaluation },
+  async ({ userId, params, input }) => {
+    must(
+      await WeeklyGoal.findOneAndUpdate(
+        { _id: params.id, userId },
+        {
+          $set: {
+            evaluation: {
+              rating: input.rating,
+              reflection: input.reflection,
+              completionRate: input.completionRate,
+              evaluatedAt: new Date(),
+            },
+          },
+        },
+        { new: true, runValidators: true }
+      ).lean()
+    );
 
-  const goal = await WeeklyGoal.findOneAndUpdate(
-    { _id: params.id, userId: session.user.id },
-    {
-      evaluation: {
-        rating,
-        reflection,
-        completionRate,
-        evaluatedAt: new Date(),
-      },
-    },
-    { new: true }
-  );
+    invalidateHabits(userId);
 
-  if (!goal) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return json({ ok: true });
   }
-  return NextResponse.json({ ok: true });
-}
+);

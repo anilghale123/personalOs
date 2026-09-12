@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import { Plus, Repeat, CalendarClock, Coins } from "lucide-react";
-import { formatNPR, formatNumber, formatDate, toDateKey } from "@/lib/utils";
+import { toast } from "sonner";
+import { formatDate, toDateKey } from "@/lib/utils";
+import { newIdempotencyKey } from "@/lib/client-keys";
+import { formatMoney, formatUnits } from "@/lib/money";
+import {
+  investedPaisa,
+  monthlyPaisa,
+  projectedPaisa,
+  unitsHeld,
+} from "@/features/vault/sip-math";
 import { useVaultStore } from "@/features/vault/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,42 +49,38 @@ export function SipManager({ initialSips }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // All figures in integer paisa; the sip-math accessors read both the
+  // migrated and legacy field shapes so a half-migrated collection is fine.
   const activeSips = sips.filter((s) => s.isActive !== false);
   const monthlyCommitment = activeSips.reduce(
-    (sum, s) => sum + (s.monthlyAmount || 0),
+    (sum, s) => sum + monthlyPaisa(s),
     0
   );
   const projected = sips.reduce(
-    (sum, s) => sum + (s.monthlyAmount || 0) * monthsSince(s.startDate),
+    (sum, s) => sum + projectedPaisa(s, monthsSince(s.startDate)),
     0
   );
-  const invested = sips.reduce(
-    (sum, s) =>
-      sum +
-      (s.installments || []).reduce(
-        (a, i) => a + (i.amountInvested || 0),
-        0
-      ),
-    0
-  );
+  // Actual money in, summed from the installment ledger — never the
+  // schedule, which overstates any plan with a missed month.
+  const invested = sips.reduce((sum, s) => sum + investedPaisa(s), 0);
 
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           label="Monthly Commitment"
-          value={formatNPR(monthlyCommitment)}
+          value={formatMoney(monthlyCommitment)}
           icon={Repeat}
         />
         <StatCard
           label="Invested to Date"
-          value={formatNPR(invested)}
+          value={formatMoney(invested)}
           icon={Coins}
         />
         <StatCard
           label="Projected (by plan)"
-          value={formatNPR(projected)}
-          hint="monthlyAmount × months active"
+          value={formatMoney(projected)}
+          hint="monthly commitment x months active"
           icon={CalendarClock}
         />
       </div>
@@ -96,14 +101,8 @@ export function SipManager({ initialSips }) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {sips.map((sip) => {
-            const sipInvested = (sip.installments || []).reduce(
-              (a, i) => a + (i.amountInvested || 0),
-              0
-            );
-            const units = (sip.installments || []).reduce(
-              (a, i) => a + (i.unitsPurchased || 0),
-              0
-            );
+            const sipInvested = investedPaisa(sip);
+            const units = unitsHeld(sip);
             return (
               <Card key={sip._id}>
                 <CardContent className="p-4">
@@ -129,7 +128,7 @@ export function SipManager({ initialSips }) {
                         Monthly
                       </p>
                       <p className="font-medium tabular-nums">
-                        {formatNumber(sip.monthlyAmount)}
+                        {formatMoney(monthlyPaisa(sip))}
                       </p>
                     </div>
                     <div>
@@ -137,7 +136,7 @@ export function SipManager({ initialSips }) {
                         Invested
                       </p>
                       <p className="font-medium tabular-nums">
-                        {formatNumber(sipInvested)}
+                        {formatMoney(sipInvested)}
                       </p>
                     </div>
                     <div>
@@ -145,7 +144,7 @@ export function SipManager({ initialSips }) {
                         Units
                       </p>
                       <p className="font-medium tabular-nums">
-                        {formatNumber(units)}
+                        {formatUnits(units)}
                       </p>
                     </div>
                   </div>
@@ -283,19 +282,37 @@ function AddInstallmentDialog({ sipId }) {
           installment: {
             date: form.date,
             amountInvested: Number(form.amountInvested),
-            navAtPurchase: Number(form.navAtPurchase) || 0,
+            // Omitted rather than sent as 0 when unknown — the server then
+            // records the amount with units unknown, instead of rejecting
+            // the whole entry over a NAV the user may not have.
+            ...(Number(form.navAtPurchase) > 0
+              ? { navAtPurchase: Number(form.navAtPurchase) }
+              : {}),
+            // Makes a double-tap or retry a no-op server-side rather than a
+            // second installment against this plan.
+            idempotencyKey: newIdempotencyKey(),
           },
         }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setSips(
-          useVaultStore
-            .getState()
-            .sips.map((s) => (s._id === sipId ? updated : s))
-        );
-        setOpen(false);
+
+      const data = await res.json().catch(() => ({}));
+      // Previously `if (res.ok)` with no else — a rejected installment
+      // closed nothing, said nothing, and looked like a frozen dialog.
+      if (!res.ok) {
+        throw new Error(data.error || "Could not save that installment.");
       }
+
+      setSips(
+        useVaultStore.getState().sips.map((s) => (s._id === sipId ? data : s))
+      );
+      if (data.replayed) {
+        toast("That installment was already recorded.");
+      } else {
+        toast.success("Installment recorded.");
+      }
+      setOpen(false);
+    } catch (err) {
+      toast.error(err.message);
     } finally {
       setSaving(false);
     }

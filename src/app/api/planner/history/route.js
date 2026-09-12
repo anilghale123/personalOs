@@ -1,10 +1,8 @@
-import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z, dateKey } from "@/lib/validation";
 import PlannerGoal from "@/models/PlannerGoal";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MAX_LIMIT = 260;
 
@@ -20,26 +18,24 @@ const countOf = (status) => ({
  * weekStart range (the calendar asks for the month it is showing); the
  * history list just asks for the most recent `limit` weeks.
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+const HistoryQuery = z.object({
+  from: dateKey.optional(),
+  to: dateKey.optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).catch(12),
+});
 
-  const { searchParams } = new URL(request.url);
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const limit = Math.min(
-    Math.max(Number(searchParams.get("limit")) || 12, 1),
-    MAX_LIMIT
-  );
+export const GET = withRoute(
+  { limit: "read", query: HistoryQuery },
+  async ({ userId, query }) => {
+  const { from, to, limit } = query;
 
-  await connectDB();
-  const match = { userId: new mongoose.Types.ObjectId(session.user.id) };
-  if (DATE_RE.test(from || "") || DATE_RE.test(to || "")) {
+  // ObjectId by hand — `aggregate()` does no schema casting, so a string
+  // would match nothing and every user would see an empty history.
+  const match = { userId: new mongoose.Types.ObjectId(userId) };
+  if (from || to) {
     match.weekStart = {};
-    if (DATE_RE.test(from || "")) match.weekStart.$gte = from;
-    if (DATE_RE.test(to || "")) match.weekStart.$lte = to;
+    if (from) match.weekStart.$gte = from;
+    if (to) match.weekStart.$lte = to;
   }
 
   const weeks = await PlannerGoal.aggregate([
@@ -65,7 +61,7 @@ export async function GET(request) {
     { $limit: limit },
   ]);
 
-  return NextResponse.json(
+  return json(
     weeks.map((w) => {
       const cells = w.goalCount * DAYS.length;
       return {
@@ -79,4 +75,5 @@ export async function GET(request) {
       };
     })
   );
-}
+  }
+);

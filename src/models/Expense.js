@@ -53,9 +53,14 @@ const ExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-ExpenseSchema.index({ userId: 1, date: 1 });
-ExpenseSchema.index({ userId: 1, categoryId: 1, date: 1 });
-ExpenseSchema.index({ userId: 1, deletedAt: 1 });
+// Every real query is {userId, deletedAt: null, date: range} — the two
+// separate {userId,date} and {userId,deletedAt} indexes each covered only
+// half of it, so Mongo filtered the rest in memory. Order matters:
+// equality fields (userId, deletedAt) precede the range field (date).
+ExpenseSchema.index({ userId: 1, deletedAt: 1, date: -1 });
+ExpenseSchema.index({ userId: 1, deletedAt: 1, categoryId: 1, date: -1 });
+// Sorting the list by amount within a filtered window.
+ExpenseSchema.index({ userId: 1, deletedAt: 1, amountPaisa: -1 });
 
 export default mongoose.models.Expense ||
   mongoose.model("Expense", ExpenseSchema);

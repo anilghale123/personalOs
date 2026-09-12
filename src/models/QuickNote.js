@@ -32,8 +32,10 @@ const QuickNoteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Day timeline: notes for a user/day ordered by creation.
-QuickNoteSchema.index({ userId: 1, date: 1, createdAt: 1 });
+// Day timeline: notes for a user/day ordered by creation. `deletedAt` sits
+// in the index because every read filters on it — leaving it out meant
+// fetching soft-deleted rows only to discard them.
+QuickNoteSchema.index({ userId: 1, date: 1, deletedAt: 1, createdAt: 1 });
 
 export default mongoose.models.QuickNote ||
   mongoose.model("QuickNote", QuickNoteSchema);

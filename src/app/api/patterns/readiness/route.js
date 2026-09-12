@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withRoute, json } from "@/lib/api";
 import { toDateKey } from "@/lib/utils";
+import { cachedReference, tags } from "@/lib/cache";
 import { computeCoverage, getDailySignals } from "@/features/patterns/signals";
 import {
   DEFAULT_WINDOW_DAYS,
@@ -8,6 +8,9 @@ import {
   READINESS_DOMAINS,
 } from "@/features/patterns/constants";
 import { addDays } from "@/features/patterns/dates";
+
+/** The two lookback windows the readiness panel reports on. */
+const WINDOWS = [30, DEFAULT_WINDOW_DAYS];
 
 /**
  * GET /api/patterns/readiness — how much of the user's data the engine can
@@ -18,39 +21,57 @@ import { addDays } from "@/features/patterns/dates";
  * "mood recorded on 11 of the last 30 days, most patterns need 24" tells
  * the user which capture habit unlocks which discovery — and a bare "not
  * enough data" tells them nothing.
+ *
+ * **Two windows, one query.** This used to call `getDailySignals` once per
+ * window — six collection reads each, twelve per request, uncached, on every
+ * Discoveries page load. The 30-day window is a strict *subset* of the
+ * 90-day one, so it is sliced in memory instead. The whole result is then
+ * cached per user per day, since coverage moves as the user captures data,
+ * not by the second.
  */
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
   const to = toDateKey();
 
-  try {
-    const windows = await Promise.all(
-      [30, DEFAULT_WINDOW_DAYS].map((days) => windowReport(session.user.id, days, to))
-    );
+  const windows = await cachedReference(
+    async () => {
+      const longest = Math.max(...WINDOWS);
+      const from = addDays(to, -(longest - 1));
 
-    return NextResponse.json({
-      generatedAt: new Date().toISOString(),
-      to,
-      windows,
-      // The window a run actually uses, so the UI can headline one number.
-      primary: windows.find((w) => w.days === DEFAULT_WINDOW_DAYS) ?? windows[0],
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err.message || "Failed to read data coverage" },
-      { status: 500 }
-    );
-  }
-}
+      // The one and only fetch.
+      const allSignals = await getDailySignals(userId, from, to);
+
+      return WINDOWS.map((days) => {
+        // `getDailySignals` returns a gap-explicit series — every day in the
+        // range is present — so the last N entries are exactly the last N
+        // days, with no risk of a sparse array shortening the window.
+        const slice =
+          days >= longest ? allSignals : allSignals.slice(-days);
+        return windowReport(slice, days, to);
+      });
+    },
+    {
+      userId,
+      key: "pattern-readiness",
+      deps: [to],
+      tags: [tags.signals(userId)],
+      // A day: coverage counts whole days, so nothing can change within one
+      // beyond the tag invalidations that a capture already triggers.
+      seconds: 60 * 60,
+    }
+  );
+
+  return json({
+    generatedAt: new Date().toISOString(),
+    to,
+    windows,
+    // The window a run actually uses, so the UI can headline one number.
+    primary: windows.find((w) => w.days === DEFAULT_WINDOW_DAYS) ?? windows[0],
+  });
+});
 
 /** Coverage for one lookback window, shaped for the readiness panel. */
-async function windowReport(userId, days, to) {
-  const from = addDays(to, -(days - 1));
-  const coverage = computeCoverage(await getDailySignals(userId, from, to));
+function windowReport(signals, days, to) {
+  const coverage = computeCoverage(signals);
 
   const domains = READINESS_DOMAINS.map((domain) => {
     const covered = coverage[domain.id] ?? 0;
@@ -70,7 +91,7 @@ async function windowReport(userId, days, to) {
 
   return {
     days,
-    from,
+    from: addDays(to, -(days - 1)),
     to,
     activeDays: coverage.activeDays,
     // Below this, no detector runs at all, whatever the per-domain counts.

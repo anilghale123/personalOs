@@ -5,6 +5,7 @@ import connectDB from "@/lib/mongoose";
 import PlannerGoal from "@/models/PlannerGoal";
 import PlannerWeekState from "@/models/PlannerWeekState";
 import { weekStartKey } from "@/lib/week";
+import { plain } from "@/lib/serialize";
 
 /**
  * Ensures a week has been "initialised": the first time the current
@@ -66,5 +67,5 @@ export async function getPlannerWeek(weekStart) {
   })
     .sort({ createdAt: 1 })
     .lean();
-  return JSON.parse(JSON.stringify(goals));
+  return plain(goals);
 }

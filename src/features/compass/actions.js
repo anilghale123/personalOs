@@ -6,11 +6,9 @@ import Goal from "@/models/Goal";
 import WeeklyGoal from "@/models/WeeklyGoal";
 import { auth } from "@/lib/auth";
 import { weekRange } from "@/lib/week";
-
-/** Serialise a Mongoose doc to a plain client-safe object. */
-function plain(doc) {
-  return JSON.parse(JSON.stringify(doc));
-}
+import { cachedReference, tags } from "@/lib/cache";
+import { dateKeyFromUtcMidnight } from "@/features/patterns/dates";
+import { plain } from "@/lib/serialize";
 
 /**
  * Heatmap data for a single habit over the past 365 days.
@@ -34,7 +32,7 @@ export async function getHeatmapData(habitName) {
     .lean();
 
   return logs.reduce((acc, log) => {
-    const key = log.date.toISOString().split("T")[0];
+    const key = dateKeyFromUtcMidnight(log.date);
     acc[key] = { completed: log.completed, value: log.value };
     return acc;
   }, {});
@@ -46,28 +44,51 @@ export async function getHeatmapData(habitName) {
  */
 export async function getAllHeatmapData() {
   const session = await auth();
-  if (!session?.user?.id) return { heatmap: {}, habits: [] };
-  await connectDB();
+  const userId = session?.user?.id;
+  if (!userId) return { heatmap: {}, habits: [] };
 
-  const since = new Date();
-  since.setFullYear(since.getFullYear() - 1);
+  /**
+   * A full year of habit logs, cached.
+   *
+   * This is the largest single read in the app and it runs on both the
+   * overview and the habits page. Uncached it re-fetched and re-shaped 365
+   * days of documents on every visit, which was one of the two biggest
+   * contributors to the overview feeling slow.
+   *
+   * Invalidated by `invalidateHabits` whenever a habit is logged, so ticking
+   * one off still shows immediately; the short TTL is only a backstop.
+   */
+  return cachedReference(
+    async () => {
+      await connectDB();
 
-  const logs = await HabitLog.find({
-    userId: session.user.id,
-    date: { $gte: since },
-  })
-    .select("date completed habitName")
-    .lean();
+      const since = new Date();
+      since.setFullYear(since.getFullYear() - 1);
 
-  const heatmap = {};
-  const habits = new Set();
-  for (const log of logs) {
-    const key = log.date.toISOString().split("T")[0];
-    heatmap[key] = heatmap[key] || {};
-    heatmap[key][log.habitName] = log.completed;
-    habits.add(log.habitName);
-  }
-  return { heatmap, habits: [...habits] };
+      const logs = await HabitLog.find({
+        userId,
+        date: { $gte: since },
+      })
+        .select("date completed habitName")
+        .lean();
+
+      const heatmap = {};
+      const habits = new Set();
+      for (const log of logs) {
+        const key = dateKeyFromUtcMidnight(log.date);
+        heatmap[key] = heatmap[key] || {};
+        heatmap[key][log.habitName] = log.completed;
+        habits.add(log.habitName);
+      }
+      return { heatmap, habits: [...habits] };
+    },
+    {
+      userId,
+      key: "all-heatmap",
+      tags: [tags.habits(userId)],
+      seconds: 60,
+    }
+  );
 }
 
 /** Fetch all non-archived goals for the current user. */

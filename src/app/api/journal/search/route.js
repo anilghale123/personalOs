@@ -1,33 +1,20 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z } from "@/lib/validation";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
-
-/** Escape user input for safe use inside a RegExp. */
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+import { searchRegex } from "@/lib/utils";
 
 /**
  * GET /api/journal/search?q=term
  * Searches daily journals (title, content, tags) and quick notes
  * (content). Results are grouped by day, most recent first.
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { searchParams } = new URL(request.url);
-  const q = (searchParams.get("q") || "").trim();
-  if (q.length < 2) {
-    return NextResponse.json({ results: [] });
-  }
-
-  await connectDB();
-  const rx = new RegExp(escapeRegex(q), "i");
-  const userId = session.user.id;
+export const GET = withRoute(
+  { limit: "read", query: z.object({ q: z.string().max(64).optional() }) },
+  async ({ userId, query }) => {
+  // Escaped and length-capped before it ever reaches a RegExp constructor.
+  const rx = searchRegex(query.q, 2);
+  if (!rx) return json({ results: [] });
 
   const [journals, notes] = await Promise.all([
     DailyJournal.find({
@@ -63,5 +50,6 @@ export async function GET(request) {
   const results = Object.values(byDate).sort((a, b) =>
     b.date.localeCompare(a.date)
   );
-  return NextResponse.json({ results });
-}
+  return json({ results });
+  }
+);

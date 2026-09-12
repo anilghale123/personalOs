@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { signOutEverywhere } from "@/lib/sign-out";
 import { toast } from "sonner";
 import { Eye, EyeOff, KeyRound, User as UserIcon, Loader2, ShieldCheck, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+/** Server-enforced minimum, mirrored here so the form fails before a
+ *  round trip. Keep in step with `password` in lib/validation.js. */
+const MIN_PASSWORD = 10;
 
 /** A password field with a show/hide toggle — the closest safe substitute
  * for "viewing" a password, since bcrypt hashes can never be reversed. */
@@ -155,8 +160,8 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
 
   async function savePassword(e) {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters.");
+    if (newPassword.length < MIN_PASSWORD) {
+      toast.error(`New password must be at least ${MIN_PASSWORD} characters.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -172,11 +177,25 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update password.");
-      toast.success(profile?.hasPassword ? "Password changed." : "Password set.");
-      setProfile((p) => ({ ...p, hasPassword: true }));
+
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+
+      /**
+       * Changing a password now revokes every session, including this one —
+       * that is the point, since a password change that leaves an intruder
+       * signed in revokes nothing. So sign out deliberately rather than
+       * letting the next request fail mysteriously.
+       */
+      if (data.sessionsRevoked) {
+        toast.success("Password updated — signing you back in.");
+        setTimeout(() => signOutEverywhere({ callbackUrl: "/login" }), 1200);
+        return;
+      }
+
+      toast.success(profile?.hasPassword ? "Password changed." : "Password set.");
+      setProfile((p) => ({ ...p, hasPassword: true }));
     } catch (err) {
       toast.error(err.message);
     } finally {

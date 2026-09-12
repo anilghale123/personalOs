@@ -6,7 +6,7 @@ import { MoreHorizontal, ThumbsDown, ThumbsUp, Check, EyeOff } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { usePatternStore } from "../store";
 import { ConfidencePill } from "./confidence-pill";
-import { MiniEvidence } from "./evidence-chart";
+import { MiniEvidence } from "./mini-evidence";
 
 /** Domain chips — the two worlds a finding sits between. */
 const DOMAIN_META = {

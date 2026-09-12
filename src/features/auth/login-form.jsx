@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { SIGNIN_ERRORS } from "@/features/auth/signin-errors";
+import { safeRedirect } from "@/features/auth/redirect-target";
 import { toast } from "sonner";
 import { CircleDot, Loader2 } from "lucide-react";
 
@@ -60,6 +63,22 @@ export function LoginForm({ googleEnabled = false }) {
   const [googleBusy, setGoogleBusy] = React.useState(false);
   const [error, setError] = React.useState("");
 
+  /**
+   * Where to land after signing in.
+   *
+   * The middleware appends `?next=` when it bounces someone off a protected
+   * page, so a user who opened a bookmark — or launched the installed app,
+   * whose `start_url` is `/app` — returns where they were headed instead of
+   * always being dumped on the dashboard.
+   *
+   * `safeRedirect` is what stops that being an open redirect; see its own
+   * module for why the URL parser rather than string checks.
+   */
+  const destination = React.useMemo(
+    () => safeRedirect(searchParams.get("next")),
+    [searchParams]
+  );
+
   // Surface OAuth / callback errors NextAuth passes back via the URL.
   React.useEffect(() => {
     const code = searchParams.get("error");
@@ -103,13 +122,37 @@ export function LoginForm({ googleEnabled = false }) {
       });
 
       if (!result || result.error) {
+        /**
+         * Auth.js reports every credentials failure as `CredentialsSignin`,
+         * so `error` alone cannot tell these apart. The `code` we set on the
+         * thrown `CredentialsSignin` subclass is what survives — without it a
+         * Google-only user is told their password is wrong when they never
+         * set one, and a suspended user is sent to reset a password that is
+         * perfectly correct.
+         */
+        const raw = `${result?.code ?? ""} ${result?.error ?? ""}`;
+        if (raw.includes(SIGNIN_ERRORS.USE_GOOGLE)) {
+          throw new Error(
+            "This account signs in with Google. Use the “Continue with Google” button above."
+          );
+        }
+        if (raw.includes(SIGNIN_ERRORS.SUSPENDED)) {
+          throw new Error(
+            "This account has been suspended. Contact support if you think that's a mistake."
+          );
+        }
+        if (raw.includes(SIGNIN_ERRORS.LOCKED)) {
+          throw new Error(
+            "Too many failed attempts. This account is locked for 15 minutes — or reset your password to unlock it now."
+          );
+        }
         throw new Error("Invalid email or password.");
       }
 
       toast.success("Welcome back!");
       // Hard navigation so the new session cookie is sent with the
       // request for the protected dashboard.
-      window.location.href = "/app";
+      window.location.href = destination;
     } catch (err) {
       setError(err.message);
       toast.error(err.message);
@@ -120,7 +163,7 @@ export function LoginForm({ googleEnabled = false }) {
   function googleSignIn() {
     setGoogleBusy(true);
     setError("");
-    signIn("google", { callbackUrl: "/app" });
+    signIn("google", { callbackUrl: destination });
   }
 
   return (
@@ -195,15 +238,32 @@ export function LoginForm({ googleEnabled = false }) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="password">Password</Label>
+            {mode === "login" && (
+              <Link
+                href="/reset-password"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Forgot password?
+              </Link>
+            )}
+          </div>
           <Input
             id="password"
             type="password"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
             placeholder="••••••••"
             value={form.password}
             onChange={(e) => update("password", e.target.value)}
             required
+            minLength={mode === "signup" ? 10 : undefined}
           />
+          {mode === "signup" && (
+            <p className="text-xs text-muted-foreground">
+              At least 10 characters.
+            </p>
+          )}
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

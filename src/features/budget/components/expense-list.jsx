@@ -24,11 +24,9 @@ import {
 import { formatBsDate } from "@/lib/nepali-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/empty-state";
 import { useBudgetStore } from "../store";
-import { categoryMap, categoryOptions } from "../utils";
-import { PAYMENT_METHODS, SORT_OPTIONS } from "../constants";
+import { categoryMap } from "../utils";
 import { ExpenseRow } from "./expense-row";
 import { ExpenseDialog } from "./expense-dialog";
 import { RunningTotalBar } from "./running-total-bar";
@@ -57,6 +55,10 @@ export function ExpenseList({
 }) {
   const expenses = useBudgetStore((s) => s.expenses);
   const totalPaisa = useBudgetStore((s) => s.totalPaisa);
+  const matchCount = useBudgetStore((s) => s.matchCount);
+  const hasMore = useBudgetStore((s) => s.hasMore);
+  const loadingMore = useBudgetStore((s) => s.loadingMore);
+  const loadMoreExpenses = useBudgetStore((s) => s.loadMoreExpenses);
   const summary = useBudgetStore((s) => s.summary);
   const budgetPeriod = useBudgetStore((s) => s.budgetPeriod);
   // The store copy refreshes on every fetch; the prop covers first paint.
@@ -71,23 +73,22 @@ export function ExpenseList({
     ? compareMonthCursors(cursorForDateKey(earliestDate, cal), currentCursor) < 0
     : false;
 
-  // The filter set lives in the screen above — the Filter tab on phones
-  // edits the same state while this list is unmounted.
+  /**
+   * The filter set lives in the screen above, and the Filter tab edits the
+   * same state while this list is unmounted. This component reads only what
+   * it still renders: the search box, the month pager's dates, and the sort
+   * order that decides whether rows group by day.
+   */
   const {
     q,
     setQ,
     categoryId,
-    setCategoryId,
     paymentMethod,
-    setPaymentMethod,
     dateFrom,
     setDateFrom,
     dateTo,
     setDateTo,
     sort,
-    setSort,
-    showFilters,
-    setShowFilters,
     clearFilters,
   } = filters;
 
@@ -95,7 +96,6 @@ export function ExpenseList({
   const [editing, setEditing] = React.useState(null);
 
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
-  const options = React.useMemo(() => categoryOptions(categories), [categories]);
 
   // The month the active range maps to — set only when the range is
   // exactly one calendar month, so manual date edits read as "custom".
@@ -169,35 +169,19 @@ export function ExpenseList({
             className="h-9 pl-8"
           />
         </div>
-        {/* Phones reach the same filters through the Filter tab instead */}
-        <Button
-          variant={showFilters || activeFilters ? "secondary" : "outline"}
-          size="sm"
-          className="hidden h-9 md:inline-flex"
-          onClick={() => setShowFilters((s) => !s)}
-          aria-expanded={showFilters}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
-          {activeFilters > 0 && (
-            <span className="ml-0.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-              {activeFilters}
-            </span>
-          )}
-        </Button>
         <Button size="sm" className="ml-auto h-9" onClick={openAdd}>
           <Plus className="h-4 w-4" />
           Add expense
         </Button>
       </div>
 
-      {/* Phones set filters in their own tab — say so here, and offer the
-          way out, so an unexpectedly short list is never a mystery. */}
+      {/* Filters live in their own tab, so say here when some are on and
+          offer the way out — an unexpectedly short list is never a mystery. */}
       {activeFilters > 0 && (
         <button
           type="button"
           onClick={clearFilters}
-          className="flex w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 py-2 text-xs font-medium text-primary md:hidden"
+          className="flex w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 py-2 text-xs font-medium text-primary"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           {activeFilters} filter{activeFilters > 1 ? "s" : ""} on
@@ -205,72 +189,6 @@ export function ExpenseList({
         </button>
       )}
 
-      {showFilters && (
-        <div className="hidden flex-wrap items-center gap-2 rounded-2xl bg-card elev-sm p-3 md:flex">
-          <Select
-            className="h-8 w-44"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            aria-label="Filter by category"
-          >
-            <option value="">All categories</option>
-            {options.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.depth ? "— " : ""}
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            className="h-8 w-36"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            aria-label="Filter by payment method"
-          >
-            <option value="">Any payment</option>
-            {PAYMENT_METHODS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </Select>
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="h-8 w-36"
-            aria-label="From date"
-          />
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="h-8 w-36"
-            aria-label="To date"
-          />
-          <Select
-            className="h-8 w-40"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            aria-label="Sort order"
-          >
-            {SORT_OPTIONS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-          {isFiltered && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-              Clear
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Monthly record — appears once the history spans past this month */}
       {hasMonthlyRecord && (
@@ -391,8 +309,33 @@ export function ExpenseList({
         </div>
       )}
 
+      {hasMore && (
+        <div className="flex flex-col items-center gap-1.5 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadMoreExpenses}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading…" : "Load older expenses"}
+          </Button>
+          {/* The count is the whole filtered set, so this tells the user
+              how much is still below rather than implying the list is all
+              there is. */}
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Showing {expenses.length} of {matchCount}
+          </p>
+        </div>
+      )}
+
       {expenses.length > 0 && (
-        <RunningTotalBar totalPaisa={totalPaisa} count={expenses.length} />
+        // `count` is the filtered total from the server, not the number of
+        // rows loaded — the bar would otherwise understate the month as soon
+        // as the list paginated.
+        <RunningTotalBar
+          totalPaisa={totalPaisa}
+          count={matchCount || expenses.length}
+        />
       )}
 
       <ExpenseDialog

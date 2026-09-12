@@ -11,6 +11,8 @@ export function BudgetHydrator({
   initialCategories,
   initialExpenses,
   initialTotalPaisa,
+  initialExpenseCount,
+  initialHasMore,
   initialSummary,
   initialDebts,
   initialFinancialGoals,
@@ -23,7 +25,10 @@ export function BudgetHydrator({
 
   React.useEffect(() => {
     setCategories(initialCategories);
-    setExpenses(initialExpenses, initialTotalPaisa);
+    setExpenses(initialExpenses, initialTotalPaisa, {
+      count: initialExpenseCount,
+      hasMore: initialHasMore,
+    });
     if (initialSummary) setSummary(initialSummary);
     setDebts(initialDebts || []);
     setFinancialGoals(initialFinancialGoals || []);

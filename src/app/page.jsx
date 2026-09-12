@@ -6,6 +6,7 @@ import {
 import { LandingPillars } from "@/features/landing/components/landing-pillars";
 import { LandingWhy } from "@/features/landing/components/landing-why";
 import { LandingPrivacy } from "@/features/landing/components/landing-privacy";
+import { LandingInstall } from "@/features/landing/components/landing-install";
 import {
   LandingClosing,
   LandingFooter,
@@ -29,6 +30,9 @@ export default async function LandingPage() {
         <LandingPillars />
         <LandingWhy />
         <LandingPrivacy />
+        {/* Before the closing CTA on purpose: installing first, then signing
+            up inside the installed app, is what leaves someone with both. */}
+        <LandingInstall signedIn={signedIn} />
         <LandingClosing signedIn={signedIn} />
       </main>
       <LandingFooter />

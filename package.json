@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node scripts/vitest.mjs run",
-    "test:watch": "node scripts/vitest.mjs"
+    "test:watch": "node scripts/vitest.mjs",
+    "db:indexes": "node scripts/sync-indexes.mjs",
+    "db:indexes:check": "node scripts/sync-indexes.mjs --dry-run",
+    "db:migrate:paisa": "node scripts/migrate-vault-to-paisa.mjs",
+    "db:migrate:paisa:check": "node scripts/migrate-vault-to-paisa.mjs --dry-run",
+    "seed:superadmin": "node scripts/seed-superadmin.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -32,6 +37,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.6.2",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

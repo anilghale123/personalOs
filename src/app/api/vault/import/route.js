@@ -1,19 +1,34 @@
-import { NextResponse } from "next/server";
+import { withRoute, json, badRequest } from "@/lib/api";
 import { importBrokerCSV } from "@/features/vault/actions";
+import { invalidatePortfolio } from "@/lib/cache";
 
 /**
  * POST — multipart/form-data with a `file` field (broker CSV).
- * Delegates parsing and upsert to the vault server action.
+ *
+ * Parsing, size/row caps and the bulk upsert all live in the server action;
+ * this route exists to apply the rate limit and the session check before any
+ * of that work begins. Importing is the most expensive thing an
+ * authenticated user can ask for, and a legitimate one does it rarely.
  */
-export async function POST(request) {
-  try {
-    const formData = await request.formData();
+export const POST = withRoute(
+  { limit: "importCsv", db: false },
+  async ({ request, userId }) => {
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch {
+      throw badRequest("Expected a file upload.");
+    }
+
     const result = await importBrokerCSV(formData);
-    return NextResponse.json(result);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err.message || "Import failed" },
-      { status: 500 }
-    );
+
+    // Only when rows actually landed — a rejected oversized file must not
+    // clear a perfectly good cache.
+    if (result.imported > 0) invalidatePortfolio(userId);
+
+    // The action reports row-level problems in `errors` while still
+    // importing everything valid, so a partial success is a 200 with detail
+    // rather than an error that hides what landed.
+    return json(result);
   }
-}
+);

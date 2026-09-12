@@ -6,10 +6,8 @@ import connectDB from "@/lib/mongoose";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
 import { NOTE_PAGE_SIZE } from "@/features/journal/constants";
+import { plain } from "@/lib/serialize";
 
-function plain(doc) {
-  return JSON.parse(JSON.stringify(doc));
-}
 
 /** The daily anchor journal + quick notes for one day. */
 export async function getJournalDay(date) {

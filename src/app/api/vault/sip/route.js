@@ -1,68 +1,128 @@
-import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json, notFound, badRequest } from "@/lib/api";
+import {
+  z,
+  amountMajor,
+  formatZodError,
+  objectId,
+  text,
+  optionalText,
+  idempotencyKey,
+} from "@/lib/validation";
+import { appendOnce } from "@/lib/idempotent";
+import { unitsFor } from "@/lib/money";
 import SIP from "@/models/SIP";
-import { auth } from "@/lib/auth";
+import { invalidatePortfolio } from "@/lib/cache";
+
+/** A ticker, if the fund is listed. */
+const ticker = z
+  .string()
+  .max(20)
+  .transform((s) => s.trim().toUpperCase())
+  .optional();
+
+const CreateSIP = z.object({
+  fundName: text(120).pipe(z.string().min(1, "Name the fund.")),
+  ticker,
+  monthlyAmount: amountMajor,
+  startDate: z.coerce.date().optional(),
+  isActive: z.boolean().optional(),
+  note: optionalText(300),
+});
+
+const AddInstallment = z.object({
+  _id: objectId,
+  installment: z.object({
+    date: z.coerce.date().optional(),
+    amountInvested: amountMajor,
+    /**
+     * NAV per unit, in rupees as typed → paisa.
+     *
+     * Optional: someone logging an installment often does not know the NAV
+     * on the day, and refusing the entry over it would lose the amount too.
+     * Absent means units are simply unknown (recorded as 0) rather than
+     * `NaN` — which is exactly what the old code stored and then summed.
+     */
+    navAtPurchase: amountMajor.optional(),
+    idempotencyKey: idempotencyKey.optional(),
+  }),
+});
 
 /** GET — all SIPs for the current user. */
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  await connectDB();
-  const sips = await SIP.find({ userId: session.user.id })
-    .sort({ createdAt: -1 })
-    .lean();
-  return NextResponse.json(sips);
-}
+export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
+  const sips = await SIP.find({ userId }).sort({ createdAt: -1 }).lean();
+  return json(sips);
+});
 
 /**
- * POST — create a SIP or append an installment.
- * Body (create): { fundName, ticker, monthlyAmount, startDate }
- * Body (installment): { _id, installment: { date, amountInvested, navAtPurchase } }
+ * POST — create a SIP, or append an installment to one.
+ *
+ * Every numeric field now goes through the money layer before it reaches
+ * the database. Previously `monthlyAmount`, `amountInvested` and
+ * `navAtPurchase` were written straight from the request body with no type,
+ * sign or range check — so a negative, a string, or a `NaN` was accepted,
+ * and `amountInvested / navAtPurchase` then wrote `NaN` into
+ * `unitsPurchased`, silently corrupting every portfolio total that summed
+ * it with no way to identify the bad row afterwards.
+ *
+ * Body (create):      { fundName, ticker?, monthlyAmount, startDate?, note? }
+ * Body (installment): { _id, installment: { date?, amountInvested, navAtPurchase, idempotencyKey? } }
  */
-export async function POST(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  await connectDB();
-  const body = await request.json();
-
+export const POST = withRoute({ limit: "write" }, async ({ request, userId }) => {
+  let raw;
   try {
-    if (body._id && body.installment) {
-      const sip = await SIP.findOne({
-        _id: body._id,
-        userId: session.user.id,
-      });
-      if (!sip) {
-        return NextResponse.json(
-          { error: "SIP not found" },
-          { status: 404 }
-        );
-      }
-      const { date, amountInvested, navAtPurchase } = body.installment;
-      sip.installments.push({
-        date: date ? new Date(date) : new Date(),
-        amountInvested,
-        navAtPurchase,
-        unitsPurchased:
-          navAtPurchase > 0 ? amountInvested / navAtPurchase : 0,
-      });
-      await sip.save();
-      return NextResponse.json(sip);
-    }
-
-    const sip = await SIP.create({
-      userId: session.user.id,
-      fundName: body.fundName,
-      ticker: body.ticker,
-      monthlyAmount: body.monthlyAmount,
-      startDate: body.startDate ? new Date(body.startDate) : new Date(),
-      isActive: body.isActive !== false,
-    });
-    return NextResponse.json(sip, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    raw = await request.json();
+  } catch {
+    throw badRequest("Expected a JSON body.");
   }
-}
+
+  // Two shapes on one endpoint, discriminated by the presence of an
+  // installment. Parsed separately so each gets its own error messages
+  // rather than a union's combined and unreadable ones.
+  if (raw?._id && raw?.installment) {
+    const parsed = AddInstallment.safeParse(raw);
+    if (!parsed.success) throw badRequest(formatZodError(parsed.error));
+    const { _id, installment } = parsed.data;
+
+    const { doc, replayed, atCapacity } = await appendOnce(SIP, {
+      filter: { _id, userId },
+      arrayPath: "installments",
+      entry: {
+        date: installment.date ?? new Date(),
+        amountInvestedPaisa: installment.amountInvested,
+        navAtPurchasePaisa: installment.navAtPurchase,
+        // Returns 0, never NaN or Infinity, when the NAV is absent or
+        // unusable — see the exhaustive guard test in lib/money.test.js.
+        unitsScaled: unitsFor(installment.amountInvested, installment.navAtPurchase),
+      },
+      idempotencyKey: installment.idempotencyKey,
+    });
+
+    if (atCapacity) {
+      throw badRequest(
+        "This plan has reached the maximum number of installments we can store on one record. Start a new plan to carry on."
+      );
+    }
+    if (!doc) throw notFound("SIP not found");
+
+    // After the existence check, so a failed write never clears a good cache.
+    invalidatePortfolio(userId);
+
+    return json({ ...doc, replayed });
+  }
+
+  const parsed = CreateSIP.safeParse(raw);
+  if (!parsed.success) throw badRequest(formatZodError(parsed.error));
+
+  const sip = await SIP.create({
+    userId,
+    fundName: parsed.data.fundName,
+    ticker: parsed.data.ticker,
+    monthlyAmountPaisa: parsed.data.monthlyAmount,
+    startDate: parsed.data.startDate ?? new Date(),
+    isActive: parsed.data.isActive !== false,
+  });
+
+  invalidatePortfolio(userId);
+
+  return json(sip, { status: 201 });
+});

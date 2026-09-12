@@ -1,68 +1,68 @@
-import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { auth } from "@/lib/auth";
-import connectDB from "@/lib/mongoose";
+import { withRoute, json } from "@/lib/api";
+import { z, dateKey } from "@/lib/validation";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * GET /api/journal/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
- * Returns a per-day map of mood + content/note presence, used to tint
- * the calendar and list recent entries.
+ *
+ * One entry per day that has anything on it — mood, a title, long-form
+ * content, or quick notes — for painting the month grid.
  */
-export async function GET(request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { searchParams } = new URL(request.url);
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  if (!DATE_RE.test(from || "") || !DATE_RE.test(to || "")) {
-    return NextResponse.json(
-      { error: "Valid ?from and ?to dates are required." },
-      { status: 400 }
-    );
-  }
+export const GET = withRoute(
+  { limit: "read", query: z.object({ from: dateKey, to: dateKey }) },
+  async ({ userId, query }) => {
+    const { from, to } = query;
 
-  await connectDB();
-  const userId = new mongoose.Types.ObjectId(session.user.id);
+    // Cast by hand for the aggregation: `find()` runs values through the
+    // schema and casts a hex string to an ObjectId, but `aggregate()` does
+    // not — a string here would match nothing at all, silently, and every
+    // day would report zero notes.
+    const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const [journals, noteCounts] = await Promise.all([
-    DailyJournal.find({ userId, date: { $gte: from, $lte: to } })
-      .select("date mood content title")
-      .lean(),
-    QuickNote.aggregate([
-      { $match: { userId, date: { $gte: from, $lte: to } } },
-      { $group: { _id: "$date", count: { $sum: 1 } } },
-    ]),
-  ]);
+    const [journals, noteCounts] = await Promise.all([
+      DailyJournal.find({ userId, date: { $gte: from, $lte: to } })
+        .select("date mood content title")
+        .lean(),
+      QuickNote.aggregate([
+        {
+          $match: {
+            userId: userObjectId,
+            date: { $gte: from, $lte: to },
+            // Soft-deleted notes were being counted, so a day whose only
+            // notes had been deleted still showed a note badge.
+            deletedAt: null,
+          },
+        },
+        { $group: { _id: "$date", count: { $sum: 1 } } },
+      ]),
+    ]);
 
-  const noteMap = Object.fromEntries(
-    noteCounts.map((n) => [n._id, n.count])
-  );
-  const calendar = {};
-  for (const j of journals) {
-    calendar[j.date] = {
-      mood: j.mood || null,
-      title: j.title || "",
-      hasContent: Boolean(j.content && j.content.trim()),
-      noteCount: noteMap[j.date] || 0,
-    };
-  }
-  // Days that only have notes (no anchor content yet).
-  for (const [date, count] of Object.entries(noteMap)) {
-    if (!calendar[date]) {
-      calendar[date] = {
-        mood: null,
-        title: "",
-        hasContent: false,
-        noteCount: count,
+    const noteMap = Object.fromEntries(noteCounts.map((n) => [n._id, n.count]));
+
+    const calendar = {};
+    for (const j of journals) {
+      calendar[j.date] = {
+        mood: j.mood || null,
+        title: j.title || "",
+        hasContent: Boolean(j.content && j.content.trim()),
+        noteCount: noteMap[j.date] || 0,
       };
     }
-  }
 
-  return NextResponse.json({ calendar });
-}
+    // Days that only have notes (no anchor content yet).
+    for (const [date, count] of Object.entries(noteMap)) {
+      if (!calendar[date]) {
+        calendar[date] = {
+          mood: null,
+          title: "",
+          hasContent: false,
+          noteCount: count,
+        };
+      }
+    }
+
+    return json({ calendar });
+  }
+);

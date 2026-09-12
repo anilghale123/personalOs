@@ -1,6 +1,14 @@
 import { create } from "zustand";
+import { newIdempotencyKey } from "@/lib/client-keys";
+import { toMinorUnits } from "@/lib/money";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+/**
+ * Rows per request. The list is unbounded server-side no longer — this is
+ * what one page costs, and the server caps anything larger at 200.
+ */
+const PAGE_SIZE = 50;
 
 /**
  * Budget store — categories + expenses for the currently loaded filter
@@ -12,30 +20,55 @@ export const useBudgetStore = create((set, get) => ({
   categories: [],
   expenses: [],
   totalPaisa: 0,
+  /** How many expenses match the filter in total, not how many are loaded. */
+  matchCount: 0,
+  hasMore: false,
   filters: { sort: "date_desc" },
   loading: false,
+  loadingMore: false,
   // The oldest expense date on record ('YYYY-MM-DD'), refreshed by every
   // expenses fetch — drives whether the monthly record pager appears.
   earliestDate: null,
 
   setCategories: (categories) => set({ categories }),
-  setExpenses: (expenses, totalPaisa) => set({ expenses, totalPaisa }),
+  /**
+   * Seed the list from server-rendered data. `count` is the size of the whole
+   * filtered set, not of `expenses` — passing the page length would make the
+   * running total and the "load more" control disagree with the server.
+   */
+  setExpenses: (expenses, totalPaisa, meta = {}) =>
+    set({
+      expenses,
+      totalPaisa,
+      matchCount: meta.count ?? expenses.length,
+      hasMore: Boolean(meta.hasMore),
+    }),
   setFilters: (filters) => set({ filters }),
   setEarliestDate: (earliestDate) => set({ earliestDate }),
 
+  /**
+   * Load the first page for a filter set.
+   *
+   * `totalPaisa` and `count` describe the **whole** filtered set, not the
+   * page — the server aggregates them — so the running total stays correct
+   * while only one page of rows crosses the wire.
+   */
   async loadExpenses(filters) {
     set({ loading: true, filters: { ...get().filters, ...filters } });
     const params = new URLSearchParams();
     Object.entries(get().filters).forEach(([k, v]) => {
       if (v) params.set(k, v);
     });
+    params.set("limit", String(PAGE_SIZE));
     try {
       const res = await fetch(`/api/budget/expenses?${params.toString()}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Could not load expenses");
       const data = await res.json();
       set({
         expenses: data.expenses,
         totalPaisa: data.totalPaisa,
+        matchCount: data.count ?? data.expenses.length,
+        hasMore: Boolean(data.hasMore),
         ...(data.earliestDate !== undefined
           ? { earliestDate: data.earliestDate }
           : {}),
@@ -45,13 +78,60 @@ export const useBudgetStore = create((set, get) => ({
     }
   },
 
+  /** Append the next page, keeping the current filter set. */
+  async loadMoreExpenses() {
+    const { loadingMore, hasMore, expenses, filters } = get();
+    if (loadingMore || !hasMore) return;
+    set({ loadingMore: true });
+
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v) params.set(k, v);
+    });
+    params.set("limit", String(PAGE_SIZE));
+    params.set("skip", String(expenses.length));
+
+    try {
+      const res = await fetch(`/api/budget/expenses?${params.toString()}`);
+      if (!res.ok) throw new Error("Could not load more expenses");
+      const data = await res.json();
+      // Dedupe by id: an expense added between page loads would otherwise
+      // shift the offset window and repeat a row.
+      const seen = new Set(get().expenses.map((e) => e._id));
+      const fresh = (data.expenses ?? []).filter((e) => !seen.has(e._id));
+      set({
+        expenses: [...get().expenses, ...fresh],
+        totalPaisa: data.totalPaisa,
+        matchCount: data.count ?? get().matchCount,
+        hasMore: Boolean(data.hasMore),
+      });
+    } finally {
+      set({ loadingMore: false });
+    }
+  },
+
   async addExpense(payload) {
     const tempId = `temp-${Date.now()}`;
-    const optimistic = { ...payload, _id: tempId, isOptimistic: true };
+    /**
+     * The payload carries `amount` in rupees, which is what the API expects.
+     * The optimistic row and running total need paisa, so convert here rather
+     * than reading a `payload.amountPaisa` that was never set — that read was
+     * silently `undefined`, so the total sat still until the refetch landed.
+     */
+    const amountPaisa = toMinorUnits(payload.amount);
+    const optimistic = {
+      ...payload,
+      amountPaisa,
+      _id: tempId,
+      isOptimistic: true,
+    };
     const before = get().expenses;
+    const beforeTotal = get().totalPaisa;
+    const beforeCount = get().matchCount;
     set({
       expenses: [optimistic, ...before],
-      totalPaisa: get().totalPaisa + (payload.amountPaisa || 0),
+      totalPaisa: beforeTotal + amountPaisa,
+      matchCount: beforeCount + 1,
     });
     try {
       const res = await fetch("/api/budget/expenses", {
@@ -67,15 +147,30 @@ export const useBudgetStore = create((set, get) => ({
       get().refreshSummary();
       return saved;
     } catch (err) {
-      set({ expenses: before, totalPaisa: get().totalPaisa - (payload.amountPaisa || 0) });
+      // Restore the captured values rather than subtracting from the current
+      // ones — a concurrent add would otherwise leave the total wrong.
+      set({
+        expenses: before,
+        totalPaisa: beforeTotal,
+        matchCount: beforeCount,
+      });
       throw err;
     }
   },
 
   async updateExpense(id, patch) {
     const before = get().expenses;
+    const beforeTotal = get().totalPaisa;
+    // An edit can change the amount, so the running total has to move with it.
+    const previous = before.find((e) => e._id === id);
+    const nextPaisa =
+      patch.amount !== undefined ? toMinorUnits(patch.amount) : previous?.amountPaisa;
+    const delta = (nextPaisa ?? 0) - (previous?.amountPaisa ?? 0);
     set({
-      expenses: before.map((e) => (e._id === id ? { ...e, ...patch } : e)),
+      expenses: before.map((e) =>
+        e._id === id ? { ...e, ...patch, amountPaisa: nextPaisa } : e
+      ),
+      totalPaisa: beforeTotal + delta,
     });
     try {
       const res = await fetch(`/api/budget/expenses/${id}`, {
@@ -89,7 +184,7 @@ export const useBudgetStore = create((set, get) => ({
       get().refreshSummary();
       return saved;
     } catch (err) {
-      set({ expenses: before });
+      set({ expenses: before, totalPaisa: beforeTotal });
       throw err;
     }
   },
@@ -97,18 +192,22 @@ export const useBudgetStore = create((set, get) => ({
   /** Soft-deletes and removes from the visible list; returns the removed row for undo. */
   async deleteExpense(id) {
     const before = get().expenses;
+    const beforeTotal = get().totalPaisa;
+    const beforeCount = get().matchCount;
     const removed = before.find((e) => e._id === id);
     set({
       expenses: before.filter((e) => e._id !== id),
-      totalPaisa: get().totalPaisa - (removed?.amountPaisa || 0),
+      totalPaisa: beforeTotal - (removed?.amountPaisa || 0),
+      matchCount: Math.max(0, beforeCount - 1),
     });
     try {
       const res = await fetch(`/api/budget/expenses/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Could not remove that expense");
       get().refreshSummary();
       return removed;
     } catch (err) {
-      set({ expenses: before, totalPaisa: get().totalPaisa + (removed?.amountPaisa || 0) });
+      // Restore captured values, not arithmetic on the current ones.
+      set({ expenses: before, totalPaisa: beforeTotal, matchCount: beforeCount });
       throw err;
     }
   },
@@ -294,7 +393,9 @@ export const useBudgetStore = create((set, get) => ({
     const res = await fetch(`/api/budget/debts/${id}/entries`, {
       method: "POST",
       headers: JSON_HEADERS,
-      body: JSON.stringify(payload),
+      // The key makes a retry or double-tap a no-op server-side instead of
+      // a second repayment against the balance.
+      body: JSON.stringify({ ...payload, idempotencyKey: newIdempotencyKey() }),
     });
     if (!res.ok) throw new Error((await res.json()).error || "Failed to save entry");
     const saved = await res.json();
@@ -365,7 +466,8 @@ export const useBudgetStore = create((set, get) => ({
     const res = await fetch(`/api/budget/goals/${id}/contributions`, {
       method: "POST",
       headers: JSON_HEADERS,
-      body: JSON.stringify(payload),
+      // See addDebtEntry — guards against depositing the same amount twice.
+      body: JSON.stringify({ ...payload, idempotencyKey: newIdempotencyKey() }),
     });
     if (!res.ok) throw new Error((await res.json()).error || "Failed to save contribution");
     const saved = await res.json();
