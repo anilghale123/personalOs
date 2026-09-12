@@ -1,14 +1,13 @@
 import { create } from "zustand";
 import { newIdempotencyKey } from "@/lib/client-keys";
 import { toMinorUnits } from "@/lib/money";
+import { EXPENSE_PAGE_SIZE } from "./constants";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-/**
- * Rows per request. The list is unbounded server-side no longer — this is
- * what one page costs, and the server caps anything larger at 200.
- */
-const PAGE_SIZE = 50;
+// One page of expenses. Defined in ./constants so the store, the server
+// action that renders the first page, and the API route default cannot drift.
+const PAGE_SIZE = EXPENSE_PAGE_SIZE;
 
 /**
  * How long a cached category breakdown stays usable.
@@ -24,11 +23,12 @@ const BREAKDOWN_TTL_MS = 2 * 60 * 1000;
 /**
  * Rows shown when a category row is expanded.
  *
- * Deliberately smaller than the main list's page. This is an explanation of a
- * total, not a second expense list — and an expanded row that pushes the rest
- * of the filter panel off-screen has stopped being an inline detail.
+ * The same size as one page of the main list, so "a page" means one thing
+ * everywhere. It stays capped because this is an explanation of a total, not a
+ * second expense list — an expanded row that pushes the date and payment
+ * controls off-screen has stopped being an inline detail.
  */
-const DETAIL_PAGE_SIZE = 25;
+const DETAIL_PAGE_SIZE = EXPENSE_PAGE_SIZE;
 
 /**
  * Budget store — categories + expenses for the currently loaded filter

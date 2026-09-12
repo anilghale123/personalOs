@@ -13,14 +13,20 @@ import { buildExpenseFilter } from "@/features/budget/expense-filter";
 import { cachedMoney, invalidateMoney, tags } from "@/lib/cache";
 import Expense from "@/models/Expense";
 import Category from "@/models/Category";
-import { PAYMENT_METHODS, RECURRENCE_FREQUENCIES } from "@/features/budget/constants";
+import {
+  EXPENSE_MAX_PAGE_SIZE,
+  EXPENSE_PAGE_SIZE,
+  PAYMENT_METHODS,
+  RECURRENCE_FREQUENCIES,
+} from "@/features/budget/constants";
 
 const PAYMENT_IDS = PAYMENT_METHODS.map((p) => p.id);
 const FREQ_IDS = RECURRENCE_FREQUENCIES.map((f) => f.id);
 
-/** Server-side ceiling, whatever the client asks for. */
-const MAX_LIMIT = 200;
-const DEFAULT_LIMIT = 50;
+// Shared with the client store and the server action — see the note in
+// features/budget/constants.js on why this is defined in one place.
+const MAX_LIMIT = EXPENSE_MAX_PAGE_SIZE;
+const DEFAULT_LIMIT = EXPENSE_PAGE_SIZE;
 
 const SORTS = {
   date_desc: { date: -1, createdAt: -1 },

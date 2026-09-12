@@ -9,14 +9,18 @@ import User from "@/models/User";
 import { auth } from "@/lib/auth";
 import { buildExpenseFilter } from "./expense-filter";
 import { cachedMoney, cachedReference, tags } from "@/lib/cache";
-import { DEFAULT_CATEGORIES } from "./constants";
+import {
+  DEFAULT_CATEGORIES,
+  EXPENSE_MAX_PAGE_SIZE,
+  EXPENSE_PAGE_SIZE,
+} from "./constants";
 import { periodRange } from "./utils";
 import { computeBudgetSummary, userCalendar } from "./summary";
 import { plain } from "@/lib/serialize";
 
-/** Rows per page, and the ceiling whatever a caller asks for. */
-const PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
+// Shared with the client store and the API route — see ./constants.
+const PAGE_SIZE = EXPENSE_PAGE_SIZE;
+const MAX_PAGE_SIZE = EXPENSE_MAX_PAGE_SIZE;
 
 function sortFor(sort) {
   switch (sort) {

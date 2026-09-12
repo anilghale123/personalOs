@@ -65,3 +65,27 @@ export const BUDGET_WARNING_RATIO = 0.8;
 
 /** Emoji shortlist offered when creating a savings goal. */
 export const GOAL_ICONS = ["🎯", "🏠", "🚗", "✈️", "🎓", "💍", "🛡️", "💻", "🏥", "🎁"];
+
+/**
+ * Expenses fetched per page.
+ *
+ * One definition, imported by all three places that need to agree: the client
+ * store's paging, the server action that renders the first page, and the API
+ * route's default when a caller omits `limit`. They were three separate
+ * literals, so changing the page size meant changing it in three files and
+ * noticing nothing if you missed one.
+ *
+ * 20 rather than 50: a page is meant to be what fits on a screen plus a
+ * little, not a batch that happens to be round. Twenty covers roughly a
+ * fortnight of everyday spending, so the common case needs no second request
+ * at all — and each request stays small on a phone connection.
+ */
+export const EXPENSE_PAGE_SIZE = 20;
+
+/**
+ * Hard ceiling on `limit`, whatever a caller asks for.
+ *
+ * Unrelated to the page size: this is the abuse guard that stops
+ * `?limit=100000` turning the list endpoint into a full-table export.
+ */
+export const EXPENSE_MAX_PAGE_SIZE = 200;
