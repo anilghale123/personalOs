@@ -7,7 +7,7 @@ import connectDB from "@/lib/mongoose";
 import Transaction from "@/models/Transaction";
 import StockPrice from "@/models/StockPrice";
 import SIP from "@/models/SIP";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { plain } from "@/lib/serialize";
 
 /** Largest broker CSV we will accept. Midas exports are a few hundred KB. */
@@ -25,7 +25,7 @@ const BULK_BATCH = 500;
  * @param {FormData} formData
  */
 export async function importBrokerCSV(formData) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return { imported: 0, skipped: 0, errors: ["Unauthorized"] };
   }
@@ -188,7 +188,7 @@ export async function importBrokerCSV(formData) {
  * export is client-callable and must never take a user id from the caller.
  */
 export async function getPortfolioSummary() {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return [];
   await connectDB();
@@ -267,7 +267,7 @@ export async function getPortfolioSummary() {
 
 /** Recent transactions for the activity feed. */
 export async function getRecentTransactions(limit = 25) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const txns = await Transaction.find({ userId: session.user.id })
@@ -279,7 +279,7 @@ export async function getRecentTransactions(limit = 25) {
 
 /** All SIPs for the current user. */
 export async function getSIPs() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const sips = await SIP.find({ userId: session.user.id })

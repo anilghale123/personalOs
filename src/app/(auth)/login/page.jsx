@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { CircleDot, Compass, Wallet, Leaf, Sparkles } from "lucide-react";
-import { auth, isGoogleEnabled } from "@/lib/auth";
+import { isGoogleEnabled } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
 
 const FEATURES = [
@@ -13,7 +14,7 @@ const FEATURES = [
 
 export default async function LoginPage() {
   // Already signed in? Skip the form.
-  const session = await auth();
+  const session = await getSession();
   if (session?.user) redirect("/app");
 
   return (

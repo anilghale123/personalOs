@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import {
   LandingHeader,
   LandingHero,
@@ -19,7 +19,7 @@ import {
  * pinning itself dark.
  */
 export default async function LandingPage() {
-  const session = await auth();
+  const session = await getSession();
   const signedIn = Boolean(session?.user);
 
   return (

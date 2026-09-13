@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import connectDB from "@/lib/mongoose";
 import PlannerGoal from "@/models/PlannerGoal";
 import PlannerWeekState from "@/models/PlannerWeekState";
@@ -57,7 +57,7 @@ async function initWeekIfNeeded(userId, weekStart) {
  * with no goals is opened.
  */
 export async function getPlannerWeek(weekStart) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   await initWeekIfNeeded(session.user.id, weekStart);

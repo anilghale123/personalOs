@@ -12,7 +12,7 @@
  */
 
 import connectDB from "@/lib/mongoose";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { ApiError, withRoute } from "@/lib/api";
 import { log } from "@/lib/logger";
 import User from "@/models/User";
@@ -23,7 +23,7 @@ import { canAccessAdmin, canManageRoles } from "@/lib/roles";
  * @returns {Promise<{id: string, name: string, email: string, role: string}|null>}
  */
 export async function getAdminActor() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
 
   await connectDB();

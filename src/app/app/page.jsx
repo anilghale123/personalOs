@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { getDiscoveriesData, getWeeklyBriefing } from "@/features/patterns/actions";
 import { DiscoveriesScreen } from "@/features/patterns/components/discoveries-screen";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * this screen, never a background side effect of arriving.
  */
 export default async function DiscoveriesPage() {
-  const session = await auth();
+  const session = await getSession();
   const [data, briefing] = await Promise.all([
     getDiscoveriesData(),
     getWeeklyBriefing(),

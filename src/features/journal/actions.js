@@ -1,7 +1,7 @@
 "use server";
 
 import mongoose from "mongoose";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import connectDB from "@/lib/mongoose";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";
@@ -11,7 +11,7 @@ import { plain } from "@/lib/serialize";
 
 /** The daily anchor journal + quick notes for one day. */
 export async function getJournalDay(date) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return { journal: null, notes: [], notesTotal: 0, notesHasMore: false };
   }
@@ -39,7 +39,7 @@ export async function getJournalDay(date) {
  * @param {string} to 'YYYY-MM-DD'
  */
 export async function getCalendarMoods(from, to) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return {};
   await connectDB();
   const userId = new mongoose.Types.ObjectId(session.user.id);
@@ -87,7 +87,7 @@ export async function getCalendarMoods(from, to) {
 
 /** Most recently updated journal entries. */
 export async function getRecentEntries(limit = 8) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const entries = await DailyJournal.find({ userId: session.user.id })

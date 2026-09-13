@@ -20,7 +20,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import connectDB from "@/lib/mongoose";
 import { captureException, log } from "@/lib/logger";
 import { clientIp, rateLimitAll } from "@/lib/rate-limit";
@@ -157,7 +157,7 @@ export function withRoute(options, handler) {
       let session = null;
       let userId = null;
       if (needsAuth) {
-        session = await auth();
+        session = await getSession();
         userId = session?.user?.id ?? null;
         if (!userId) throw unauthorized();
         logContext.userId = userId;

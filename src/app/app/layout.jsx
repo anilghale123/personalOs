@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileTopBar } from "@/components/mobile-topbar";
@@ -10,7 +10,7 @@ import { MobileTopBar } from "@/components/mobile-topbar";
  * redirected to /login.
  */
 export default async function AppLayout({ children }) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user) redirect("/login");
 
   return (

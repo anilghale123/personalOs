@@ -63,6 +63,33 @@ export default async function connectDB() {
         bufferCommands: false,
         dbName: "personal-os",
         serverSelectionTimeoutMS: 15000,
+
+        /**
+         * No automatic index building in production.
+         *
+         * Mongoose otherwise issues a `createIndex` for every index on every
+         * model the first time each is used — around thirty round trips.
+         * That is fine on a long-lived server, where it happens once. On
+         * serverless it happens on **every cold start**, and each one is a
+         * full round trip to Atlas before any of the user's own queries run.
+         *
+         * `npm run db:indexes` owns the indexes instead: it creates what the
+         * models declare and drops what they no longer do, which automatic
+         * building never did anyway. Run it after deploying a model change —
+         * it is in the deploy checklist for exactly this reason.
+         *
+         * Left on in development so a new index appears without remembering
+         * to run anything.
+         */
+        autoIndex: process.env.NODE_ENV !== "production",
+
+        /**
+         * Keep the pool small. A serverless instance serves one request at a
+         * time, so a large pool just means more sockets for Atlas to hold
+         * open against its connection limit.
+         */
+        maxPoolSize: 10,
+        minPoolSize: 0,
       })
       .catch((err) => {
         // Reset so the next request can retry instead of reusing a

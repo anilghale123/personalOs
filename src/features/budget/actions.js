@@ -5,8 +5,7 @@ import Category from "@/models/Category";
 import Expense from "@/models/Expense";
 import Debt from "@/models/Debt";
 import FinancialGoal from "@/models/FinancialGoal";
-import User from "@/models/User";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { buildExpenseFilter } from "./expense-filter";
 import { cachedMoney, cachedReference, tags } from "@/lib/cache";
 import {
@@ -37,15 +36,32 @@ function sortFor(sort) {
 
 /** Seeds the default category set for a brand-new user. Safe to call repeatedly. */
 export async function ensureDefaultCategories() {
-  const session = await auth();
-  if (!session?.user?.id) return;
+  const session = await getSession();
+  const userId = session?.user?.id;
+  if (!userId) return;
   await connectDB();
-  const existing = await Category.countDocuments({ userId: session.user.id });
-  if (existing > 0) return;
+
+  /**
+   * The "do they already have categories" answer is cached.
+   *
+   * This runs from the Money layout, so it fired on every navigation into or
+   * within the section — and for anyone past their first minute the count
+   * always came back non-zero and the function did nothing. A query per page
+   * load to re-learn a fact that changes once per account.
+   *
+   * Invalidated by the categories tag, so creating or deleting one is picked
+   * up immediately; a stale `true` would only ever mean skipping a seed for
+   * someone who already has categories, which is the correct outcome anyway.
+   */
+  const alreadySeeded = await cachedReference(
+    async () => (await Category.countDocuments({ userId })) > 0,
+    { userId, key: "has-categories", tags: [tags.categories(userId)] }
+  );
+  if (alreadySeeded) return;
   await Category.insertMany(
     DEFAULT_CATEGORIES.map((c, i) => ({
       ...c,
-      userId: session.user.id,
+      userId,
       isDefault: true,
       sortOrder: i,
     }))
@@ -54,7 +70,7 @@ export async function ensureDefaultCategories() {
 
 /** All categories for the current user (archived included by default — callers filter). */
 export async function getCategories() {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return [];
   await connectDB();
@@ -88,7 +104,7 @@ export async function getCategories() {
  * @param {string} [filters.sort]
  */
 export async function getExpenses(filters = {}) {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return { expenses: [], totalPaisa: 0, count: 0, hasMore: false };
   await connectDB();
@@ -138,7 +154,7 @@ export async function getExpenses(filters = {}) {
  * server-rendered first paint matches the month the list opens on.
  */
 export async function getCurrentMonthExpenses() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return { expenses: [], totalPaisa: 0 };
   await connectDB();
   const cal = await userCalendar(session.user.id);
@@ -148,7 +164,7 @@ export async function getCurrentMonthExpenses() {
 
 /** The oldest expense date on record — drives the monthly record pager. */
 export async function getEarliestExpenseDate() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   await connectDB();
   const earliest = await Expense.findOne({ userId: session.user.id, deletedAt: null })
@@ -160,16 +176,26 @@ export async function getEarliestExpenseDate() {
 
 /** The user's calendar preference for the money screens ('english' | 'nepali'). */
 export async function getDateFormat() {
-  const session = await auth();
-  if (!session?.user?.id) return "english";
+  const session = await getSession();
+  const userId = session?.user?.id;
+  if (!userId) return "english";
   await connectDB();
-  const user = await User.findById(session.user.id).select("preferences").lean();
-  return user?.preferences?.dateFormat === "nepali" ? "nepali" : "english";
+
+  /**
+   * Delegates to `userCalendar`, which is cached.
+   *
+   * These two read the same field and were two separate uncached queries, so
+   * the expenses page asked the database for the user's calendar preference
+   * twice per render — once here for labelling and once inside the budget
+   * summary for the period window. One source, one read.
+   */
+  const cal = await userCalendar(userId);
+  return cal === "np" ? "nepali" : "english";
 }
 
 /** Budget limits vs actual spend for the given period (defaults to monthly). */
 export async function getBudgetSummary(period = "monthly") {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   await connectDB();
   return plain(await computeBudgetSummary(session.user.id, period));
@@ -177,7 +203,7 @@ export async function getBudgetSummary(period = "monthly") {
 
 /** All debts for the current user, open ones first. */
 export async function getDebts() {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return [];
   await connectDB();
@@ -196,7 +222,7 @@ export async function getDebts() {
 
 /** All savings goals for the current user, active ones first. */
 export async function getFinancialGoals() {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return [];
   await connectDB();

@@ -4,7 +4,7 @@ import connectDB from "@/lib/mongoose";
 import HabitLog from "@/models/HabitLog";
 import Goal from "@/models/Goal";
 import WeeklyGoal from "@/models/WeeklyGoal";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { weekRange } from "@/lib/week";
 import { cachedReference, tags } from "@/lib/cache";
 import { dateKeyFromUtcMidnight } from "@/features/patterns/dates";
@@ -16,7 +16,7 @@ import { plain } from "@/lib/serialize";
  * @returns {Promise<Record<string, {completed: boolean, value: number}>>}
  */
 export async function getHeatmapData(habitName) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return {};
   await connectDB();
 
@@ -43,7 +43,7 @@ export async function getHeatmapData(habitName) {
  * the multi-habit heatmap: { 'YYYY-MM-DD': { [habitName]: boolean } }.
  */
 export async function getAllHeatmapData() {
-  const session = await auth();
+  const session = await getSession();
   const userId = session?.user?.id;
   if (!userId) return { heatmap: {}, habits: [] };
 
@@ -93,7 +93,7 @@ export async function getAllHeatmapData() {
 
 /** Fetch all non-archived goals for the current user. */
 export async function getGoals() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const goals = await Goal.find({
@@ -107,7 +107,7 @@ export async function getGoals() {
 
 /** Weekly goals overlapping the current (Monday-anchored) week. */
 export async function getWeeklyGoals() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const { weekStart, weekEnd } = weekRange();
@@ -123,7 +123,7 @@ export async function getWeeklyGoals() {
 
 /** Fetch a single goal by id (scoped to the current user). */
 export async function getGoalById(goalId) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   await connectDB();
   const goal = await Goal.findOne({

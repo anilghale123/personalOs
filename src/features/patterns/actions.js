@@ -1,6 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import mongoose from "mongoose";
+import { getSession } from "@/lib/session";
 import connectDB from "@/lib/mongoose";
 import Insight from "@/models/Insight";
 import PatternRun from "@/models/PatternRun";
@@ -95,7 +96,7 @@ function compactEvidence(evidence) {
  * currently see.
  */
 export async function getDiscoveriesData() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   const userId = session.user.id;
 
@@ -131,7 +132,7 @@ export async function getDiscoveriesData() {
 
 /** The archive: every insight the user has ever had, including lapsed ones. */
 export async function getInsightArchive() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   await connectDB();
   const docs = await Insight.find({ userId: session.user.id }).lean();
@@ -143,7 +144,7 @@ export async function getInsightArchive() {
  * the detail page charts.
  */
 export async function getInsightDetail(id) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   await connectDB();
 
@@ -179,7 +180,7 @@ export async function getInsightDetail(id) {
  * the briefing must never trigger the copy-forward side effect.
  */
 export async function getWeeklyBriefing() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return null;
   const userId = session.user.id;
   const name = session.user.name?.split(" ")[0] || "there";
@@ -214,34 +215,53 @@ export async function getWeeklyBriefing() {
   const prevSpanEnd = addDays(prevFrom, monthElapsedDays - 1);
   const prevCompareTo = prevSpanEnd < prevTo ? prevSpanEnd : prevTo;
 
-  const [goals, lastWeekGoals, monthExpenses, lastMonthExpenses, categories] = await Promise.all([
+  /**
+   * Spend is aggregated in Mongo, not fetched and summed here.
+   *
+   * The briefing needs exactly three things from a month of expenses: the
+   * total, the per-category totals, and which category is largest. It used to
+   * fetch **every expense document for two whole months** to compute them —
+   * so somebody logging a few hundred expenses a month transferred a thousand
+   * documents across the wire to produce three numbers on a card.
+   *
+   * `userId` is cast by hand because `aggregate()` does no schema casting: a
+   * string there matches nothing at all, and the briefing would silently
+   * report zero spend.
+   */
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const spendByCategory = (from, to) => [
+    { $match: { userId: userObjectId, deletedAt: null, date: { $gte: from, $lte: to } } },
+    { $group: { _id: "$categoryId", paisa: { $sum: "$amountPaisa" } } },
+  ];
+
+  const [goals, lastWeekGoals, monthRows, lastMonthRows, categories] = await Promise.all([
     PlannerGoal.find({ userId, weekStart: wsKey }).sort({ createdAt: 1 }).lean(),
     // Last week's rows, only so a dropped habit's gap doesn't reset to
     // zero every Monday and read as if it were merely off to a slow start.
     PlannerGoal.find({ userId, weekStart: lastWsKey }).select("title days").lean(),
-    Expense.find({
-      userId,
-      deletedAt: null,
-      date: { $gte: monthFrom, $lte: todayKey },
-    }).lean(),
-    Expense.find({
-      userId,
-      deletedAt: null,
-      date: { $gte: prevFrom, $lte: prevCompareTo },
-    }).lean(),
+    Expense.aggregate(spendByCategory(monthFrom, todayKey)),
+    // Last month only needs a total, so it never groups by category.
+    Expense.aggregate([
+      {
+        $match: {
+          userId: userObjectId,
+          deletedAt: null,
+          date: { $gte: prevFrom, $lte: prevCompareTo },
+        },
+      },
+      { $group: { _id: null, paisa: { $sum: "$amountPaisa" } } },
+    ]),
     Category.find({ userId }).select("name icon").lean(),
   ]);
 
   const catMap = Object.fromEntries(categories.map((c) => [String(c._id), c]));
-  const sum = (rows) => rows.reduce((s, e) => s + (e.amountPaisa || 0), 0);
-  const monthPaisa = sum(monthExpenses);
-  const lastMonthPaisa = sum(lastMonthExpenses);
 
-  const byCategory = new Map();
-  for (const e of monthExpenses) {
-    const id = String(e.categoryId);
-    byCategory.set(id, (byCategory.get(id) || 0) + (e.amountPaisa || 0));
-  }
+  const byCategory = new Map(
+    monthRows.map((row) => [String(row._id), row.paisa])
+  );
+  const monthPaisa = monthRows.reduce((total, row) => total + row.paisa, 0);
+  const lastMonthPaisa = lastMonthRows[0]?.paisa ?? 0;
+
   let top = null;
   if (monthPaisa > 0) {
     for (const [id, paisa] of byCategory) {
@@ -299,7 +319,7 @@ function trailingGap(goal) {
  * and the engine can never disagree about what a day contained.
  */
 export async function getLifelineWeek() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) return [];
   const to = toDateKey();
   const signals = await getDailySignals(session.user.id, addDays(to, -6), to);

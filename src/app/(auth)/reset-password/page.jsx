@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { ResetPasswordForm } from "@/features/auth/reset-password-form";
 
 export const metadata = {
@@ -15,7 +15,7 @@ export const metadata = {
  * profile dialog's change-password path instead of a reset they don't need.
  */
 export default async function ResetPasswordPage() {
-  const session = await auth();
+  const session = await getSession();
   if (session?.user) redirect("/app");
 
   return (
