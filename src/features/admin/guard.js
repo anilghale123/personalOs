@@ -24,15 +24,54 @@ import { canAccessAdmin, canManageRoles } from "@/lib/roles";
  */
 export async function getAdminActor() {
   const session = await getSession();
-  if (!session?.user?.id) return null;
+
+  /**
+   * Every refusal is logged with its reason.
+   *
+   * The caller turns `null` into a 404, deliberately — answering "forbidden"
+   * would confirm to anyone probing that an admin console lives at this path.
+   * But that left four different failures looking identical from the outside
+   * *and* from the logs, so "why is /sysadmin a 404" was unanswerable without
+   * reading the database by hand. The reason belongs in the server log, which
+   * the person deploying can read and a prober cannot.
+   */
+  if (!session?.user?.id) {
+    log.warn("Admin area refused: no session", { reason: "no_session" });
+    return null;
+  }
 
   await connectDB();
   const user = await User.findById(session.user.id)
     .select("name email role isSuspended")
     .lean();
 
-  if (!user || user.isSuspended) return null;
-  if (!canAccessAdmin(user.role)) return null;
+  if (!user) {
+    // The session is valid but the account is gone from *this* database —
+    // the signature of an app pointed at a different database than the one
+    // the role was granted in.
+    log.warn("Admin area refused: session user not found in this database", {
+      reason: "user_missing",
+      userId: session.user.id,
+    });
+    return null;
+  }
+
+  if (user.isSuspended) {
+    log.warn("Admin area refused: account suspended", {
+      reason: "suspended",
+      userId: String(user._id),
+    });
+    return null;
+  }
+
+  if (!canAccessAdmin(user.role)) {
+    log.warn("Admin area refused: role is not admin", {
+      reason: "insufficient_role",
+      userId: String(user._id),
+      role: user.role ?? "user",
+    });
+    return null;
+  }
 
   return {
     id: String(user._id),

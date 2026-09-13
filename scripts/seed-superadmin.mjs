@@ -65,6 +65,19 @@ async function main() {
   await mongoose.connect(uri, { dbName: "personal-os" });
   const users = mongoose.connection.collection("users");
 
+  /**
+   * Say which database this is touching, with credentials stripped.
+   *
+   * The role is granted in one specific database. Running this locally seeds
+   * whatever `.env.local` points at — which is not necessarily what the
+   * deployment uses, and the symptom of that mismatch is a bare 404 on
+   * /sysadmin with nothing to suggest the cause. Printing the host makes it
+   * obvious whether you just seeded the database you meant to.
+   */
+  const host = uri.replace(/^(mongodb(?:\+srv)?:\/\/)[^@]*@/, "$1<credentials>@");
+  console.log(`Database: ${host.split("?")[0]}`);
+  console.log(`          (dbName "personal-os")\n`);
+
   const existing = await users.findOne({ email: EMAIL });
   const now = new Date();
 
