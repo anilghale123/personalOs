@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/scrape-nepse",
       "schedule": "15 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "15 4 * * *"
+    },
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "15 14 * * *"
     }
   ]
 }

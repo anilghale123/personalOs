@@ -24,9 +24,9 @@ const nextConfig = {
     },
     /**
      * Loaded by Node at runtime instead of bundled: unpdf ships its own
-     * pdf.js build that webpack mangles, and nodemailer is Node-only.
+     * pdf.js build that webpack mangles; nodemailer and web-push are Node-only.
      */
-    serverComponentsExternalPackages: ["unpdf", "nodemailer"],
+    serverComponentsExternalPackages: ["unpdf", "nodemailer", "web-push"],
   },
 
   async redirects() {

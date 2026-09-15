@@ -52,6 +52,7 @@ const MODEL_PATHS = [
   "../src/models/PatternRun.js",
   "../src/models/PlannerGoal.js",
   "../src/models/PlannerWeekState.js",
+  "../src/models/PushSubscription.js",
   "../src/models/QuickNote.js",
   "../src/models/SIP.js",
   "../src/models/StockPrice.js",

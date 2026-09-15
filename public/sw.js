@@ -130,6 +130,57 @@ self.addEventListener("message", (event) => {
   );
 });
 
+/**
+ * Daily reminders (see src/features/reminders). The payload is built on the
+ * server; this only displays it. `tag` makes a newer reminder replace an
+ * unread older one instead of stacking.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { body: event.data?.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "selfView", {
+      body: data.body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: data.tag || "selfview",
+      data: { url: data.url || "/app" },
+    })
+  );
+});
+
+/** Tapping a reminder focuses an open window, or opens one, at its screen. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  let target = new URL(event.notification.data?.url || "/app", self.location.origin);
+  // Only ever navigate within our own origin.
+  if (target.origin !== self.location.origin) {
+    target = new URL("/app", self.location.origin);
+  }
+
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const open = windows.find(
+        (client) => new URL(client.url).origin === self.location.origin
+      );
+      if (open) {
+        await open.focus();
+        if ("navigate" in open) await open.navigate(target.href).catch(() => {});
+        return;
+      }
+      await self.clients.openWindow(target.href);
+    })()
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 

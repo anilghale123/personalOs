@@ -58,7 +58,21 @@ After deploying, run `npm run db:indexes` to create the new indexes (`PasswordRe
 - `POST /api/wealth/imports/parse` takes multipart `file` and optional `password`, and returns the header plus `transactions[]`. Rows already imported are flagged. The PDF is never stored.
 - `POST /api/wealth/imports/commit` `{ bank, transactions }` → `{ created, skippedDuplicates }`. Withdrawals become expenses (`paymentMethod: bank_transfer`); deposits become income. Both get `source: "import:citizen-bank"`.
 - Dedupe fingerprint: sha256 of date + direction + amount + normalised description + occurrence index. Identical same-day rows both import, and re-importing or overlapping statements are skipped.
-- Adding a bank: create `features/wealth/imports/parsers/<bank>.js` exporting `{ id, label, detect, parse }`, then add it to `parsers/index.js`.
+- **Any bank, PDF or CSV.** Citizens Bank has a dedicated parser (`parsers/citizen-bank.js`). Every other statement goes through `parsers/generic-table.js`, which works like this:
+  - It finds the header row by column names:
+    - date: Transaction Date / Txn Date / Date / Miti
+    - description: Description / Particulars / Narration / Details / Remarks
+    - withdraw: Withdraw / Withdrawal / Debit / Dr
+    - deposit: Deposit / Credit / Cr
+    - balance: Balance
+  - It places each cell under the nearest column header, so blank Debit or Credit cells are handled.
+  - Columns it doesn't import (S.N, Cheque No, Ref No, Value Date) are recognised and ignored.
+  - It skips opening, closing and total rows, joins wrapped descriptions, and handles headers wrapped over two lines and repeated on each page.
+- Dates (`imports/dates.js`): `2026-07-12`, `12/07/2026` (DD/MM by default), `12-Jul-2026`, `Jul 12, 2026`, and Bikram Sambat dates such as `2083-03-27`, converted to AD.
+- CSV exports are turned into the same positioned rows (`imports/csv.js`) and use the same parser.
+- The bank name (Nabil, NIC Asia, Global IME and others) is read from the header for display. A statement that prints no period gets its period from the transaction dates.
+- Still unsupported: Excel (`.xlsx`) files, scanned image PDFs, and statements with a single signed "Amount" column instead of separate withdraw and deposit columns.
+- Adding a dedicated parser (only needed if the generic one misreads a bank): create `features/wealth/imports/parsers/<bank>.js` exporting `{ id, label, detect(lines, ctx), parse(lines, ctx) }`, then add it **before** `generic-table` in `parsers/index.js`.
 - Pro gating: `User.plan` (`free`/`pro`), which admins set in the new **Plan** column at /sysadmin/users. Also `PRO_EMAILS`, and admins. Free accounts don't see the Import button, `/app/budget/import` redirects them to Expenses, and the APIs return 402 `pro_required`.
 
 **Test with a Citizens statement:** sign in as an admin (or set your plan to Pro), open `/app/budget/import` and upload the PDF. Check that the header, withdraw/deposit columns and suggested categories look right, and that opening/closing rows are not listed. Import, then upload the same PDF again: every row should show "Already imported", and committing reports them as skipped.

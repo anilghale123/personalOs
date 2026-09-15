@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ProBadge } from "@/components/pro-badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ReminderSettings } from "@/features/reminders/components/reminder-settings";
 
 /** Server-enforced minimum, mirrored here so the form fails before a
  *  round trip. Keep in step with `password` in lib/validation.js. */
@@ -363,6 +364,8 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 </label>
               ))}
             </div>
+
+            <ReminderSettings />
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-4">

@@ -61,7 +61,15 @@ const RECOMMENDED = [
   {
     key: "CRON_SECRET",
     effect:
-      "The NEPSE cron route rejects every call, so prices stop updating.",
+      "Cron routes reject every call, so NEPSE prices stop updating and daily reminders are never sent.",
+  },
+  {
+    key: "VAPID_PRIVATE_KEY",
+    effect: "Daily push reminders are never sent.",
+  },
+  {
+    key: "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    effect: "The daily reminders switch in Profile cannot turn on.",
   },
   {
     // SMTP is preferred; Resend is the alternative. Either one satisfies this.

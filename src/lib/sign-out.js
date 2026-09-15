@@ -17,6 +17,26 @@ import { signOut } from "next-auth/react";
  * @param {{callbackUrl?: string}} [options]
  */
 export async function signOutEverywhere({ callbackUrl = "/login" } = {}) {
+  /**
+   * Stop this device's reminders — otherwise a shared phone keeps showing
+   * "Anil, have you logged…" to whoever picks it up next. Must run while the
+   * session still exists, since the delete route needs it.
+   */
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration();
+    const subscription = await registration?.pushManager?.getSubscription();
+    if (subscription) {
+      await fetch("/api/push/subscription", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      }).catch(() => {});
+      await subscription.unsubscribe();
+    }
+  } catch {
+    // No worker or no push support — nothing to stop.
+  }
+
   try {
     const registration = await navigator.serviceWorker?.ready;
     if (registration?.active) {
