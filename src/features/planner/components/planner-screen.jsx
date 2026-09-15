@@ -18,10 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
-import { PlannerGoalRow } from "./planner-goal-row";
+import { ExpandToggle, PlannerGoalRow } from "./planner-goal-row";
 import { PlannerHistory } from "./planner-history";
 
-const GRID_COLS = "grid-cols-[minmax(150px,1.8fr)_repeat(7,minmax(0,1fr))]";
+// Phones take their columns from --planner-cols, which drops the days
+// before today behind a "…" column; wide screens always show Mon–Sun.
+const GRID_COLS =
+  "grid-cols-[var(--planner-cols)] md:grid-cols-[minmax(150px,1.8fr)_repeat(7,minmax(0,1fr))]";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export function PlannerScreen({ initialWeekStart, initialGoals }) {
@@ -195,6 +198,29 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
     [weekStart]
   );
   const todayKey = toDateKey();
+  const todayIndex = weekDates.findIndex((d) => toDateKey(d) === todayKey);
+
+  // On a phone the week starts at today: the days already behind it fold
+  // away, and a small button floating on today's header opens and closes
+  // them. Day columns keep their usual width and scroll sideways either way.
+  const [expanded, setExpanded] = React.useState(false);
+  React.useEffect(() => setExpanded(false), [weekStart]);
+  const toggleExpanded = React.useCallback(() => setExpanded((v) => !v), []);
+  const toggleAt = todayIndex > 0 ? todayIndex : -1;
+  const gridStyle = React.useMemo(() => {
+    if (toggleAt < 0) {
+      return {
+        "--planner-cols": "minmax(150px,1.8fr) repeat(7,minmax(0,1fr))",
+        "--planner-min-w": "680px",
+      };
+    }
+    const shown = expanded ? DAYS.length : DAYS.length - toggleAt;
+    return {
+      "--planner-cols": `minmax(150px,1fr) repeat(${shown},76px)`,
+      "--planner-min-w": `${150 + shown * 76}px`,
+    };
+  }, [toggleAt, expanded]);
+
   const start = parseISO(weekStart);
   // No year — the pager reads as a week, not a date stamp.
   const label = `${format(start, "MMM d")} – ${format(
@@ -376,9 +402,10 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
         <div className="overflow-x-auto rounded-2xl bg-card elev-sm">
           <div
             className={cn(
-              "min-w-[680px] transition-opacity",
+              "min-w-[var(--planner-min-w)] transition-opacity md:min-w-[680px]",
               loading && "pointer-events-none opacity-50"
             )}
+            style={gridStyle}
           >
             {/* Header row */}
             <div className={cn("grid border-b bg-muted/40", GRID_COLS)}>
@@ -386,15 +413,23 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
                 Goals
               </div>
               {DAYS.map((day, i) => {
-                const isToday = toDateKey(weekDates[i]) === todayKey;
+                const isToday = i === todayIndex;
                 return (
                   <div
                     key={day}
                     className={cn(
-                      "border-l px-1 py-2 text-center",
+                      "relative border-l px-1 py-2 text-center",
+                      i < toggleAt && !expanded && "max-md:hidden",
                       isToday && "bg-primary/10"
                     )}
                   >
+                    {i === toggleAt && (
+                      <ExpandToggle
+                        expanded={expanded}
+                        hiddenDays={toggleAt}
+                        onToggle={toggleExpanded}
+                      />
+                    )}
                     <p
                       className={cn(
                         "text-[11px] font-semibold uppercase tracking-wider",
@@ -451,6 +486,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
                   weekDates={weekDates}
                   todayKey={todayKey}
                   gridCols={GRID_COLS}
+                  hiddenDays={expanded ? 0 : Math.max(toggleAt, 0)}
                   onUpdateDay={updateDay}
                   onUpdateTitle={updateTitle}
                   onDelete={deleteGoal}
