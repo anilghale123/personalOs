@@ -1,45 +1,17 @@
-import {
-  ensureDefaultCategories,
-  getBudgetSummary,
-  getCategories,
-  getCurrentMonthExpenses,
-  getDebts,
-  getFinancialGoals,
-} from "@/features/budget/actions";
 import { BudgetHydrator } from "@/features/budget/components/budget-hydrator";
 import { MoneyTabs } from "@/features/budget/components/money-tabs";
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetLayout({ children }) {
-  await ensureDefaultCategories();
-  const [
-    categories,
-    { expenses, totalPaisa, count, hasMore },
-    summary,
-    debts,
-    financialGoals,
-  ] =
-    await Promise.all([
-      getCategories(),
-      getCurrentMonthExpenses(),
-      getBudgetSummary("monthly"),
-      getDebts(),
-      getFinancialGoals(),
-    ]);
-
+/**
+ * Nothing is fetched here any more. This layout used to run six queries
+ * before any Money screen could appear; now the hydrator fills the store
+ * from the copy saved on this device and refreshes it in the background.
+ */
+export default function BudgetLayout({ children }) {
   return (
     <>
-      <BudgetHydrator
-        initialCategories={categories}
-        initialExpenses={expenses}
-        initialTotalPaisa={totalPaisa}
-        initialExpenseCount={count}
-        initialHasMore={hasMore}
-        initialSummary={summary}
-        initialDebts={debts}
-        initialFinancialGoals={financialGoals}
-      />
+      <BudgetHydrator />
       <MoneyTabs />
       {children}
     </>

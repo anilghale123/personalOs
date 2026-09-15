@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { newIdempotencyKey } from "@/lib/client-keys";
 import { toMinorUnits } from "@/lib/money";
+import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
 import { EXPENSE_PAGE_SIZE } from "./constants";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -30,11 +31,44 @@ const BREAKDOWN_TTL_MS = 2 * 60 * 1000;
  */
 const DETAIL_PAGE_SIZE = EXPENSE_PAGE_SIZE;
 
+/** Query string for the first page of the list under a filter set. */
+function expenseParams(filters) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v) params.set(k, v);
+  });
+  params.set("limit", String(PAGE_SIZE));
+  return params;
+}
+
+/**
+ * Only the plain month (or all-time) list is saved on the device: it is
+ * what opens every time, while a search or category filter is a one-off.
+ */
+function isPlainList(filters) {
+  return !filters.q && !filters.categoryId && !filters.paymentMethod && !filters.tag;
+}
+
+async function getJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load ${url}`);
+  return res.json();
+}
+
+/** Only the newest list request may write to the store. */
+let latestExpenseRequest = 0;
+
 /**
  * Budget store — categories + expenses for the currently loaded filter
  * set, with optimistic mutations (matching the vault/planner stores).
  * Delete is soft (marks `deletedAt`) so callers can offer an undo toast
  * instead of a confirm dialog.
+ *
+ * Screens paint from copies saved on this device (lib/snapshot) and every
+ * load re-reads the server right after. A background result is applied only
+ * if nothing was edited meanwhile, and every successful edit updates the
+ * saved copy — so reopening the app never shows data from before your own
+ * change.
  */
 export const useBudgetStore = create((set, get) => ({
   categories: [],
@@ -49,6 +83,12 @@ export const useBudgetStore = create((set, get) => ({
   // The oldest expense date on record ('YYYY-MM-DD'), refreshed by every
   // expenses fetch — drives whether the monthly record pager appears.
   earliestDate: null,
+  /** The signed-in user — namespaces what is saved on this device. */
+  ownerId: null,
+  /** True once the list holds real rows (saved or fetched), not a blank start. */
+  expensesReady: false,
+
+  setOwner: (ownerId) => set({ ownerId }),
 
   setCategories: (categories) => set({ categories }),
   /**
@@ -67,34 +107,84 @@ export const useBudgetStore = create((set, get) => ({
   setEarliestDate: (earliestDate) => set({ earliestDate }),
 
   /**
+   * Save the list as it now stands, after an add, edit or delete — so the
+   * next open shows your change instantly instead of the list before it.
+   */
+  saveExpenseSnapshot() {
+    const { filters, expenses, totalPaisa, matchCount, hasMore, ownerId } = get();
+    if (!isPlainList(filters)) return;
+    const rows = expenses.filter((e) => !e.isOptimistic);
+    writeSnapshot(ownerId, `expenses:${expenseParams(filters).toString()}`, {
+      // One page's worth, matching what a fresh load returns.
+      expenses: rows.slice(0, PAGE_SIZE),
+      totalPaisa,
+      count: matchCount,
+      hasMore: hasMore || rows.length > PAGE_SIZE,
+    });
+  },
+
+  /**
    * Load the first page for a filter set.
    *
    * `totalPaisa` and `count` describe the **whole** filtered set, not the
    * page — the server aggregates them — so the running total stays correct
    * while only one page of rows crosses the wire.
+   *
+   * The saved copy for these filters (if any) is shown first; the server's
+   * result replaces it unless a newer load or an edit got there first.
    */
   async loadExpenses(filters) {
     set({ loading: true, filters: { ...get().filters, ...filters } });
-    const params = new URLSearchParams();
-    Object.entries(get().filters).forEach(([k, v]) => {
-      if (v) params.set(k, v);
-    });
-    params.set("limit", String(PAGE_SIZE));
+    const current = get().filters;
+    const params = expenseParams(current);
+    const snapshotKey = `expenses:${params.toString()}`;
+    const saveable = isPlainList(current);
+    const requestId = ++latestExpenseRequest;
+
+    if (saveable) {
+      const saved = readSnapshot(get().ownerId, snapshotKey);
+      if (saved) {
+        set({
+          expenses: saved.expenses,
+          totalPaisa: saved.totalPaisa,
+          matchCount: saved.count,
+          hasMore: saved.hasMore,
+          expensesReady: true,
+        });
+      }
+    }
+    const shown = get().expenses;
+
     try {
       const res = await fetch(`/api/budget/expenses?${params.toString()}`);
       if (!res.ok) throw new Error("Could not load expenses");
       const data = await res.json();
-      set({
+      // A newer filter change, or an add/edit/delete made while this was in
+      // flight, owns the list now.
+      if (requestId !== latestExpenseRequest || get().expenses !== shown) return;
+
+      const page = {
         expenses: data.expenses,
         totalPaisa: data.totalPaisa,
-        matchCount: data.count ?? data.expenses.length,
+        count: data.count ?? data.expenses.length,
         hasMore: Boolean(data.hasMore),
+      };
+      if (saveable) writeSnapshot(get().ownerId, snapshotKey, page);
+
+      const unchanged =
+        get().totalPaisa === page.totalPaisa && sameData(get().expenses, page.expenses);
+      set({
+        ...(unchanged ? {} : { expenses: page.expenses, totalPaisa: page.totalPaisa }),
+        matchCount: page.count,
+        hasMore: page.hasMore,
         ...(data.earliestDate !== undefined
           ? { earliestDate: data.earliestDate }
           : {}),
       });
     } finally {
-      set({ loading: false });
+      if (requestId === latestExpenseRequest) {
+        set({ loading: false, expensesReady: true });
+      }
     }
   },
 
@@ -164,6 +254,7 @@ export const useBudgetStore = create((set, get) => ({
       set({
         expenses: get().expenses.map((e) => (e._id === tempId ? saved : e)),
       });
+      get().saveExpenseSnapshot();
       get().refreshSummary();
       return saved;
     } catch (err) {
@@ -201,6 +292,7 @@ export const useBudgetStore = create((set, get) => ({
       if (!res.ok) throw new Error((await res.json()).error || "Failed to update expense");
       const saved = await res.json();
       set({ expenses: get().expenses.map((e) => (e._id === id ? saved : e)) });
+      get().saveExpenseSnapshot();
       get().refreshSummary();
       return saved;
     } catch (err) {
@@ -223,6 +315,7 @@ export const useBudgetStore = create((set, get) => ({
     try {
       const res = await fetch(`/api/budget/expenses/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Could not remove that expense");
+      get().saveExpenseSnapshot();
       get().refreshSummary();
       return removed;
     } catch (err) {
@@ -244,6 +337,7 @@ export const useBudgetStore = create((set, get) => ({
         method: "POST",
       });
       if (!res.ok) throw new Error();
+      get().saveExpenseSnapshot();
       get().refreshSummary();
     } catch {
       set({
@@ -311,6 +405,50 @@ export const useBudgetStore = create((set, get) => ({
       set({ categories: get().categories.filter((c) => c._id !== id) });
     }
     return data;
+  },
+
+  // ── The rest of the Money section ────────────────────────────────────
+  /** True once categories, budget, debts and goals hold real data. */
+  moneyReady: false,
+
+  /** Fill the section from the copy saved on this device last time. */
+  seedMoney: (saved) =>
+    set({
+      categories: saved.categories ?? [],
+      summary: saved.summary ?? null,
+      debts: saved.debts ?? [],
+      financialGoals: saved.financialGoals ?? [],
+      moneyReady: true,
+    }),
+
+  /**
+   * Re-read categories, the budget summary, debts and savings goals.
+   *
+   * Each is applied only if it changed and was not edited here while the
+   * request was out — a debt added mid-refresh must not vanish under an
+   * older list. One failing request leaves the others to land.
+   */
+  async refreshMoney() {
+    const fields = ["categories", "summary", "debts", "financialGoals"];
+    const before = Object.fromEntries(fields.map((f) => [f, get()[f]]));
+    const period = get().budgetPeriod;
+
+    const results = await Promise.allSettled([
+      getJson("/api/budget/categories"),
+      getJson(`/api/budget/budgets?period=${period}`),
+      getJson("/api/budget/debts"),
+      getJson("/api/budget/goals"),
+    ]);
+
+    const next = {};
+    results.forEach((result, i) => {
+      const field = fields[i];
+      if (result.status !== "fulfilled") return;
+      if (get()[field] !== before[field]) return;
+      if (field === "summary" && get().budgetPeriod !== period) return;
+      if (!sameData(before[field], result.value)) next[field] = result.value;
+    });
+    set({ ...next, moneyReady: true });
   },
 
   // ── Budgets ──────────────────────────────────────────────────────────

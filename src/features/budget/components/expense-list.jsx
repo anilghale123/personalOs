@@ -27,6 +27,7 @@ import { formatBsDate } from "@/lib/nepali-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useBudgetStore } from "../store";
 import { categoryMap } from "../utils";
 import { ExpenseRow } from "./expense-row";
@@ -63,6 +64,9 @@ export function ExpenseList({
   const hasMore = useBudgetStore((s) => s.hasMore);
   const loadingMore = useBudgetStore((s) => s.loadingMore);
   const loadMoreExpenses = useBudgetStore((s) => s.loadMoreExpenses);
+  // False only before the first saved or fetched page — so a new visitor
+  // sees placeholders rather than a false "No expenses yet".
+  const expensesReady = useBudgetStore((s) => s.expensesReady);
   const summary = useBudgetStore((s) => s.summary);
   const budgetPeriod = useBudgetStore((s) => s.budgetPeriod);
   // The store copy refreshes on every fetch; the prop covers first paint.
@@ -264,7 +268,13 @@ export function ExpenseList({
         </div>
       )}
 
-      {expenses.length === 0 ? (
+      {!expensesReady ? (
+        <div className="space-y-2" aria-busy="true" aria-label="Loading expenses">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : expenses.length === 0 ? (
         <EmptyState
           icon={Receipt}
           title={

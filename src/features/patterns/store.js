@@ -13,9 +13,9 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
  * for a fresh run, and fold the result in — plus carry the feedback and
  * dismissal mutations, which are optimistic with rollback.
  *
- * Nothing here is persisted to localStorage: insights are server truth,
- * and a stale cached copy of "what your life looks like" is worse than a
- * brief skeleton.
+ * The home screen seeds this from a copy saved on the device (see
+ * DiscoveriesScreen) and always re-reads the server straight after, so a
+ * saved feed is on screen for a moment at most — never trusted on its own.
  */
 export const usePatternStore = create((set, get) => ({
   insights: [],

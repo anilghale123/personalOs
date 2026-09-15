@@ -1,26 +1,15 @@
 import { Receipt } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ExpensesScreen } from "@/features/budget/components/budget-screen";
-import {
-  getDateFormat,
-  getEarliestExpenseDate,
-} from "@/features/budget/actions";
-import { getSession } from "@/lib/session";
-import { getEntitlements } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpensesPage() {
-  // The monthly record needs both on first paint: how far back the
-  // history goes, and which calendar to label it in. The plan decides
-  // whether the Pro tools (statement import, voice entry) are shown at all.
-  const session = await getSession();
-  const [earliestDate, dateFormat, { isPro }] = await Promise.all([
-    getEarliestExpenseDate(),
-    getDateFormat(),
-    getEntitlements(session?.user?.id),
-  ]);
-
+/**
+ * Nothing is fetched here: the screen paints from what was saved on this
+ * device and loads the history start, calendar and list in the background.
+ * The Pro flag comes from the app layout.
+ */
+export default function ExpensesPage() {
   return (
     <>
       <PageHeader
@@ -28,7 +17,7 @@ export default async function ExpensesPage() {
         title="Expenses"
         subtitle="Everything you have spent, and where"
       />
-      <ExpensesScreen earliestDate={earliestDate} dateFormat={dateFormat} isPro={isPro} />
+      <ExpensesScreen />
     </>
   );
 }

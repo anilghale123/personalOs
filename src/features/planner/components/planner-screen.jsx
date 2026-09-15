@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAppUser } from "@/components/app-user";
+import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
 import { ExpandToggle, PlannerGoalRow } from "./planner-goal-row";
 import { PlannerHistory } from "./planner-history";
@@ -27,10 +30,30 @@ const GRID_COLS =
   "grid-cols-[var(--planner-cols)] md:grid-cols-[minmax(150px,1.8fr)_repeat(7,minmax(0,1fr))]";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-export function PlannerScreen({ initialWeekStart, initialGoals }) {
+/** Placeholder rows for the very first load, before anything is saved. */
+function GridSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading goals">
+      {Array.from({ length: 3 }).map((_, row) => (
+        <div
+          key={row}
+          className="flex items-center border-b px-3 py-4 last:border-b-0"
+          style={{ opacity: 1 - row * 0.25 }}
+        >
+          <Skeleton className="h-4 w-36" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function PlannerScreen({ initialWeekStart }) {
+  const userId = useAppUser()?.id;
   const [weekStart, setWeekStart] = React.useState(initialWeekStart);
-  const [goals, setGoals] = React.useState(initialGoals || []);
-  const [loading, setLoading] = React.useState(false);
+  const [goals, setGoals] = React.useState([]);
+  // The week `goals` belongs to — null until a saved or fetched copy lands.
+  const [goalsWeek, setGoalsWeek] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(0);
   const [newTitle, setNewTitle] = React.useState("");
   const [view, setView] = React.useState("week");
@@ -47,6 +70,9 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   // a newer optimistic edit (the rapid check/uncheck glitch).
   const pendingRef = React.useRef(new Map());
   const refreshTimer = React.useRef(null);
+  // Bumped by every edit, so a background load that started before one
+  // knows its data is already out of date.
+  const editsRef = React.useRef(0);
 
   // Toggles often come in bursts; history refetches once the burst
   // settles instead of on every single tap.
@@ -57,29 +83,50 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
 
   React.useEffect(() => () => clearTimeout(refreshTimer.current), []);
 
-  const loadWeek = React.useCallback(async (ws) => {
-    weekRef.current = ws;
-    setWeekStart(ws);
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/planner?weekStart=${ws}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      if (weekRef.current === ws) setGoals(data);
-    } catch {
-      toast.error("Could not load that week.");
-    } finally {
-      if (weekRef.current === ws) setLoading(false);
-    }
-  }, []);
+  /**
+   * Show a week: its saved copy straight away, then the server's copy —
+   * applied only if something changed, and never over an edit made while
+   * the request was out.
+   */
+  const loadWeek = React.useCallback(
+    async (ws, { useSaved = true } = {}) => {
+      weekRef.current = ws;
+      setWeekStart(ws);
+      const saved = useSaved ? readSnapshot(userId, `planner:${ws}`) : undefined;
+      if (saved) {
+        setGoals(saved);
+        setGoalsWeek(ws);
+      }
+      setLoading(!saved);
+      const editsAtStart = editsRef.current;
+      try {
+        const res = await fetch(`/api/planner?weekStart=${ws}`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (weekRef.current !== ws || editsRef.current !== editsAtStart) return;
+        setGoals((current) => (sameData(current, data) ? current : data));
+        setGoalsWeek(ws);
+      } catch {
+        // With a saved copy on screen, a failed refresh isn't worth a toast.
+        if (weekRef.current === ws && !saved) toast.error("Could not load that week.");
+      } finally {
+        if (weekRef.current === ws) setLoading(false);
+      }
+    },
+    [userId]
+  );
 
-  // The server renders "today" in its own timezone (UTC on Vercel);
-  // re-anchor to the viewer's actual local week if it differs.
+  // Always the viewer's local week — the server renders "today" in its own
+  // timezone (UTC on Vercel).
   React.useEffect(() => {
-    const localWeek = weekStartKey();
-    if (localWeek !== initialWeekStart) loadWeek(localWeek);
+    loadWeek(weekStartKey());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the saved copy in step with what's on screen, edits included.
+  React.useEffect(() => {
+    if (goalsWeek) writeSnapshot(userId, `planner:${goalsWeek}`, goals);
+  }, [userId, goals, goalsWeek]);
 
   function shiftWeek(deltaWeeks) {
     loadWeek(
@@ -97,6 +144,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
     const title = newTitle.trim();
     if (!title) return;
     const ws = weekStart;
+    editsRef.current += 1;
     setNewTitle("");
     setSaving((n) => n + 1);
     try {
@@ -123,6 +171,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
    */
   const patchGoal = React.useCallback(
     async (goalId, body, optimistic, rollback) => {
+      editsRef.current += 1;
       setGoals((g) => g.map((x) => (x._id === goalId ? optimistic(x) : x)));
       pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 0) + 1);
       setSaving((n) => n + 1);
@@ -141,7 +190,8 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
       } catch {
         setGoals((g) => g.map((x) => (x._id === goalId ? rollback(x) : x)));
         toast.error("Could not save — please try again.");
-        loadWeek(weekRef.current);
+        // Straight from the server: the saved copy still holds the failed edit.
+        loadWeek(weekRef.current, { useSaved: false });
       } finally {
         pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 1) - 1);
         setSaving((n) => n - 1);
@@ -180,6 +230,7 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
   const deleteGoal = React.useCallback(
     async (goalId) => {
       const before = goalsRef.current;
+      editsRef.current += 1;
       setGoals((g) => g.filter((x) => x._id !== goalId));
       try {
         const res = await fetch(`/api/planner/${goalId}`, { method: "DELETE" });
@@ -304,6 +355,8 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
               ? "Pick a week to reopen it."
               : saving > 0
               ? "Saving…"
+              : !goalsWeek
+              ? "Loading your week…"
               : goals.length > 0
               ? `${overall}% completed${
                   isCurrentWeek ? " this week" : isPastWeek ? " that week" : ""
@@ -454,7 +507,9 @@ export function PlannerScreen({ initialWeekStart, initialGoals }) {
             </div>
 
             {/* Goal rows */}
-            {goals.length === 0 ? (
+            {!goalsWeek ? (
+              <GridSkeleton />
+            ) : goals.length === 0 ? (
               <div className="p-6">
                 <EmptyState
                   icon={Target}

@@ -51,11 +51,16 @@ export function useExpenseFilters({ earliestDate, cal }) {
     Boolean(initialFrom || initialTo)
   );
 
-  // Debounced re-fetch whenever any filter changes.
+  // Re-fetch whenever any filter changes. The opening load runs at once —
+  // it paints from the saved copy, so a delay there is pure waiting; only
+  // later changes (typing in search) are debounced.
+  const firstLoad = React.useRef(true);
   React.useEffect(() => {
+    const delay = firstLoad.current ? 0 : 250;
+    firstLoad.current = false;
     const t = setTimeout(() => {
       loadExpenses({ q, categoryId, paymentMethod, dateFrom, dateTo, sort });
-    }, 250);
+    }, delay);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, categoryId, paymentMethod, dateFrom, dateTo, sort]);

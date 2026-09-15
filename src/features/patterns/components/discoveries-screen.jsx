@@ -5,7 +5,10 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ChevronDown, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppUser } from "@/components/app-user";
+import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
 import { usePatternStore } from "../store";
 import { splitFeed } from "../feed";
 import { HeadlineInsight, InsightRow } from "./insight-card";
@@ -20,13 +23,49 @@ import { MoneyBriefing, HabitsBriefing } from "./weekly-briefing";
  * and firing it on every visit meant the whole page waited on the one
  * part of it nobody had asked for yet.
  */
-export function DiscoveriesScreen({ initial, briefing, firstName }) {
+export function DiscoveriesScreen() {
+  const user = useAppUser();
+  const userId = user?.id;
+  const firstName = user?.name?.split(" ")[0] || "there";
   const hydrate = usePatternStore((s) => s.hydrate);
+  const [briefing, setBriefing] = React.useState(null);
+  const [ready, setReady] = React.useState(false);
 
-  // Seed from the server payload before first paint.
+  // The saved copy paints at once; the fetch replaces it only if something
+  // changed since.
   React.useEffect(() => {
-    hydrate(initial);
-  }, [hydrate, initial]);
+    let cancelled = false;
+    const saved = readSnapshot(userId, "home");
+    if (saved) {
+      hydrate(saved.discoveries);
+      setBriefing(saved.briefing);
+      setReady(true);
+    }
+
+    (async () => {
+      try {
+        const res = await fetch("/api/patterns/home");
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (cancelled) return;
+        writeSnapshot(userId, "home", data);
+        if (sameData(saved, data)) return;
+        // A run started meanwhile owns the feed; its own refresh lands it.
+        if (usePatternStore.getState().runStatus !== "running") {
+          hydrate(data.discoveries);
+        }
+        setBriefing(data.briefing);
+      } catch {
+        if (!cancelled && !saved) toast.error("Couldn't load your home screen.");
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrate, userId]);
 
   return (
     <>
@@ -38,14 +77,41 @@ export function DiscoveriesScreen({ initial, briefing, firstName }) {
       </header>
 
       <div className="max-w-[860px] space-y-4">
-        <MoneyBriefing briefing={briefing} />
-        <HabitsBriefing briefing={briefing} />
+        {ready ? (
+          <>
+            <MoneyBriefing briefing={briefing} />
+            <HabitsBriefing briefing={briefing} />
+          </>
+        ) : (
+          <BriefingSkeleton />
+        )}
       </div>
 
-      <div className="max-w-[860px]">
-        <PatternDiscovery />
-      </div>
+      {ready && (
+        <div className="max-w-[860px]">
+          <PatternDiscovery />
+        </div>
+      )}
     </>
+  );
+}
+
+/** Stand-ins for the two briefing cards on the very first visit. */
+function BriefingSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading your briefing">
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          className="space-y-3 rounded-3xl bg-sage-200/60 px-6 py-6 sm:px-[34px]"
+          style={{ opacity: i === 0 ? 1 : 0.75 }}
+        >
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-3.5 w-full max-w-md" />
+          <Skeleton className="h-3.5 w-3/4 max-w-sm" />
+        </div>
+      ))}
+    </div>
   );
 }
 

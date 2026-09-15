@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
 import { useBudgetStore } from "../store";
 import { goalTotals } from "../utils";
@@ -201,6 +202,7 @@ function GoalCard({ goal, onEdit, onContribute }) {
 /** Savings goals — what the money is for once it stops being spent. */
 export function FinancialGoalsTab() {
   const goals = useBudgetStore((s) => s.financialGoals);
+  const ready = useBudgetStore((s) => s.moneyReady);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [contributeTo, setContributeTo] = React.useState(null);
@@ -270,7 +272,12 @@ export function FinancialGoalsTab() {
         </div>
       )}
 
-      {goals.length === 0 ? (
+      {!ready ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading savings goals">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      ) : goals.length === 0 ? (
         <EmptyState
           icon={PiggyBank}
           title="No savings goals yet"

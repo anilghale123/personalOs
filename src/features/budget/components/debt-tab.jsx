@@ -18,6 +18,7 @@ import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
 import { useBudgetStore } from "../store";
 import { debtTotals } from "../utils";
@@ -256,6 +257,7 @@ function DebtCard({ debt, onEdit, onRecord }) {
 /** Debt tab — what you owe, what you have paid off, and what is left. */
 export function DebtTab() {
   const debts = useBudgetStore((s) => s.debts);
+  const ready = useBudgetStore((s) => s.moneyReady);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [entryFor, setEntryFor] = React.useState(null);
@@ -330,7 +332,12 @@ export function DebtTab() {
         </div>
       )}
 
-      {debts.length === 0 ? (
+      {!ready ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading debts">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      ) : debts.length === 0 ? (
         <EmptyState
           icon={HandCoins}
           title="No debts tracked"

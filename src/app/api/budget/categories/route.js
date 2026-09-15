@@ -3,6 +3,7 @@ import { z, optionalObjectId, text, optionalText } from "@/lib/validation";
 import { cachedReference, invalidateMoney, tags } from "@/lib/cache";
 import Category from "@/models/Category";
 import { CATEGORY_TYPES } from "@/features/budget/constants";
+import { ensureDefaultCategories } from "@/features/budget/actions";
 
 const TYPES = CATEGORY_TYPES.map((t) => t.id);
 
@@ -19,6 +20,9 @@ const hexColor = z
  * screen, and every expense row needs it to render an icon and colour.
  */
 export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
+  // A brand-new account gets its starter set here — the Money layout that
+  // used to seed it no longer fetches anything. Cached, so a no-op after.
+  await ensureDefaultCategories();
   const categories = await cachedReference(
     () =>
       Category.find({ userId })
