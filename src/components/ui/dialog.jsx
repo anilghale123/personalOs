@@ -29,13 +29,15 @@ const DialogContent = React.forwardRef(
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg rounded-xl data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
+          // A gutter on phones, and never taller than the screen — long
+          // forms scroll inside the dialog instead of running off it.
+          "fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain border bg-background p-5 shadow-lg rounded-xl sm:p-6 data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
           className
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none">
+        <DialogPrimitive.Close className="absolute right-2.5 top-2.5 rounded-sm p-1.5 opacity-70 transition-opacity hover:opacity-100 focus:outline-none sm:right-3 sm:top-3">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>

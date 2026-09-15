@@ -38,10 +38,23 @@ const MAX_LENGTH = 4000;
  *
  * The route and viewport are attached automatically: nobody accurately
  * recalls which screen they were on.
+ *
+ * Pass `open`/`onOpenChange` to drive it from outside — e.g. from a sheet
+ * that closes itself first — in which case no trigger is rendered unless
+ * one is given.
  */
-export function FeedbackDialog({ trigger, className, signedIn = true }) {
+export function FeedbackDialog({
+  trigger,
+  className,
+  signedIn = true,
+  open: openProp,
+  onOpenChange,
+}) {
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : uncontrolledOpen;
+  const setOpen = controlled ? onOpenChange : setUncontrolledOpen;
   const [kind, setKind] = React.useState("bug");
   const [message, setMessage] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -85,14 +98,16 @@ export function FeedbackDialog({ trigger, className, signedIn = true }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button variant="ghost" size="sm" className={cn("gap-2", className)}>
-            <MessageSquarePlus className="h-4 w-4" />
-            Send feedback
-          </Button>
-        )}
-      </DialogTrigger>
+      {(!controlled || trigger) && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button variant="ghost" size="sm" className={cn("gap-2", className)}>
+              <MessageSquarePlus className="h-4 w-4" />
+              Send feedback
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

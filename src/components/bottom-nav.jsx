@@ -15,7 +15,9 @@ import {
   X,
   User,
   Sparkles,
+  MessageSquarePlus,
 } from "lucide-react";
+import { FeedbackDialog } from "@/features/feedback/feedback-dialog";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/brand-mark";
 import { ProBadge } from "@/components/pro-badge";
@@ -56,6 +58,7 @@ export function BottomNav({ user }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
 
   // Discoveries is a tab of its own now, so "More" lights up purely for
   // the sections that live in the sheet.
@@ -171,6 +174,17 @@ export function BottomNav({ user }) {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setMoreOpen(false);
+                  setFeedbackOpen(true);
+                }}
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
+              >
+                <MessageSquarePlus className="h-5 w-5" />
+                Send feedback
+              </button>
+              <button
+                type="button"
                 onClick={() => signOutEverywhere({ callbackUrl: "/login" })}
                 className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
               >
@@ -188,6 +202,10 @@ export function BottomNav({ user }) {
         user={user}
         onUpdated={() => {}}
       />
+
+      {/* Lives outside the More sheet so closing the sheet doesn't take
+          the dialog down with it. */}
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   );
 }

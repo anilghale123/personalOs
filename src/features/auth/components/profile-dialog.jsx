@@ -214,8 +214,9 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="profile">
-          <TabsList>
+        <Tabs defaultValue="profile" className="min-w-0">
+          {/* Four tabs don't fit a phone in one row — they wrap to a 2×2. */}
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 [&>button]:gap-1.5">
             <TabsTrigger value="profile">
               <UserIcon className="h-3.5 w-3.5" />
               Profile
@@ -236,11 +237,11 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
 
           <TabsContent value="profile" className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-lg font-semibold uppercase">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-lg font-semibold uppercase">
                 {(profile?.name || user?.name || "U").charAt(0)}
               </div>
-              <div>
-                <p className="text-sm font-medium">{profile?.email || user?.email}</p>
+              <div className="min-w-0">
+                <p className="break-all text-sm font-medium">{profile?.email || user?.email}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline" className="capitalize">
                     {profile?.provider || "credentials"} account
@@ -259,6 +260,7 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 <Button
                   type="submit"
                   size="sm"
+                  className="w-full sm:w-auto"
                   disabled={savingName || !name.trim() || name.trim() === profile?.name}
                 >
                   {savingName && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -306,7 +308,12 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 autoComplete="new-password"
               />
               <DialogFooter>
-                <Button type="submit" size="sm" disabled={savingPassword}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  disabled={savingPassword}
+                >
                   {savingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
                   {profile?.hasPassword ? "Change password" : "Set password"}
                 </Button>
