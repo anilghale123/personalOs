@@ -12,6 +12,7 @@ import { invalidateMoney } from "@/lib/cache";
 import Expense from "@/models/Expense";
 import Category from "@/models/Category";
 import { PAYMENT_METHODS, RECURRENCE_FREQUENCIES } from "@/features/budget/constants";
+import { toExpenseDTO } from "@/features/budget/dto";
 
 const PAYMENT_IDS = PAYMENT_METHODS.map((p) => p.id);
 const FREQ_IDS = RECURRENCE_FREQUENCIES.map((f) => f.id);
@@ -79,7 +80,7 @@ export const PATCH = withRoute(
 
     invalidateMoney(userId);
 
-    return json(expense);
+    return json(toExpenseDTO(expense));
   }
 );
 
@@ -97,6 +98,6 @@ export const DELETE = withRoute(
 
     invalidateMoney(userId);
 
-    return json(expense);
+    return json(toExpenseDTO(expense));
   }
 );

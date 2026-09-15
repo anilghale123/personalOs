@@ -30,6 +30,7 @@
     "mongoose": "^9.6.2",
     "next": "14.2.35",
     "next-auth": "^5.0.0-beta.31",
+    "nodemailer": "^7.0.13",
     "papaparse": "^5.5.3",
     "react": "^18",
     "react-dom": "^18",
@@ -37,6 +38,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.2",
     "zustand": "^5.0.13"
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Info, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useBudgetStore } from "../store";
@@ -8,6 +9,7 @@ import { ExpenseList } from "./expense-list";
 import { ExpenseFilterPanel } from "./expense-filter-panel";
 import { useExpenseFilters } from "./expense-filters";
 import { CategoryManager } from "./category-manager";
+import { IncomeList } from "./income-list";
 
 const HINT_KEY = "budget-hint-dismissed";
 
@@ -43,19 +45,22 @@ function BudgetHint() {
   );
 }
 
-export function ExpensesScreen({ earliestDate, dateFormat }) {
+export function ExpensesScreen({ earliestDate, dateFormat, isPro = false }) {
   const categories = useBudgetStore((s) => s.categories);
   const cal = dateFormat === "nepali" ? "np" : "en";
   // Owned here, not in the list: the filters live in their own tab, so the
   // list is unmounted while they are being changed.
   const filters = useExpenseFilters({ earliestDate, cal });
+  // `?tab=income` — where a deposits-only statement import lands.
+  const initialTab = useSearchParams().get("tab") === "income" ? "income" : "expenses";
 
   return (
     <div className="space-y-4">
       <BudgetHint />
-      <Tabs defaultValue="expenses">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="income">Income</TabsTrigger>
           <TabsTrigger value="filter">Filter</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
         </TabsList>
@@ -66,7 +71,13 @@ export function ExpensesScreen({ earliestDate, dateFormat }) {
             earliestDate={earliestDate}
             dateFormat={dateFormat}
             filters={filters}
+            isPro={isPro}
           />
+        </TabsContent>
+
+        <TabsContent value="income">
+          {/* Shares the expense list's date range, so both tabs show the same month. */}
+          <IncomeList filters={filters} cal={cal} isPro={isPro} />
         </TabsContent>
 
         <TabsContent value="filter">

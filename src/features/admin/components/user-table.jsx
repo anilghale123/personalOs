@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ROLE_LABELS, ROLE_ORDER, canActOn } from "@/lib/roles";
+import { PLANS, PLAN_LABELS } from "@/lib/plans";
 
 /** Coarse relative time — an admin table needs "when", not "exactly when". */
 function ago(iso) {
@@ -85,7 +86,12 @@ export function UserTable({
       setUsers((list) =>
         list.map((u) =>
           u.id === id
-            ? { ...u, role: data.user.role, isSuspended: data.user.isSuspended }
+            ? {
+                ...u,
+                role: data.user.role,
+                plan: data.user.plan,
+                isSuspended: data.user.isSuspended,
+              }
             : u
         )
       );
@@ -132,13 +138,14 @@ export function UserTable({
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-border bg-background">
-        <table className="w-full min-w-[780px] text-sm">
+        <table className="w-full min-w-[880px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-2.5 font-medium">User</th>
               <th className="px-4 py-2.5 font-medium">Sign-in</th>
               <th className="px-4 py-2.5 font-medium">Joined</th>
               <th className="px-4 py-2.5 font-medium">Last active</th>
+              <th className="px-4 py-2.5 font-medium">Plan</th>
               <th className="px-4 py-2.5 font-medium">Role</th>
               <th className="px-4 py-2.5 text-right font-medium">Actions</th>
             </tr>
@@ -147,7 +154,7 @@ export function UserTable({
             {users.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   No accounts match that search.
@@ -218,6 +225,34 @@ export function UserTable({
                     >
                       {ago(u.lastLoginAt)}
                     </span>
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {manageable ? (
+                      <Select
+                        className="h-8 w-24"
+                        value={u.plan ?? "free"}
+                        disabled={busy}
+                        onChange={(e) =>
+                          patchUser(
+                            u.id,
+                            { plan: e.target.value },
+                            `${u.name} is now on ${PLAN_LABELS[e.target.value]}.`
+                          )
+                        }
+                        aria-label={`Plan for ${u.name}`}
+                      >
+                        {PLANS.map((plan) => (
+                          <option key={plan} value={plan}>
+                            {PLAN_LABELS[plan]}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {PLAN_LABELS[u.plan] ?? "Free"}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-4 py-3">

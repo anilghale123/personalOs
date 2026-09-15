@@ -267,7 +267,7 @@ export async function listUsers({ q, role, limit = 25, skip = 0 } = {}) {
     User.find(filter)
       // Never select passwordHash — it has no business leaving the database,
       // and an admin screen is not an exception.
-      .select("name email image provider linkedProviders role isSuspended createdAt lastLoginAt")
+      .select("name email image provider linkedProviders role plan isSuspended createdAt lastLoginAt")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Math.min(limit, 100))
@@ -284,6 +284,7 @@ export async function listUsers({ q, role, limit = 25, skip = 0 } = {}) {
       provider: u.provider ?? "credentials",
       linkedProviders: u.linkedProviders ?? [],
       role: u.role ?? "user",
+      plan: u.plan ?? "free",
       isSuspended: Boolean(u.isSuspended),
       createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null,
       lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null,

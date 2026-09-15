@@ -16,6 +16,7 @@ import {
 import { periodRange } from "./utils";
 import { computeBudgetSummary, userCalendar } from "./summary";
 import { plain } from "@/lib/serialize";
+import { toExpenseDTO } from "./dto";
 
 // Shared with the client store and the API route — see ./constants.
 const PAGE_SIZE = EXPENSE_PAGE_SIZE;
@@ -141,7 +142,7 @@ export async function getExpenses(filters = {}) {
   const count = aggregate[0]?.count ?? 0;
 
   return {
-    expenses: plain(expenses),
+    expenses: expenses.map(toExpenseDTO),
     totalPaisa,
     count,
     hasMore: expenses.length < count,

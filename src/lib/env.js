@@ -64,9 +64,17 @@ const RECOMMENDED = [
       "The NEPSE cron route rejects every call, so prices stop updating.",
   },
   {
-    key: "RESEND_API_KEY",
+    // SMTP is preferred; Resend is the alternative. Either one satisfies this.
+    key: "SMTP_HOST",
+    alternates: ["RESEND_API_KEY"],
     effect:
-      "Password reset emails cannot be sent, so a locked-out user has no way back in.",
+      "Password reset codes cannot be emailed, so a locked-out user has no way back in.",
+  },
+  {
+    key: "SMTP_FROM",
+    alternates: ["EMAIL_FROM"],
+    effect:
+      "Emails go out from a placeholder sender address, which most providers reject.",
   },
   {
     key: "UPSTASH_REDIS_REST_URL",

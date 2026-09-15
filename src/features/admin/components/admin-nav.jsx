@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/sysadmin", label: "Dashboard", exact: true },
   { href: "/sysadmin/users", label: "Users" },
+  { href: "/sysadmin/feedback", label: "Feedback" },
   { href: "/sysadmin/features", label: "Feature usage" },
 ];
 

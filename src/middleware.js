@@ -46,6 +46,9 @@ const PUBLIC_API = [
   "/api/auth", // NextAuth's own endpoints
   "/api/register",
   "/api/password-reset",
+  // Signed-out visitors can send feedback; the route attaches a user id
+  // itself when a session exists.
+  "/api/feedback",
   "/api/health",
   "/api/cron", // guarded by CRON_SECRET instead
 ];
@@ -96,10 +99,11 @@ function applySecurityHeaders(response) {
   headers.set("X-Content-Type-Options", "nosniff");
   // Don't leak the full URL of a financial app in referrers.
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  // Nothing here needs a camera, mic or location.
+  // The microphone is allowed for our own origin only (voice quick-add);
+  // nothing needs a camera or location.
   headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=()"
+    "camera=(), microphone=(self), geolocation=(), payment=()"
   );
   headers.set("X-DNS-Prefetch-Control", "off");
   headers.set("Content-Security-Policy-Report-Only", contentSecurityPolicy());

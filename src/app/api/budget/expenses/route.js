@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation";
 import { toDateKey } from "@/lib/utils";
 import { buildExpenseFilter } from "@/features/budget/expense-filter";
+import { toExpenseDTO } from "@/features/budget/dto";
 import { cachedMoney, invalidateMoney, tags } from "@/lib/cache";
 import Expense from "@/models/Expense";
 import Category from "@/models/Category";
@@ -67,6 +68,7 @@ export const GET = withRoute(
 
     const [expenses, aggregate, earliest] = await Promise.all([
       Expense.find(filter)
+        .select(toExpenseDTO.fields.join(" "))
         .sort(SORTS[query.sort])
         .skip(query.skip)
         .limit(query.limit)
@@ -107,7 +109,7 @@ export const GET = withRoute(
     const matchCount = aggregate[0]?.count ?? 0;
 
     return json({
-      expenses,
+      expenses: expenses.map(toExpenseDTO),
       totalPaisa,
       // Pagination metadata, matching the shape the journal routes already
       // use so client code can share one helper.
@@ -122,6 +124,8 @@ export const GET = withRoute(
 
 const CreateExpense = z.object({
   amount: amountMajor,
+  /** How the entry was captured — voice quick-add sends "voice". */
+  source: z.enum(["manual", "voice"]).optional(),
   categoryId: objectId,
   date: optionalDateKey,
   note: optionalText(500),
@@ -176,12 +180,13 @@ export const POST = withRoute(
       tags: input.tags ?? [],
       isRecurring: Boolean(input.isRecurring),
       recurrence: input.isRecurring ? input.recurrence : undefined,
+      source: input.source ?? "manual",
     });
 
     // Same request as the write, so the client's next read cannot see a
     // stale total. See the tier note in lib/cache.js.
     invalidateMoney(userId);
 
-    return json(expense, { status: 201 });
+    return json(toExpenseDTO(expense.toObject()), { status: 201 });
   }
 );

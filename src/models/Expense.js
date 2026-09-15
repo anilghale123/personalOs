@@ -49,6 +49,16 @@ const ExpenseSchema = new mongoose.Schema(
     },
     // Soft-delete powers the undo toast instead of a confirm dialog.
     deletedAt: { type: Date, default: null },
+    /**
+     * How the entry was captured: typed, spoken, or imported from a bank
+     * statement (`import:<bank>`). Absent on older documents, read as manual.
+     */
+    source: { type: String, trim: true, maxlength: 40 },
+    /**
+     * Statement-import dedupe key (date + amount + direction + normalised
+     * description + occurrence). Only imported rows carry one.
+     */
+    fingerprint: { type: String },
   },
   { timestamps: true }
 );
@@ -61,6 +71,12 @@ ExpenseSchema.index({ userId: 1, deletedAt: 1, date: -1 });
 ExpenseSchema.index({ userId: 1, deletedAt: 1, categoryId: 1, date: -1 });
 // Sorting the list by amount within a filtered window.
 ExpenseSchema.index({ userId: 1, deletedAt: 1, amountPaisa: -1 });
+// Re-importing a statement looks these up in bulk. Partial, so the manual
+// entries (the vast majority) cost nothing in the index.
+ExpenseSchema.index(
+  { userId: 1, fingerprint: 1 },
+  { partialFilterExpression: { fingerprint: { $type: "string" } } }
+);
 
 export default mongoose.models.Expense ||
   mongoose.model("Expense", ExpenseSchema);

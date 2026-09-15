@@ -2,45 +2,78 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CircleDot, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { CircleDot, Loader2, MailCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /** Matches the server's minimum so the form fails before a round trip. */
 const MIN_PASSWORD = 10;
+const CODE_LENGTH = 6;
+/** Mirrors RESEND_COOLDOWN_SEC on the server. */
+const RESEND_COOLDOWN_SEC = 60;
+const EXPIRY_MINUTES = 15;
 
-/** Why a link is no longer usable, in words the user can act on. */
-const DEAD_LINK = {
-  unknown: "This reset link isn't valid. It may have been mistyped or already replaced by a newer one.",
-  used: "This link has already been used. If you still need to change your password, request a new link.",
-  expired: "This link has expired. Reset links are valid for 30 minutes — request a fresh one below.",
-};
+async function postJson(method, body) {
+  const res = await fetch("/api/password-reset", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || "Something went wrong. Please try again.");
+    err.code = data.code;
+    throw err;
+  }
+  return data;
+}
 
 /**
- * Two screens in one component, chosen by whether the URL carries a token:
- * "email me a link" and "choose a new password".
+ * Forgot password, in two steps on one screen: "email me a code", then
+ * "enter the code and a new password".
  */
 export function ResetPasswordForm() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const token = searchParams.get("token");
+  const [email, setEmail] = React.useState("");
+  const [step, setStep] = React.useState("request");
+  const [cooldown, setCooldown] = React.useState(0);
 
-  return token ? (
-    <ChoosePassword token={token} router={router} />
+  React.useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function requestCode(address) {
+    await postJson("POST", { email: address });
+    setCooldown(RESEND_COOLDOWN_SEC);
+  }
+
+  return step === "request" ? (
+    <RequestCode
+      email={email}
+      setEmail={setEmail}
+      onSent={async () => {
+        await requestCode(email);
+        setStep("verify");
+      }}
+    />
   ) : (
-    <RequestLink />
+    <VerifyCode
+      email={email}
+      cooldown={cooldown}
+      onResend={() => requestCode(email)}
+      onChangeEmail={() => setStep("request")}
+    />
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-function RequestLink() {
-  const [email, setEmail] = React.useState("");
+function RequestCode({ email, setEmail, onSent }) {
   const [busy, setBusy] = React.useState(false);
-  const [sent, setSent] = React.useState(false);
   const [error, setError] = React.useState("");
 
   async function submit(e) {
@@ -48,14 +81,7 @@ function RequestLink() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/password-reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Could not send the reset email.");
-      setSent(true);
+      await onSent();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -63,35 +89,10 @@ function RequestLink() {
     }
   }
 
-  if (sent) {
-    return (
-      <Shell
-        title="Check your email"
-        subtitle="If an account exists for that address, a reset link is on its way. It expires in 30 minutes."
-      >
-        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
-          <p>
-            Nothing after a few minutes? Check your spam folder, then{" "}
-            <button
-              type="button"
-              onClick={() => setSent(false)}
-              className="font-medium text-foreground underline underline-offset-2"
-            >
-              try a different address
-            </button>
-            .
-          </p>
-        </div>
-        <BackToLogin />
-      </Shell>
-    );
-  }
-
   return (
     <Shell
       title="Reset your password"
-      subtitle="Enter the email you signed up with and we'll send you a link to choose a new password."
+      subtitle="Enter the email you signed up with and we'll send you a 6-digit code."
     >
       <form onSubmit={submit} className="space-y-4">
         {error && <FormError>{error}</FormError>}
@@ -110,7 +111,7 @@ function RequestLink() {
         </div>
         <Button type="submit" className="w-full" disabled={busy || !email}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-          Send reset link
+          Send code
         </Button>
       </form>
       <BackToLogin />
@@ -120,44 +121,21 @@ function RequestLink() {
 
 /* ------------------------------------------------------------------ */
 
-function ChoosePassword({ token, router }) {
-  const [status, setStatus] = React.useState("checking");
-  const [deadReason, setDeadReason] = React.useState(null);
-  const [form, setForm] = React.useState({ password: "", confirm: "" });
+function VerifyCode({ email, cooldown, onResend, onChangeEmail }) {
+  const router = useRouter();
+  const [form, setForm] = React.useState({ code: "", password: "", confirm: "" });
   const [busy, setBusy] = React.useState(false);
+  const [resending, setResending] = React.useState(false);
   const [error, setError] = React.useState("");
 
-  // Check the link before asking anyone to type a password twice for nothing.
-  React.useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/password-reset?token=${encodeURIComponent(token)}`
-        );
-        const data = await res.json().catch(() => ({}));
-        if (!active) return;
-        if (data.valid) setStatus("ready");
-        else {
-          setDeadReason(data.reason || "unknown");
-          setStatus("dead");
-        }
-      } catch {
-        if (active) {
-          setDeadReason("unknown");
-          setStatus("dead");
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [token]);
-
+  const codeValid = new RegExp(`^\\d{${CODE_LENGTH}}$`).test(form.code);
   const tooShort = form.password.length > 0 && form.password.length < MIN_PASSWORD;
   const mismatch = form.confirm.length > 0 && form.password !== form.confirm;
   const canSubmit =
-    form.password.length >= MIN_PASSWORD && form.password === form.confirm && !busy;
+    codeValid &&
+    form.password.length >= MIN_PASSWORD &&
+    form.password === form.confirm &&
+    !busy;
 
   async function submit(e) {
     e.preventDefault();
@@ -165,49 +143,63 @@ function ChoosePassword({ token, router }) {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/password-reset", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password: form.password }),
+      await postJson("PUT", {
+        email,
+        code: form.code,
+        newPassword: form.password,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Could not change your password.");
       toast.success("Password changed. Sign in with your new password.");
       router.push("/login");
     } catch (err) {
       setError(err.message);
+      if (err.code === "invalid_code") setForm((f) => ({ ...f, code: "" }));
       setBusy(false);
     }
   }
 
-  if (status === "checking") {
-    return (
-      <Shell title="Reset your password" subtitle="Checking your link…">
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      </Shell>
-    );
-  }
-
-  if (status === "dead") {
-    return (
-      <Shell title="This link no longer works" subtitle={DEAD_LINK[deadReason]}>
-        <Button asChild className="w-full">
-          <Link href="/reset-password">Request a new link</Link>
-        </Button>
-        <BackToLogin />
-      </Shell>
-    );
+  async function resend() {
+    setResending(true);
+    setError("");
+    try {
+      await onResend();
+      toast.success("If that account exists, a new code is on its way.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResending(false);
+    }
   }
 
   return (
     <Shell
-      title="Choose a new password"
-      subtitle={`At least ${MIN_PASSWORD} characters. Signing in elsewhere will be logged out.`}
+      title="Check your email"
+      subtitle={`If an account exists for ${email}, we sent a ${CODE_LENGTH}-digit code. It expires in ${EXPIRY_MINUTES} minutes.`}
     >
       <form onSubmit={submit} className="space-y-4">
         {error && <FormError>{error}</FormError>}
+
+        <div className="space-y-2">
+          <Label htmlFor="reset-code">Code</Label>
+          <Input
+            id="reset-code"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={CODE_LENGTH}
+            required
+            autoFocus
+            placeholder="123456"
+            value={form.code}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                code: e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH),
+              }))
+            }
+            className="h-12 text-center font-mono text-xl tracking-[0.5em]"
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="new-password">New password</Label>
           <Input
@@ -226,6 +218,7 @@ function ChoosePassword({ token, router }) {
             </p>
           )}
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="confirm-password">Confirm password</Label>
           <Input
@@ -243,11 +236,40 @@ function ChoosePassword({ token, router }) {
             </p>
           )}
         </div>
+
         <Button type="submit" className="w-full" disabled={!canSubmit}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           Change password
         </Button>
       </form>
+
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+        <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
+        <p>
+          Nothing yet? Check spam, then{" "}
+          {cooldown > 0 ? (
+            <span className="tabular-nums">resend in {cooldown}s</span>
+          ) : (
+            <button
+              type="button"
+              onClick={resend}
+              disabled={resending}
+              className="font-medium text-foreground underline underline-offset-2 disabled:opacity-50"
+            >
+              {resending ? "sending…" : "send a new code"}
+            </button>
+          )}{" "}
+          or{" "}
+          <button
+            type="button"
+            onClick={onChangeEmail}
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            use a different email
+          </button>
+          . Signing in elsewhere will be logged out after the change.
+        </p>
+      </div>
       <BackToLogin />
     </Shell>
   );

@@ -8,8 +8,8 @@ export const metadata = {
 };
 
 /**
- * Password reset — both halves of the flow. Without `?token` it asks for an
- * email; with one it validates the link and collects a new password.
+ * Password reset — both halves of the flow: request a 6-digit code by email,
+ * then enter it with a new password.
  *
  * Already signed in? There is nothing to recover, so send them to the
  * profile dialog's change-password path instead of a reset they don't need.

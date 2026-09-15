@@ -58,6 +58,12 @@ const UserSchema = new mongoose.Schema(
      * which is the right tool for abuse: deleting someone's financial history
      * to stop them spamming is a wildly disproportionate response.
      */
+    /**
+     * Subscription plan. Pro unlocks bank statement import (see
+     * lib/plans.js). Absent on older accounts, which read as free. Set by an
+     * admin or via the PRO_EMAILS allowlist — never from a user payload.
+     */
+    plan: { type: String, enum: ["free", "pro"], default: "free" },
     isSuspended: { type: Boolean, default: false },
     suspendedAt: { type: Date, default: null },
     suspendedReason: { type: String, trim: true },

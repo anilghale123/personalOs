@@ -1,48 +1,29 @@
 import bcrypt from "bcryptjs";
-import { withRoute, json, badRequest } from "@/lib/api";
+import { withRoute, json, badRequest, tooMany, ApiError } from "@/lib/api";
 import { z, email as emailSchema, password as passwordSchema } from "@/lib/validation";
-import { clientIp } from "@/lib/rate-limit";
-import { sendEmail, passwordResetEmail } from "@/lib/mailer";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { sendEmail, passwordResetCodeEmail } from "@/lib/mailer";
 import { log } from "@/lib/logger";
 import { revokeSessions } from "@/lib/auth";
 import User from "@/models/User";
 import {
+  CODE_LENGTH,
   RESET_EXPIRY_MINUTES,
-  claimResetToken,
-  inspectResetToken,
-  invalidateUserTokens,
-  issueResetToken,
+  consumeResetCode,
+  invalidateUserCodes,
+  issueResetCode,
 } from "@/features/auth/reset-service";
 
 /**
- * The response every request to this endpoint gets, whether or not the
- * email exists. Identical body, identical status, and — because the work
- * done differs — a deliberate note that timing is not defended here beyond
- * the rate limit.
- */
-const NEUTRAL = {
-  ok: true,
-  message:
-    "If an account exists for that email, a reset link is on its way. Check your inbox and spam folder.",
-};
-
-/** Absolute origin for the link in the email. */
-function resolveOrigin(request) {
-  const configured = process.env.NEXTAUTH_URL || process.env.AUTH_URL;
-  if (configured) return configured.replace(/\/$/, "");
-  const host = request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-  return `${proto}://${host}`;
-}
-
-/**
- * POST /api/password-reset — request a reset link.
+ * POST /api/password-reset — email a 6-digit reset code.
  *
- * Rate limited per IP *and* per email address: the per-IP limit stops one
- * machine enumerating many addresses, the per-email limit stops many
- * machines mailbombing one person.
+ * Body: { email }  →  { ok: true }
  *
- * Body: { email }
+ * The response is identical whether or not the account exists, and whether
+ * or not a code was actually sent (the per-account cooldown also answers
+ * `{ ok: true }`). Rate limited per IP by `withRoute` and per address here:
+ * the first stops one machine enumerating many addresses, the second stops
+ * many machines mailbombing one person.
  */
 export const POST = withRoute(
   {
@@ -51,117 +32,94 @@ export const POST = withRoute(
     body: z.object({ email: emailSchema }),
   },
   async ({ input, request }) => {
-    const issued = await issueResetToken(input.email, { ip: clientIp(request) });
-
-    // No account, or a Google-only account. Respond exactly as if a mail
-    // had been sent — this is the whole point of the neutral response.
-    if (!issued) {
-      log.info("Password reset requested for unresettable address");
-      return json(NEUTRAL);
+    const perEmail = await rateLimit(input.email, "passwordReset", "email");
+    if (!perEmail.allowed) {
+      // Applies to any address, registered or not, so it leaks nothing.
+      throw tooMany(
+        "Too many codes requested for this email. Please wait a while and try again.",
+        perEmail.retryAfterSec
+      );
     }
 
-    const url = `${resolveOrigin(request)}/reset-password?token=${encodeURIComponent(issued.token)}`;
+    const issued = await issueResetCode(input.email, { ip: clientIp(request) });
+    if (!issued) return json({ ok: true });
 
     try {
       await sendEmail(
-        passwordResetEmail({
+        passwordResetCodeEmail({
           to: issued.user.email,
           name: issued.user.name,
-          url,
+          code: issued.code,
           expiryMinutes: RESET_EXPIRY_MINUTES,
         })
       );
     } catch (err) {
       // A delivery failure must not be reported as success — the user would
-      // sit waiting for an email that is never coming. This is the one case
-      // where the response differs, and it reveals nothing about the
-      // account, only about our mail provider.
+      // wait for an email that is never coming. Burn the unsent code so a
+      // retry is not blocked by the cooldown's "one live code" rule.
+      await invalidateUserCodes(issued.user._id);
       log.error("Password reset email failed to send", { message: err.message });
       throw badRequest(
         "We could not send the reset email just now. Please try again in a few minutes."
       );
     }
 
-    log.info("Password reset email sent", { userId: String(issued.user._id) });
-    return json(NEUTRAL);
+    log.info("Password reset code sent", { userId: String(issued.user._id) });
+    return json({ ok: true });
   }
 );
 
 /**
- * GET /api/password-reset?token=… — is this link still good?
+ * PUT /api/password-reset — verify the code and set the new password.
  *
- * Lets the reset page render "this link has expired" before asking someone
- * to type a new password twice for nothing.
- */
-export const GET = withRoute(
-  {
-    auth: false,
-    // Not the send limit: checking a link must not consume the budget for
-    // requesting one. See the note on `passwordResetToken` in rate-limit.js.
-    limit: "passwordResetToken",
-    query: z.object({ token: z.string().min(1, "That reset link is missing its token.").max(200) }),
-  },
-  async ({ query }) => {
-    const result = await inspectResetToken(query.token);
-    return json(result);
-  }
-);
-
-/**
- * PUT /api/password-reset — consume the token and set the password.
+ * Body: { email, code, newPassword }  →  { ok: true }
+ * Failure: 400 `{ error, code: "invalid_code" }` for every kind of bad code
+ * (wrong, expired, used, too many attempts, unknown email) — one answer, so
+ * it reveals nothing about the account.
  *
- * On success: the token is burned, every *other* outstanding token for the
- * account is burned with it, the lockout counter is cleared, and all
- * existing sessions are revoked. That last one matters — resetting a
- * password because you think someone is in your account has to actually
- * remove them.
- *
- * Body: { token, password }
+ * On success the code is burned, the lockout counter cleared, and every
+ * existing session revoked: resetting because you think someone is in your
+ * account has to actually remove them.
  */
 export const PUT = withRoute(
   {
     auth: false,
-    // Same reasoning as GET — a user who mistypes their new password twice
-    // must still be able to complete the reset they were sent.
+    // Not the send limit — someone who mistypes a code must still be able to
+    // finish. Guessing is bounded per code in reset-service, not here.
     limit: "passwordResetToken",
     body: z.object({
-      // Explicit message: zod's default ("Too small: expected string to have
-      // >=1 characters") is internal phrasing, not something to show a user.
-      token: z.string().min(1, "That reset link is missing its token.").max(200),
-      password: passwordSchema,
+      email: emailSchema,
+      code: z
+        .string()
+        .trim()
+        .regex(new RegExp(`^\\d{${CODE_LENGTH}}$`), `Enter the ${CODE_LENGTH}-digit code from the email.`),
+      newPassword: passwordSchema,
     }),
   },
   async ({ input }) => {
-    const claimed = await claimResetToken(input.token);
+    const claimed = await consumeResetCode(input.email, input.code);
     if (!claimed) {
-      throw badRequest(
-        "That reset link is invalid or has expired. Request a new one and try again."
+      throw new ApiError(
+        400,
+        "That code is invalid or has expired. Check the latest email or request a new code.",
+        "invalid_code"
       );
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 12);
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
 
     await User.updateOne(
       { _id: claimed.userId },
       {
-        $set: {
-          passwordHash,
-          failedLoginCount: 0,
-          lockedUntil: null,
-        },
-        // Credentials now work for this account even if it began as Google.
+        $set: { passwordHash, failedLoginCount: 0, lockedUntil: null },
         $addToSet: { linkedProviders: "credentials" },
       }
     );
 
-    await invalidateUserTokens(claimed.userId);
+    await invalidateUserCodes(claimed.userId);
     await revokeSessions(claimed.userId);
 
     log.info("Password reset completed", { userId: claimed.userId });
-
-    return json({
-      ok: true,
-      message: "Your password has been changed. You can sign in with it now.",
-    });
+    return json({ ok: true });
   }
 );

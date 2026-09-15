@@ -4,6 +4,7 @@ import { CircleDot, Compass, Wallet, Leaf, Sparkles } from "lucide-react";
 import { isGoogleEnabled } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
+import { FeedbackDialog } from "@/features/feedback/feedback-dialog";
 
 const FEATURES = [
   { icon: Compass, label: "Goals & habit tracking" },
@@ -60,10 +61,12 @@ export default async function LoginPage() {
       </div>
 
       {/* Form panel */}
-      <div className="flex items-center justify-center px-6 py-12">
+      <div className="flex flex-col items-center justify-center gap-6 px-6 py-12">
         <Suspense fallback={null}>
           <LoginForm googleEnabled={isGoogleEnabled} />
         </Suspense>
+        {/* Signed-out feedback: sign-in trouble is exactly what we need to hear about. */}
+        <FeedbackDialog signedIn={false} className="text-muted-foreground" />
       </div>
     </div>
   );

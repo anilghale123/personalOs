@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
+  FileUp,
   Plus,
   Receipt,
   Search,
@@ -29,6 +31,7 @@ import { useBudgetStore } from "../store";
 import { categoryMap } from "../utils";
 import { ExpenseRow } from "./expense-row";
 import { ExpenseDialog } from "./expense-dialog";
+import { VoiceEntry } from "./voice-entry";
 import { RunningTotalBar } from "./running-total-bar";
 import { BudgetAlert } from "./budget-alert";
 
@@ -52,6 +55,7 @@ export function ExpenseList({
   earliestDate: initialEarliestDate,
   dateFormat,
   filters,
+  isPro = false,
 }) {
   const expenses = useBudgetStore((s) => s.expenses);
   const totalPaisa = useBudgetStore((s) => s.totalPaisa);
@@ -169,10 +173,25 @@ export function ExpenseList({
             className="h-9 pl-8"
           />
         </div>
-        <Button size="sm" className="ml-auto h-9" onClick={openAdd}>
-          <Plus className="h-4 w-4" />
-          Add expense
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {/* Pro tools — not rendered at all for free accounts. The API
+              routes enforce the same rule independently. */}
+          {isPro && (
+            <>
+              <Button asChild size="sm" variant="outline" className="h-9" aria-label="Import statement">
+                <Link href="/app/budget/import">
+                  <FileUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Import</span>
+                </Link>
+              </Button>
+              <VoiceEntry categories={categories} />
+            </>
+          )}
+          <Button size="sm" className="h-9" onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            Add expense
+          </Button>
+        </div>
       </div>
 
       {/* Filters live in their own tab, so say here when some are on and

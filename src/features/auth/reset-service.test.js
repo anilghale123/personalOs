@@ -1,75 +1,84 @@
-import { describe, expect, it } from "vitest";
-import crypto from "node:crypto";
-import { hashToken, hashesMatch, RESET_EXPIRY_MINUTES } from "./reset-service";
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  CODE_LENGTH,
+  MAX_ATTEMPTS,
+  RESEND_COOLDOWN_SEC,
+  RESET_EXPIRY_MINUTES,
+  generateCode,
+  hashCode,
+  hashesMatch,
+} from "./reset-service";
 
 /**
- * The DB-touching half of this module (issue/claim/invalidate) needs a live
- * Mongo and is covered by the integration script; these tests pin the pure
- * cryptographic properties, which are the ones that are silently wrong if
- * they are wrong at all.
+ * The DB-touching half (issue/consume/invalidate) needs a live Mongo; these
+ * tests pin the pure cryptographic and policy properties, which are the ones
+ * that are silently wrong if they are wrong at all.
  */
 
-describe("hashToken", () => {
-  it("produces a stable 64-char sha256 hex digest", () => {
-    const h = hashToken("abc");
+beforeAll(() => {
+  process.env.AUTH_SECRET = "test-secret-that-is-at-least-32-characters-long";
+});
+
+describe("generateCode", () => {
+  it("is always exactly CODE_LENGTH digits, zero-padded", () => {
+    for (let i = 0; i < 2000; i++) {
+      expect(generateCode()).toMatch(new RegExp(`^\\d{${CODE_LENGTH}}$`));
+    }
+  });
+
+  it("is not trivially repetitive", () => {
+    const codes = new Set(Array.from({ length: 500 }, generateCode));
+    expect(codes.size).toBeGreaterThan(480);
+  });
+});
+
+describe("hashCode", () => {
+  it("is a stable hex digest that never contains the code", () => {
+    const h = hashCode("user1", "123456");
     expect(h).toMatch(/^[0-9a-f]{64}$/);
-    expect(hashToken("abc")).toBe(h);
+    expect(hashCode("user1", "123456")).toBe(h);
+    expect(h).not.toContain("123456");
   });
 
-  it("never returns the token itself — the database must not hold it", () => {
-    const token = crypto.randomBytes(32).toString("base64url");
-    const h = hashToken(token);
-    expect(h).not.toContain(token);
-    expect(h).not.toBe(token);
+  it("binds the code to the user", () => {
+    expect(hashCode("user1", "123456")).not.toBe(hashCode("user2", "123456"));
   });
 
-  it("changes completely for a one-character difference", () => {
-    const a = hashToken("token-a");
-    const b = hashToken("token-b");
-    expect(a).not.toBe(b);
-    // Avalanche: essentially no shared prefix.
-    let shared = 0;
-    while (shared < a.length && a[shared] === b[shared]) shared++;
-    expect(shared).toBeLessThan(8);
+  it("depends on the secret, so a dump cannot be brute-forced offline", () => {
+    const before = hashCode("user1", "000000");
+    const original = process.env.AUTH_SECRET;
+    process.env.AUTH_SECRET = "a-different-secret-that-is-also-long-enough";
+    try {
+      expect(hashCode("user1", "000000")).not.toBe(before);
+    } finally {
+      process.env.AUTH_SECRET = original;
+    }
   });
 });
 
 describe("hashesMatch", () => {
-  it("matches identical digests", () => {
-    const h = hashToken("same");
+  it("matches identical digests and rejects different ones", () => {
+    const h = hashCode("u", "111111");
     expect(hashesMatch(h, h)).toBe(true);
-  });
-
-  it("rejects different digests", () => {
-    expect(hashesMatch(hashToken("a"), hashToken("b"))).toBe(false);
+    expect(hashesMatch(h, hashCode("u", "111112"))).toBe(false);
   });
 
   it("returns false on a length mismatch instead of throwing", () => {
-    // timingSafeEqual throws on unequal lengths — the guard must catch that
-    // before it becomes a 500 on a malformed token.
-    expect(() => hashesMatch("short", hashToken("long"))).not.toThrow();
-    expect(hashesMatch("short", hashToken("long"))).toBe(false);
-    expect(hashesMatch("", "")).toBe(true);
+    expect(() => hashesMatch("short", hashCode("u", "1"))).not.toThrow();
+    expect(hashesMatch("short", hashCode("u", "1"))).toBe(false);
   });
 });
 
-describe("token entropy", () => {
-  it("generates distinct, long, url-safe tokens", () => {
-    const tokens = new Set();
-    for (let i = 0; i < 500; i++) {
-      tokens.add(crypto.randomBytes(32).toString("base64url"));
-    }
-    expect(tokens.size).toBe(500);
-    for (const t of tokens) {
-      expect(t).toMatch(/^[A-Za-z0-9_-]+$/);
-      expect(t.length).toBeGreaterThanOrEqual(42);
-    }
+describe("policy", () => {
+  it("keeps the expiry between 10 and 15 minutes", () => {
+    expect(RESET_EXPIRY_MINUTES).toBeGreaterThanOrEqual(10);
+    expect(RESET_EXPIRY_MINUTES).toBeLessThanOrEqual(15);
   });
-});
 
-describe("expiry window", () => {
-  it("is short enough to limit exposure and long enough to be usable", () => {
-    expect(RESET_EXPIRY_MINUTES).toBeGreaterThanOrEqual(15);
-    expect(RESET_EXPIRY_MINUTES).toBeLessThanOrEqual(60);
+  it("bounds guessing to a negligible fraction of the code space", () => {
+    // Worst case per hour: one code per cooldown window, each with
+    // MAX_ATTEMPTS guesses.
+    const guessesPerHour = (3600 / RESEND_COOLDOWN_SEC) * MAX_ATTEMPTS;
+    expect(guessesPerHour / 10 ** CODE_LENGTH).toBeLessThan(0.001);
   });
 });

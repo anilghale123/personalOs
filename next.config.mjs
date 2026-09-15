@@ -22,6 +22,11 @@ const nextConfig = {
       dynamic: 30,
       static: 180,
     },
+    /**
+     * Loaded by Node at runtime instead of bundled: unpdf ships its own
+     * pdf.js build that webpack mangles, and nodemailer is Node-only.
+     */
+    serverComponentsExternalPackages: ["unpdf", "nodemailer"],
   },
 
   async redirects() {

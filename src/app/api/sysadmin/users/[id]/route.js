@@ -4,16 +4,19 @@ import { withAdminRoute } from "@/features/admin/guard";
 import { log } from "@/lib/logger";
 import User from "@/models/User";
 import { ROLE_ORDER, canActOn, canManageRoles } from "@/lib/roles";
+import { PLANS } from "@/lib/plans";
 
 const UpdateUser = z
   .object({
     role: z.enum(ROLE_ORDER).optional(),
+    plan: z.enum(PLANS).optional(),
     isSuspended: z.boolean().optional(),
     suspendedReason: optionalText(300),
   })
-  .refine((v) => v.role !== undefined || v.isSuspended !== undefined, {
-    message: "Nothing to update.",
-  });
+  .refine(
+    (v) => v.role !== undefined || v.plan !== undefined || v.isSuspended !== undefined,
+    { message: "Nothing to update." }
+  );
 
 /**
  * PATCH /api/sysadmin/users/[id] — change a user's role or suspend them.
@@ -74,6 +77,11 @@ export const PATCH = withAdminRoute(
       set.suspendedReason = input.isSuspended ? input.suspendedReason : undefined;
     }
 
+    // Plan is re-read from the database on every gated request, so it needs
+    // no session revocation to take effect.
+    if (input.plan !== undefined) set.plan = input.plan;
+    const accessChanged = input.role !== undefined || input.isSuspended !== undefined;
+
     /**
      * Revoke the target's live sessions for either change.
      *
@@ -84,14 +92,14 @@ export const PATCH = withAdminRoute(
      */
     const update = {
       $set: set,
-      $inc: { tokenVersion: 1 },
+      ...(accessChanged && { $inc: { tokenVersion: 1 } }),
     };
 
     const updated = await User.findByIdAndUpdate(params.id, update, {
       new: true,
       runValidators: true,
     })
-      .select("name email role isSuspended")
+      .select("name email role plan isSuspended")
       .lean();
 
     // The audit line. Deliberately records who did what to whom — this is the
@@ -103,6 +111,7 @@ export const PATCH = withAdminRoute(
       previousRole: targetRole,
       newRole: set.role ?? targetRole,
       suspended: set.isSuspended,
+      plan: set.plan,
     });
 
     return json({
@@ -111,6 +120,7 @@ export const PATCH = withAdminRoute(
         id: String(updated._id),
         name: updated.name,
         role: updated.role,
+        plan: updated.plan ?? "free",
         isSuspended: Boolean(updated.isSuspended),
       },
     });

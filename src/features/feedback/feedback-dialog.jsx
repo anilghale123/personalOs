@@ -15,13 +15,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * The kinds of thing someone might want to say. Offering four concrete
- * options rather than a bare text box does two jobs: it makes triage
- * possible, and it tells the user that "this is confusing" is a welcome
- * report and not a complaint they need to justify.
+ * The kinds of thing someone might want to say. Offering concrete options
+ * rather than a bare text box does two jobs: it makes triage possible, and it
+ * tells the user that "this is confusing" is a welcome report.
  */
 const KINDS = [
   { id: "bug", label: "Something's broken", icon: Bug },
@@ -33,17 +33,18 @@ const KINDS = [
 const MAX_LENGTH = 4000;
 
 /**
- * Feedback capture, available on every screen.
+ * Feedback capture, available on every screen — and on the sign-in page,
+ * where `signedIn={false}` adds an optional contact email.
  *
- * The route and viewport are attached automatically — nobody accurately
- * recalls which screen they were on, and asking is the difference between
- * feedback sent and feedback abandoned.
+ * The route and viewport are attached automatically: nobody accurately
+ * recalls which screen they were on.
  */
-export function FeedbackDialog({ trigger, className }) {
+export function FeedbackDialog({ trigger, className, signedIn = true }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const [kind, setKind] = React.useState("bug");
   const [message, setMessage] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   const tooShort = message.trim().length < 3;
@@ -57,8 +58,9 @@ export function FeedbackDialog({ trigger, className }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kind,
           message: message.trim(),
+          type: kind,
+          email: !signedIn && email.trim() ? email.trim() : undefined,
           route: pathname,
           viewport:
             typeof window !== "undefined"
@@ -69,8 +71,9 @@ export function FeedbackDialog({ trigger, className }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not send that just now.");
 
-      toast.success(data.message || "Thank you — this goes straight to the developer.");
+      toast.success("Thank you — this goes straight to the developer.");
       setMessage("");
+      setEmail("");
       setKind("bug");
       setOpen(false);
     } catch (err) {
@@ -95,8 +98,8 @@ export function FeedbackDialog({ trigger, className }) {
         <DialogHeader>
           <DialogTitle>Send feedback</DialogTitle>
           <DialogDescription>
-            This is a beta and your report genuinely changes what gets fixed
-            next. The screen you&apos;re on is attached automatically.
+            Your report genuinely changes what gets fixed next. The screen
+            you&apos;re on is attached automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -149,6 +152,22 @@ export function FeedbackDialog({ trigger, className }) {
               className="w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
+
+          {!signedIn && (
+            <div className="space-y-2">
+              <Label htmlFor="feedback-email">
+                Your email <span className="font-normal text-muted-foreground">(optional, so we can reply)</span>
+              </Label>
+              <Input
+                id="feedback-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="submit" disabled={tooShort || busy} className="w-full sm:w-auto">

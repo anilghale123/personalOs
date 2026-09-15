@@ -40,7 +40,7 @@ export const POLICIES = {
    * Sending a reset email. Strict, because each one costs a send and an
    * unthrottled endpoint can mailbomb an address.
    */
-  passwordReset: { limit: 3, windowSec: 60 * 60 },
+  passwordReset: { limit: 5, windowSec: 60 * 60 },
   /**
    * Checking and consuming a reset token — deliberately looser than sending.
    *
@@ -62,6 +62,15 @@ export const POLICIES = {
   importCsv: { limit: 5, windowSec: 60 * 60 },
   /** Feedback submission. */
   feedback: { limit: 10, windowSec: 60 * 60 },
+  /**
+   * Voice quick-add. Free for everyone, but each audio parse is a Whisper
+   * call on the shared Groq quota, so it has its own daily cap separate from
+   * the AI briefing budget.
+   */
+  voice: { limit: 20, windowSec: 60 * 60 },
+  voiceDaily: { limit: 50, windowSec: 24 * 60 * 60 },
+  /** Bank statement parsing — CPU-heavy PDF work, done rarely. */
+  statementImport: { limit: 20, windowSec: 60 * 60 },
 };
 
 /* ------------------------------------------------------------------ */
