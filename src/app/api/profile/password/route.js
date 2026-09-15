@@ -4,7 +4,7 @@ import { z, password as passwordSchema } from "@/lib/validation";
 import { revokeSessions } from "@/lib/auth";
 import { log } from "@/lib/logger";
 import User from "@/models/User";
-import { invalidateUserTokens } from "@/features/auth/reset-service";
+import { invalidateUserCodes } from "@/features/auth/reset-service";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -23,7 +23,7 @@ const ChangePasswordBody = z.object({
  * Google-only account add credentials login as a backup.
  *
  * Changing a password now actually revokes access: every existing session
- * is invalidated, and any outstanding reset links are burned. Previously a
+ * is invalidated, and any outstanding reset codes are burned. Previously a
  * stolen JWT stayed valid for the full 30-day window after the user
  * "secured" their account, which made this endpoint feel like a security
  * control while being none.
@@ -67,7 +67,7 @@ export const PATCH = withRoute(
       }
     );
 
-    await invalidateUserTokens(userId);
+    await invalidateUserCodes(userId);
     await revokeSessions(userId);
 
     log.info("Password changed", { userId });

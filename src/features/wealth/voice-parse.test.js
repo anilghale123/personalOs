@@ -59,6 +59,55 @@ describe("parseVoiceTranscript — Nepali / Nepenglish (best effort)", () => {
   });
 });
 
+describe("parseVoiceTranscript — Devanagari", () => {
+  it("parses Devanagari digits, currency and the expense verb", () => {
+    expect(parseVoiceTranscript("मोमोमा ५०० रुपैयाँ खर्च गरेँ")).toMatchObject({
+      amount: 500,
+      type: "expense",
+      category: "Eating Out",
+    });
+  });
+
+  it.each([
+    ["दुई सय ट्याक्सी", 200],
+    ["पाँच हजार घर भाडा", 5000],
+    ["एक लाख पचास हजार", 150000],
+    ["हजारको खाना", 1000],
+    ["पच्चीस सय बिजुली बिल", 2500],
+  ])("%s → %d", (text, amount) => {
+    expect(parseVoiceTranscript(text).amount).toBe(amount);
+  });
+
+  it("keeps vowel signs intact so words still match", () => {
+    expect(parseVoiceTranscript("दुई सय ट्याक्सी").category).toBe("Transport");
+    expect(parseVoiceTranscript("पाँच हजार घर भाडा").category).toBe("Rent/Housing");
+  });
+
+  it("recognises Nepali income", () => {
+    expect(parseVoiceTranscript("तलब ३५००० आयो")).toMatchObject({
+      amount: 35000,
+      type: "income",
+      category: "Salary",
+    });
+  });
+});
+
+describe("parseVoiceTranscript — mixed Nepali and English", () => {
+  it.each([
+    ["500 ko momo khaye", 500, "expense", "Eating Out"],
+    ["momo ma rs 300 kharcha", 300, "expense", "Eating Out"],
+    ["salary ३५००० आयो", 35000, "income", "Salary"],
+    ["taxi ko लागि दुई सय", 200, "expense", "Transport"],
+    ["ncell recharge 500ko", 500, "expense", "Internet & Phone"],
+  ])("%s", (text, amount, type, category) => {
+    expect(parseVoiceTranscript(text)).toMatchObject({ amount, type, category });
+  });
+
+  it("does not treat the Nepali word 'k' (what) as a thousand", () => {
+    expect(parseVoiceTranscript("k garne").amount).toBeNull();
+  });
+});
+
 describe("parseVoiceTranscript — degrades gracefully", () => {
   it("returns a null amount rather than guessing", () => {
     const r = parseVoiceTranscript("bought some vegetables");

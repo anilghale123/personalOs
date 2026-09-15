@@ -12,9 +12,33 @@ import { DEFAULT_CATEGORIES } from "@/features/budget/constants";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-/** ~30 s of compressed speech is well under this. */
-const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
-const WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || "whisper-large-v3-turbo";
+/** ~60 s of compressed speech is well under this. */
+const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
+/**
+ * Full large-v3 rather than turbo: turbo loses noticeably more accuracy on
+ * lower-resource languages like Nepali, and a one-sentence note costs little.
+ */
+const WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || "whisper-large-v3";
+
+/**
+ * Whisper conditions on its prompt, so each mode shows it the script and
+ * phrasing to expect. "auto" is for code-mixed speech and leaves language
+ * detection to the model.
+ */
+const LANGUAGES = {
+  auto: {
+    language: undefined,
+    prompt: "Money note in Nepali and English: spent 500 on momo, दुई सय taxi, salary ३५००० आयो, 500 ko khana.",
+  },
+  en: {
+    language: "en",
+    prompt: "Money note, e.g. spent 500 on momo, income salary 35000, paid 1,200 for groceries.",
+  },
+  ne: {
+    language: "ne",
+    prompt: "मैले मोमोमा ५०० रुपैयाँ खर्च गरेँ। तलब ३५००० आयो। दुई सय ट्याक्सी भाडा।",
+  },
+};
 
 const EXPENSE_NAMES = [...DEFAULT_CATEGORIES.map((c) => c.name), TRANSFERS];
 
@@ -40,15 +64,16 @@ async function spendVoiceQuota(userId) {
   }
 }
 
-async function transcribe(audio, userId) {
+async function transcribe(audio, userId, languageMode = "auto") {
+  const { language, prompt } = LANGUAGES[languageMode] ?? LANGUAGES.auto;
   try {
     const result = await getGroqClient().audio.transcriptions.create({
       file: audio,
       model: WHISPER_MODEL,
       response_format: "json",
       temperature: 0,
-      // Biases spelling towards amounts and Nepali number words.
-      prompt: "Money note, e.g. spent 500 on momo, income salary 35000, dui saya taxi, paanch hajar rent.",
+      prompt,
+      ...(language && { language }),
     });
     return String(result?.text ?? "").trim();
   } catch (err) {
@@ -69,7 +94,9 @@ async function extractWithAi(transcript) {
       {
         role: "system",
         content:
-          "Extract one money entry from a short spoken note (English, Nepali or Nepanglish). " +
+          "Extract one money entry from a short spoken note. It may be English, Nepali in Devanagari, " +
+          "romanised Nepali, or a mix of these (e.g. 'पाँच सय ko momo', 'salary तीस हजार आयो'). " +
+          "Nepali numbers: सय=100, हजार=1000, लाख=100000. The note should keep the user's words. " +
           'Reply with only JSON: {"amount": number|null, "type": "expense"|"income", "category": string|null, "note": string|null}. ' +
           `Amount in NPR as digits. Expense categories: ${EXPENSE_NAMES.join(", ")}. ` +
           `Income categories: ${INCOME_CATEGORIES.join(", ")}. Use null when unsure; never invent an amount.`,
@@ -134,9 +161,10 @@ export const POST = withRoute({ limit: "write", db: false }, async ({ userId, re
       throw badRequest("That recording was empty. Try again.");
     }
     if (audio.size > MAX_AUDIO_BYTES) {
-      throw badRequest("That recording is too long. Keep it under 30 seconds.");
+      throw badRequest("That recording is too long. Keep it under a minute.");
     }
-    transcript = await transcribe(audio, userId);
+    const language = form.get("language");
+    transcript = await transcribe(audio, userId, typeof language === "string" ? language : "auto");
   } else {
     let raw;
     try {

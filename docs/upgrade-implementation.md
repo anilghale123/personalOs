@@ -39,8 +39,15 @@ After deploying, run `npm run db:indexes` to create the new indexes (`PasswordRe
 
 ## 4. Voice entry
 
-- Expenses toolbar → **Voice**. Flow: record (MediaRecorder, max 15 s) → `POST /api/wealth/parse-voice` → editable confirm sheet → save through the normal expense or income API.
-- The parser (`features/wealth/voice-parse.js`) is rule-based. It handles English and best-effort Nepali number words ("dui saya", "paanch hajar"). An LLM is used only when no amount is found.
+- Expenses toolbar → **Voice**. Messenger-style flow: **hold** the mic to record (up to 60 s) → **release** → play back or delete → **Send** → `POST /api/wealth/parse-voice` → saved immediately through the normal expense or income API, with an **Undo** in the toast and in the dialog's "saved" list. The form only opens when no amount (or no category) was understood.
+- Language toggle: **Auto** (code-mixed Nepali + English, the default), **English**, **नेपाली**. It sets Whisper's `language` and prompt, and is remembered per browser. Transcription uses `whisper-large-v3` (not turbo), which is noticeably better at Nepali.
+- The parser (`features/wealth/voice-parse.js`) is rule-based and understands:
+  - English
+  - romanised Nepali ("dui saya", "500 ko momo khaye")
+  - Devanagari, including digits (५००), number words (दुई सय, एक लाख पचास हजार), postpositions (हजारको) and Nepali expense/income words (खर्च, तलब)
+  - any mix of these
+
+  An LLM is used only when no amount is found.
 - Fallbacks: browser `SpeechRecognition` when server transcription is unavailable, or typed text.
 - **Pro only.** The Voice button is not rendered for free accounts, and the API returns 402 `pro_required`. Capped at 20 per hour and 50 per day per user. `Permissions-Policy` now allows `microphone=(self)`.
 - Income is a new `Income` collection, kept separate so budget totals are unaffected. It appears in a new **Income** tab on Expenses.
