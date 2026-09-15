@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileTopBar } from "@/components/mobile-topbar";
 import { AppUserProvider } from "@/components/app-user";
+import { ReminderPrompt } from "@/features/reminders/components/reminder-prompt";
 
 /**
  * App shell — desktop gets a fixed sidebar, phones get a slim brand row
@@ -35,6 +36,8 @@ export default async function AppLayout({ children }) {
         </div>
 
         <BottomNav user={user} />
+
+        <ReminderPrompt />
       </div>
     </AppUserProvider>
   );

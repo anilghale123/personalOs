@@ -23,7 +23,9 @@
 
 // v8: purges `/_next/static` chunks cached from `next dev`, whose URLs are
 // not content-hashed — a stale cached chunk caused hydration mismatches.
-const CACHE_VERSION = "v8";
+// v9: new app icons. Icons are cached forever under the same URLs, so without
+// a bump installed apps would keep showing the old ones.
+const CACHE_VERSION = "v9";
 const STATIC_CACHE = `selfview-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `selfview-pages-${CACHE_VERSION}`;
 /**
@@ -146,7 +148,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "selfView", {
       body: data.body,
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      // Android draws the status-bar badge from the alpha channel only, so
+      // it needs a transparent silhouette, not the full-colour icon.
+      badge: "/badge-96.png",
       tag: data.tag || "selfview",
       data: { url: data.url || "/app" },
     })

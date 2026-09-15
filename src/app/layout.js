@@ -70,8 +70,17 @@ export const metadata = {
     // warns in DevTools when only the Apple-prefixed one is present.
     "mobile-web-app-capable": "yes",
   },
+  /**
+   * Rendered by scripts/generate-icons.mjs. The SVG stays sharp in modern
+   * browser tabs; the .ico covers everything else, including the browsers
+   * that request /favicon.ico on their own.
+   */
   icons: {
-    icon: "/icon-192.png",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
     // iOS ignores the manifest for the home-screen icon and uses this.
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
