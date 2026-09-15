@@ -1,17 +1,18 @@
 /**
- * PDF → text lines, rebuilt from glyph coordinates.
+ * PDF → visual rows of positioned cells (and plain text lines).
  *
  * Plain text extraction returns items in content-stream order, which for a
- * JasperReports table is often column by column — every S.N, then every
+ * report-generated table is often column by column — every S.N, then every
  * date. Statement parsing needs visual rows, so items are grouped by their
- * baseline and ordered along it. Wide gaps become a double space, which the
- * parsers use to separate header fields that share a row.
+ * baseline and ordered along it. Items separated by a wide gap become
+ * separate **cells**, each keeping its horizontal extent, so a parser can
+ * place a value under the right column header even when neighbouring cells
+ * are blank — the thing that makes a bank-agnostic parser possible.
  *
- * Handles text drawn rotated 90° (landscape statements exported onto a
- * portrait page) by swapping the axes.
+ * Handles text drawn rotated 90° (landscape statements on a portrait page)
+ * by swapping the axes.
  *
- * Nothing is written to disk and the bytes are not retained: the caller
- * passes the upload's buffer and only the lines come back.
+ * Nothing is written to disk and the bytes are not retained.
  */
 
 import { getDocumentProxy } from "unpdf";
@@ -29,11 +30,17 @@ export class PdfReadError extends Error {
 const ROW_TOLERANCE = 3;
 
 /**
- * Group pdf.js text items into lines. Pure — exported for tests.
- * @param {Array<{str: string, transform: number[], width?: number}>} items
- * @returns {string[]}
+ * @typedef {{text: string, start: number, end: number}} Cell
+ * @typedef {{page: number, y: number, size: number, cells: Cell[]}} Row
  */
-export function itemsToLines(items) {
+
+/**
+ * Group pdf.js text items into rows of cells. Pure — exported for tests.
+ * @param {Array<{str: string, transform: number[], width?: number}>} items
+ * @param {number} [page]
+ * @returns {Row[]}
+ */
+export function itemsToRows(items, page = 1) {
   const text = (items || []).filter(
     (it) => typeof it?.str === "string" && it.str.trim() && Array.isArray(it.transform)
   );
@@ -54,40 +61,56 @@ export function itemsToLines(items) {
   const colPos = (it) => (rotated ? it.transform[5] * turn : it.transform[4]);
 
   const sorted = [...text].sort((a, b) => rowPos(a) - rowPos(b));
-  const rows = [];
+  const groups = [];
   for (const it of sorted) {
-    const last = rows[rows.length - 1];
+    const last = groups[groups.length - 1];
     if (last && Math.abs(rowPos(it) - last.anchor) <= ROW_TOLERANCE) last.items.push(it);
-    else rows.push({ anchor: rowPos(it), items: [it] });
+    else groups.push({ anchor: rowPos(it), items: [it] });
   }
 
-  return rows
-    .map(({ items: rowItems }) => {
-      rowItems.sort((a, b) => colPos(a) - colPos(b));
-      let line = "";
-      let prevEnd = null;
-      for (const it of rowItems) {
-        const size = Math.hypot(it.transform[0], it.transform[1]) || 10;
-        const start = colPos(it);
-        if (prevEnd != null) {
-          const gap = start - prevEnd;
-          if (gap > size * 1.5) line = line.trimEnd() + "  ";
-          else if (gap > size * 0.15 && !line.endsWith(" ") && !it.str.startsWith(" ")) line += " ";
-        }
-        line += it.str;
-        prevEnd = start + (it.width || it.str.length * size * 0.5);
+  return groups.map(({ anchor, items: rowItems }) => {
+    rowItems.sort((a, b) => colPos(a) - colPos(b));
+    const cells = [];
+    let size = 10;
+    for (const it of rowItems) {
+      size = Math.hypot(it.transform[0], it.transform[1]) || 10;
+      const start = colPos(it);
+      const end = start + (it.width || it.str.length * size * 0.5);
+      const cell = cells[cells.length - 1];
+      const gap = cell ? start - cell.end : Infinity;
+
+      if (cell && gap <= size * 1.5) {
+        const joiner = gap > size * 0.15 && !cell.text.endsWith(" ") && !it.str.startsWith(" ") ? " " : "";
+        cell.text += joiner + it.str;
+        cell.end = Math.max(cell.end, end);
+      } else {
+        cells.push({ text: it.str, start, end });
       }
-      return line.replace(/[ \t]+$/, "");
-    })
-    .filter((line) => line.trim());
+    }
+    for (const cell of cells) cell.text = cell.text.trim();
+    return { page, y: anchor, size, cells: cells.filter((c) => c.text) };
+  }).filter((row) => row.cells.length);
+}
+
+/** Rows → text lines, cells separated by a double space. */
+export function rowsToLines(rows) {
+  return rows.map((row) => row.cells.map((c) => c.text).join("  "));
+}
+
+/**
+ * Group pdf.js text items into lines. Pure — exported for tests.
+ * @returns {string[]}
+ */
+export function itemsToLines(items) {
+  return rowsToLines(itemsToRows(items));
 }
 
 /**
  * @param {Uint8Array} bytes
  * @param {{password?: string, maxPages?: number}} [opts]
- * @returns {Promise<string[]>}
+ * @returns {Promise<{lines: string[], rows: Row[]}>}
  */
-export async function extractPdfLines(bytes, { password, maxPages = 60 } = {}) {
+export async function extractPdf(bytes, { password, maxPages = 60 } = {}) {
   let pdf;
   try {
     pdf = await getDocumentProxy(bytes, { password, isEvalSupported: false });
@@ -108,16 +131,21 @@ export async function extractPdfLines(bytes, { password, maxPages = 60 } = {}) {
   }
 
   try {
-    const lines = [];
+    const rows = [];
     const pages = Math.min(pdf.numPages, maxPages);
     for (let n = 1; n <= pages; n++) {
       const page = await pdf.getPage(n);
       const content = await page.getTextContent();
-      lines.push(...itemsToLines(content.items));
+      rows.push(...itemsToRows(content.items, n));
       page.cleanup?.();
     }
-    return lines;
+    return { lines: rowsToLines(rows), rows };
   } finally {
     await pdf.destroy?.();
   }
+}
+
+/** Text lines only — kept for callers that don't need positions. */
+export async function extractPdfLines(bytes, opts) {
+  return (await extractPdf(bytes, opts)).lines;
 }

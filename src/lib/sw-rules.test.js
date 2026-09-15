@@ -37,6 +37,7 @@ beforeAll(() => {
      return {
        isPrivatePath,
        isImmutableAsset,
+       isDevHost,
        NEVER_CACHE,
        CACHE_VERSION,
        OFFLINE_URL,
@@ -125,6 +126,24 @@ describe("isImmutableAsset", () => {
     for (const p of ["/", "/app/today", "/api/profile"]) {
       expect(sw.isImmutableAsset(p), `${p} is not an asset`).toBe(false);
     }
+  });
+});
+
+describe("isDevHost — stay out of the way during local development", () => {
+  it("recognises local development origins", () => {
+    // `next dev` chunks have stable URLs but changing contents; caching them
+    // served stale component code and caused hydration mismatches.
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      expect(sw.isDevHost(host), `${host} is local`).toBe(true);
+    }
+  });
+
+  it("keeps caching on real deployments", () => {
+    for (const host of ["selfview.app", "tracker.vercel.app", "localhost.example.com"]) {
+      expect(sw.isDevHost(host), `${host} is deployed`).toBe(false);
+    }
+    // The stub scope's own origin is a deployment.
+    expect(sw.isDevHost()).toBe(false);
   });
 });
 

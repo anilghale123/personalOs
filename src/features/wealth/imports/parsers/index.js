@@ -1,25 +1,30 @@
 /**
  * Statement parser registry.
  *
- * Each parser module exports `{ id, label, detect(lines), parse(lines) }`,
- * where `parse` returns header fields plus `rows` of
- * `{ sn, date, time, description, withdraw, deposit, balance }`. Adding a
- * bank (or an eSewa/Khalti export) is a new module appended here — nothing
- * downstream changes.
+ * Each parser module exports `{ id, label, detect(lines, ctx), parse(lines, ctx) }`,
+ * where `ctx.rows` holds positioned cells (from pdf-text.js or csv.js) and
+ * `parse` returns header fields plus `rows` of
+ * `{ sn, date, time, description, withdraw, deposit, balance }`.
  *
- * Order matters only if two detectors could both claim a file; keep the
- * stricter ones first.
+ * Bank-specific parsers come first; `generic-table` is the fallback that
+ * reads any statement with Date / Description / Withdraw (Debit) /
+ * Deposit (Credit) / Balance columns. Add a dedicated parser only for a bank
+ * whose layout the generic one gets wrong.
  */
 
 import * as citizenBank from "./citizen-bank";
+import * as genericTable from "./generic-table";
 
-export const PARSERS = [citizenBank];
+export const PARSERS = [citizenBank, genericTable];
 
 export const PARSER_IDS = PARSERS.map((p) => p.id);
 
-/** @param {string[]} lines */
-export function detectParser(lines) {
-  return PARSERS.find((p) => p.detect(lines)) ?? null;
+/**
+ * @param {string[]} lines
+ * @param {{rows?: Array}} [ctx]
+ */
+export function detectParser(lines, ctx = {}) {
+  return PARSERS.find((p) => p.detect(lines, ctx)) ?? null;
 }
 
 /** @param {string} id */

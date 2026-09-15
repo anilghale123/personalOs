@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/brand-mark";
+import { ProBadge } from "@/components/pro-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
@@ -165,7 +166,8 @@ export function BottomNav({ user }) {
                 className="flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 text-sm text-sand-700 hover:bg-sand-200/60 hover:text-foreground"
               >
                 <User className="h-5 w-5" />
-                {user?.name || "Profile"}
+                <span className="truncate">{user?.name || "Profile"}</span>
+                {user?.isPro && <ProBadge />}
               </button>
               <button
                 type="button"

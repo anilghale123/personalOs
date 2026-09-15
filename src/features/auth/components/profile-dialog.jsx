@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ProBadge } from "@/components/pro-badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /** Server-enforced minimum, mirrored here so the form fails before a
@@ -240,9 +241,12 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
               </div>
               <div>
                 <p className="text-sm font-medium">{profile?.email || user?.email}</p>
-                <Badge variant="outline" className="mt-1 capitalize">
-                  {profile?.provider || "credentials"} account
-                </Badge>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="capitalize">
+                    {profile?.provider || "credentials"} account
+                  </Badge>
+                  {(profile ? profile.plan === "pro" : user?.isPro) && <ProBadge />}
+                </div>
               </div>
             </div>
 

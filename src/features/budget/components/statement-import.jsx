@@ -161,14 +161,15 @@ export function StatementImport() {
           )}
         >
           {file ? <FileText className="h-8 w-8 text-primary" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
-          <span className="text-sm font-medium">{file ? file.name : "Choose your statement PDF"}</span>
-          <span className="text-xs text-muted-foreground">
-            Supported: Citizens Bank electronic account statement · up to 5 MB
+          <span className="text-sm font-medium">{file ? file.name : "Choose your bank statement (PDF or CSV)"}</span>
+          <span className="max-w-sm text-xs text-muted-foreground">
+            Works with any bank whose statement has Date, Description, Withdraw (Debit),
+            Deposit (Credit) and Balance columns · up to 5 MB
           </span>
           <input
             id="statement-file"
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,text/csv,.csv"
             className="sr-only"
             onChange={(e) => {
               setFile(e.target.files?.[0] ?? null);
@@ -205,7 +206,7 @@ export function StatementImport() {
             Read statement
           </Button>
           <p className="text-xs text-muted-foreground">
-            The PDF is read once and not stored. Nothing is saved until you confirm.
+            The file is read once and not stored. Nothing is saved until you confirm.
           </p>
         </div>
       </form>

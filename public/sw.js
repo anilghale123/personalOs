@@ -21,7 +21,9 @@
  * how any privately-cached page from a previous version gets purged.
  */
 
-const CACHE_VERSION = "v7";
+// v8: purges `/_next/static` chunks cached from `next dev`, whose URLs are
+// not content-hashed — a stale cached chunk caused hydration mismatches.
+const CACHE_VERSION = "v8";
 const STATIC_CACHE = `selfview-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `selfview-pages-${CACHE_VERSION}`;
 /**
@@ -58,6 +60,19 @@ const NEVER_CACHE = [
 
 function isPrivatePath(pathname) {
   return NEVER_CACHE.some((pattern) => pattern.test(pathname));
+}
+
+/**
+ * A local development origin.
+ *
+ * `next dev` serves chunks at stable, un-hashed URLs
+ * (`/_next/static/chunks/app/layout.js`) whose contents change on every edit.
+ * Caching them cache-first meant the browser kept running old component code
+ * against freshly server-rendered HTML — a hydration mismatch after every
+ * change. Locally the worker stays out of the way entirely.
+ */
+function isDevHost(hostname = self.location.hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 /** Next.js build output — content-hashed, so safe to cache forever. */
@@ -120,6 +135,9 @@ self.addEventListener("fetch", (event) => {
 
   // Never interfere with writes — a cached POST response is always wrong.
   if (request.method !== "GET") return;
+
+  // Local development: always the network, never a cached chunk.
+  if (isDevHost()) return;
 
   const url = new URL(request.url);
 

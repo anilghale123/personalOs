@@ -51,8 +51,9 @@ const EPS = 0.005;
 
 /**
  * @param {string[]} lines
+ * @param {{rows?: Array}} [ctx] positioned cells, needed by the generic parser
  */
-export function parseStatementLines(lines) {
+export function parseStatementLines(lines, ctx = {}) {
   if (!lines?.length || lines.join("").trim().length < 20) {
     throw new StatementError(
       "pdf_no_text",
@@ -60,15 +61,15 @@ export function parseStatementLines(lines) {
     );
   }
 
-  const parser = detectParser(lines);
+  const parser = detectParser(lines, ctx);
   if (!parser) {
     throw new StatementError(
       "unsupported_statement",
-      "We don't recognise this statement format yet. Currently supported: Citizens Bank electronic account statement."
+      "Couldn't find a transaction table in this file. It needs columns for Date, Description, Withdraw (or Debit), Deposit (or Credit) and Balance."
     );
   }
 
-  const parsed = parser.parse(lines);
+  const parsed = parser.parse(lines, ctx);
   const warnings = [...parsed.warnings];
 
   let prevBalance = parsed.openingBalance;
@@ -144,14 +145,17 @@ export function parseStatementLines(lines) {
       ? "medium"
       : "high";
 
+  // Not every statement prints its period; the rows themselves bound it.
+  const dates = transactions.map((t) => t.date).sort();
+
   return {
     bank: parser.id,
-    bankLabel: parser.label,
+    bankLabel: parsed.bankLabel ?? parser.label,
     accountHolder: parsed.accountHolder,
     accountMasked: parsed.accountMasked,
     currency: parsed.currency,
-    fromDate: parsed.fromDate,
-    toDate: parsed.toDate,
+    fromDate: parsed.fromDate ?? dates[0] ?? null,
+    toDate: parsed.toDate ?? dates[dates.length - 1] ?? null,
     openingBalance: parsed.openingBalance,
     closingBalance: parsed.closingBalance,
     confidence,

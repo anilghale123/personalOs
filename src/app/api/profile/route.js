@@ -2,6 +2,7 @@ import { withRoute, json, must } from "@/lib/api";
 import { z, text } from "@/lib/validation";
 import { invalidate, invalidateMoney, tags } from "@/lib/cache";
 import User from "@/models/User";
+import { isProUser } from "@/lib/plans";
 
 /** The client-safe shape of a profile. Never includes the password hash. */
 function toProfile(user) {
@@ -27,6 +28,8 @@ function toProfile(user) {
     journalExtraction: Boolean(user.preferences?.journalExtraction),
     // Same story — absent reads as the English calendar.
     dateFormat: user.preferences?.dateFormat === "nepali" ? "nepali" : "english",
+    // Effective plan (admins and PRO_EMAILS count as Pro), not the raw field.
+    plan: isProUser(user) ? "pro" : "free",
   };
 }
 
@@ -34,7 +37,7 @@ function toProfile(user) {
 export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
   const user = must(
     await User.findById(userId)
-      .select("name email image provider linkedProviders passwordHash preferences")
+      .select("name email image provider linkedProviders passwordHash preferences plan role")
       .lean()
   );
   return json(toProfile(user));
@@ -74,7 +77,7 @@ export const PATCH = withRoute(
         { $set: update },
         { new: true, runValidators: true }
       )
-        .select("name email image provider linkedProviders passwordHash preferences")
+        .select("name email image provider linkedProviders passwordHash preferences plan role")
         .lean()
     );
 

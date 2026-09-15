@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
+import { getEntitlements } from "@/lib/entitlements";
 import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileTopBar } from "@/components/mobile-topbar";
@@ -13,9 +14,13 @@ export default async function AppLayout({ children }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
 
+  // Read from the database, not the JWT, so a plan change shows immediately.
+  const { isPro } = await getEntitlements(session.user.id);
+  const user = { ...session.user, isPro };
+
   return (
     <div className="min-h-dvh bg-background">
-      <Sidebar user={session.user} />
+      <Sidebar user={user} />
 
       <MobileTopBar />
 
@@ -25,7 +30,7 @@ export default async function AppLayout({ children }) {
         </main>
       </div>
 
-      <BottomNav user={session.user} />
+      <BottomNav user={user} />
     </div>
   );
 }

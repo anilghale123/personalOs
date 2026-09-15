@@ -1,10 +1,11 @@
 import { withRoute, json, badRequest, ApiError } from "@/lib/api";
 import { requirePro } from "@/lib/entitlements";
 import { log } from "@/lib/logger";
-import { extractPdfLines, PdfReadError } from "@/features/wealth/imports/pdf-text";
+import { toMinorUnits } from "@/lib/money";
+import { extractPdf, PdfReadError } from "@/features/wealth/imports/pdf-text";
+import { csvToRows } from "@/features/wealth/imports/csv";
 import { parseStatementLines, StatementError } from "@/features/wealth/imports/statement";
 import { findAlreadyImported } from "@/features/wealth/imports/dedupe";
-import { toMinorUnits } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -23,19 +24,28 @@ function looksLikePdf(bytes) {
   );
 }
 
+function looksLikeCsv(file, bytes) {
+  const name = String(file.name ?? "").toLowerCase();
+  if (name.endsWith(".csv") || /csv|comma-separated/i.test(file.type ?? "")) return true;
+  // No NUL bytes in the first chunk: plain text, worth trying as CSV.
+  return bytes.length > 0 && !bytes.subarray(0, 1024).includes(0) && !looksLikePdf(bytes);
+}
+
 /**
  * POST /api/wealth/imports/parse — read a bank statement for preview. Pro only.
  *
- * multipart/form-data: file (PDF, ≤5 MB), password? (for protected PDFs)
+ * multipart/form-data: file (PDF or CSV, ≤5 MB), password? (protected PDFs)
+ *
+ * Any bank works when its statement has Date, Description, Withdraw/Debit,
+ * Deposit/Credit and Balance columns; Citizens Bank has a dedicated parser.
  *
  * → { bank, bankLabel, accountHolder, accountMasked, currency, fromDate, toDate,
  *     openingBalance, closingBalance, confidence, warnings,
+ *     alreadyImportedCount, fullyImported,
  *     transactions: [{ date, description, direction, withdraw, deposit, balance,
  *                      suggestedCategory, fingerprint, alreadyImported }] }
  *
- * Nothing is saved here and the file is never stored — it is read from the
- * request, turned into rows, and dropped. Saving is a separate `commit` call
- * after the user reviews the preview.
+ * Nothing is saved and the file is never stored.
  */
 export const POST = withRoute({ limit: "statementImport" }, async ({ userId, request }) => {
   await requirePro(userId, "Bank statement import is a Pro feature.");
@@ -44,26 +54,29 @@ export const POST = withRoute({ limit: "statementImport" }, async ({ userId, req
   try {
     form = await request.formData();
   } catch {
-    throw badRequest("Expected a PDF upload.");
+    throw badRequest("Expected a statement upload.");
   }
 
   const file = form.get("file");
-  if (!file || typeof file === "string") throw badRequest("Choose a PDF statement to upload.");
+  if (!file || typeof file === "string") throw badRequest("Choose a statement file to upload.");
   if (file.size > MAX_BYTES) throw badRequest("That file is larger than 5 MB.");
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (!looksLikePdf(bytes)) {
-    throw badRequest("That doesn't look like a PDF. Upload the electronic statement PDF from your bank.");
-  }
-
   const password = form.get("password");
 
   let result;
   try {
-    const lines = await extractPdfLines(bytes, {
-      password: typeof password === "string" && password ? password : undefined,
-    });
-    result = parseStatementLines(lines);
+    let extracted;
+    if (looksLikePdf(bytes)) {
+      extracted = await extractPdf(bytes, {
+        password: typeof password === "string" && password ? password : undefined,
+      });
+    } else if (looksLikeCsv(file, bytes)) {
+      extracted = csvToRows(new TextDecoder("utf-8").decode(bytes));
+    } else {
+      throw badRequest("Upload your bank statement as a PDF or CSV file.");
+    }
+    result = parseStatementLines(extracted.lines, { rows: extracted.rows });
   } catch (err) {
     if (err instanceof PdfReadError || err instanceof StatementError) {
       throw new ApiError(422, err.message, err.code);
@@ -88,6 +101,7 @@ export const POST = withRoute({ limit: "statementImport" }, async ({ userId, req
   log.info("Statement parsed", {
     userId,
     bank: result.bank,
+    bankLabel: result.bankLabel,
     rows: result.transactions.length,
     alreadyImported: alreadyImportedCount,
     confidence: result.confidence,

@@ -25,6 +25,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
+import { ProBadge } from "@/components/pro-badge";
 
 /**
  * Discoveries leads, because that is what this app is for. Everything
@@ -150,8 +151,9 @@ function NavContent({ user, pathname, onOpenProfile }) {
               {(user?.name || user?.email || "U").charAt(0)}
             </div>
             <div className="min-w-0 flex-1 leading-[1.25]">
-              <p className="truncate text-sm font-semibold">
-                {user?.name || "User"}
+              <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+                <span className="truncate">{user?.name || "User"}</span>
+                {user?.isPro && <ProBadge />}
               </p>
               <p className="truncate text-xs text-sand-600">{user?.email}</p>
             </div>
