@@ -17,11 +17,7 @@ export function pushConfigured() {
 
   try {
     // Apple rejects pushes whose subject is not a real mailto: or https: URL.
-    webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT || "mailto:admin@example.com",
-      publicKey,
-      privateKey
-    );
+    webpush.setVapidDetails(vapidSubject(process.env.VAPID_SUBJECT), publicKey, privateKey);
     return (configured = true);
   } catch (err) {
     // Malformed keys (a placeholder pasted from .env.example, say) throw
@@ -65,6 +61,19 @@ export async function sendPush(subscription, payload) {
     }
     return { ok: false, gone };
   }
+}
+
+/**
+ * The VAPID subject as web-push requires it: a `mailto:` or `https:` URL.
+ * A bare email is the natural thing to paste, and web-push rejects it
+ * outright — which silently disabled every reminder — so add the scheme.
+ */
+export function vapidSubject(raw) {
+  const value = String(raw ?? "").trim().replace(/^["']|["']$/g, "");
+  if (!value) return "mailto:admin@example.com";
+  if (/^(mailto:|https:\/\/)/i.test(value)) return value;
+  if (/^[^\s@]+@[^\s@]+$/.test(value)) return `mailto:${value}`;
+  return value;
 }
 
 function safeHost(url) {
