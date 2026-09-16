@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Compact metric tile used across dashboards.
@@ -8,6 +9,11 @@ import { Card } from "@/components/ui/card";
  * `onEdit` is optional: pass it when the number shown is something the
  * user can change, and the tile grows a pencil so it can be edited where
  * it is read rather than only from whatever list sits below it.
+ *
+ * `pending` covers the one case where a number genuinely is not known yet —
+ * the first time a screen is opened on a device. Only the number waits: the
+ * tile, its label and its icon are drawn immediately and do not move when
+ * the value lands, because none of them were ever waiting on the server.
  */
 export function StatCard({
   label,
@@ -17,6 +23,7 @@ export function StatCard({
   tone = "default",
   onEdit,
   editLabel = "Edit",
+  pending = false,
 }) {
   const toneClass = {
     default: "text-foreground",
@@ -45,11 +52,18 @@ export function StatCard({
           )}
         </div>
       </div>
-      <p className={cn("mt-2 text-2xl font-semibold tabular-nums", toneClass)}>
-        {value}
-      </p>
-      {hint && (
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      {pending ? (
+        // Sized to the line it replaces, so nothing shifts when it resolves.
+        <Skeleton className="mt-2 h-8 w-28" />
+      ) : (
+        <p className={cn("mt-2 text-2xl font-semibold tabular-nums", toneClass)}>
+          {value}
+        </p>
+      )}
+      {pending ? (
+        hint !== undefined && <Skeleton className="mt-1.5 h-3 w-20" />
+      ) : (
+        hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       )}
     </Card>
   );

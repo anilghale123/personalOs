@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { reminderState } from "./device-state";
 
 const PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -27,24 +28,129 @@ function isStandalone() {
   );
 }
 
-/** The worker is normally registered by PwaRegister; register it if not yet. */
-async function workerRegistration() {
-  if (!(await navigator.serviceWorker.getRegistration())) {
-    await navigator.serviceWorker.register("/sw.js");
-  }
-  return navigator.serviceWorker.ready;
+/* ------------------------------------------------------------------ *
+ * One shared reading per page load.
+ *
+ * Both the Profile switch and the prompt shown on open use this hook, so
+ * without a shared store each ran its own check and its own re-sync — two
+ * writes per open, and two components that could disagree about what the
+ * switch should say.
+ * ------------------------------------------------------------------ */
+
+let current = "loading";
+let started = false;
+const listeners = new Set();
+
+function setShared(state) {
+  if (state === current) return;
+  current = state;
+  listeners.forEach((notify) => notify());
 }
 
-async function saveSubscription(subscription) {
+/**
+ * The service worker registration, waiting briefly for one to appear.
+ *
+ * PwaRegister registers on the window `load` event, which fires *after* this
+ * hook's first effect. Asking `getRegistration()` at that moment can answer
+ * "none" on a device that is in fact subscribed — one of the ways the switch
+ * read "off" for someone who never turned it off. Waiting on `ready` closes
+ * that gap; the timeout means a browser that will never have a worker (dev,
+ * where PwaRegister unregisters instead) still answers rather than hanging.
+ */
+async function registrationSoon(timeoutMs = 5000) {
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing) return existing;
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
+/** The subscription this browser holds, or null. */
+async function browserSubscription() {
+  const registration = await registrationSoon();
+  return (await registration?.pushManager.getSubscription()) ?? null;
+}
+
+async function postSubscription(subscription) {
   const res = await fetch("/api/push/subscription", {
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify(subscription.toJSON()),
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Could not turn reminders on.");
+  if (res.ok) return;
+  const data = await res.json().catch(() => ({}));
+  const error = new Error(data.error || "Could not turn reminders on.");
+  // A 400 will never get better by asking again; a 5xx or a rate limit might.
+  error.retryable = res.status >= 500 || res.status === 429;
+  throw error;
+}
+
+/** Backoff between re-sync attempts. */
+const RETRY_DELAYS_MS = [1000, 4000, 15000];
+
+/**
+ * Re-register this device with the server, in the background.
+ *
+ * The server drops a subscription that bounces, and this is how one comes
+ * back — so it runs on every open. What it must **never** do is decide what
+ * the switch shows. The previous version awaited this POST inside the state
+ * check and left the state at "off" when it threw, so a single failed
+ * request — a flaky connection, a cold serverless start, a rate-limited
+ * burst, the app opening before the network was up — made reminders look
+ * like they had switched themselves off overnight, while the browser stayed
+ * subscribed the whole time. Retried, and silent either way.
+ */
+async function resync(subscription) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await postSubscription(subscription);
+      return true;
+    } catch (err) {
+      // `retryable` is undefined for a network-level failure, which is
+      // exactly the case most worth retrying.
+      if (err.retryable === false || attempt >= RETRY_DELAYS_MS.length) {
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
   }
+}
+
+/**
+ * What this device's reminder state actually is.
+ *
+ * Read only from what the browser knows for certain — the notification
+ * permission, and whether a push subscription exists. Nothing on the network
+ * can turn this answer into "off".
+ */
+async function probe() {
+  const supported =
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
+  const device = {
+    configured: Boolean(PUBLIC_KEY),
+    ios: isIos(),
+    standalone: isStandalone(),
+    supported,
+    permission: supported ? Notification.permission : "default",
+    subscribed: false,
+  };
+
+  // Only worth asking once the cheaper answers have not already settled it.
+  if (supported && device.permission === "granted") {
+    let subscription = null;
+    try {
+      subscription = await browserSubscription();
+    } catch {
+      // No worker, or push blocked at the platform level: not subscribed.
+    }
+    device.subscribed = Boolean(subscription);
+    if (subscription) resync(subscription);
+  }
+
+  return reminderState(device);
 }
 
 /**
@@ -55,41 +161,34 @@ async function saveSubscription(subscription) {
  *   loading | unconfigured | ios-install | unsupported | denied | off | on
  */
 export function usePushReminders() {
-  const [state, setState] = React.useState("loading");
+  const state = React.useSyncExternalStore(
+    React.useCallback((notify) => {
+      listeners.add(notify);
+      return () => listeners.delete(notify);
+    }, []),
+    () => current,
+    () => "loading"
+  );
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      let next;
-      const supported =
-        "serviceWorker" in navigator &&
-        "PushManager" in window &&
-        "Notification" in window;
-      if (!PUBLIC_KEY) next = "unconfigured";
-      else if (isIos() && !isStandalone()) next = "ios-install";
-      else if (!supported) next = "unsupported";
-      else if (Notification.permission === "denied") next = "denied";
-      else {
-        next = "off";
-        try {
-          const registration = await navigator.serviceWorker.getRegistration();
-          const subscription = await registration?.pushManager.getSubscription();
-          if (subscription && Notification.permission === "granted") {
-            // Re-sent on every open: the server drops subscriptions that
-            // bounce, and this is how one comes back.
-            await saveSubscription(subscription);
-            next = "on";
-          }
-        } catch {
-          // Leave it "off"; turning it on will surface any error.
-        }
+    if (!started) {
+      started = true;
+      probe().then(setShared);
+    }
+
+    /**
+     * A device that just came back online is both the one most likely to
+     * have failed its re-sync and the one the server most needs to hear
+     * from, so ask again the moment the connection returns.
+     */
+    function onOnline() {
+      if (current === "on") {
+        browserSubscription().then((s) => s && resync(s)).catch(() => {});
       }
-      if (!cancelled) setState(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    }
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, []);
 
   /**
@@ -103,18 +202,24 @@ export function usePushReminders() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         const next = permission === "denied" ? "denied" : "off";
-        setState(next);
+        setShared(next);
         return next;
       }
-      const registration = await workerRegistration();
+      // The worker is normally registered by PwaRegister; register it if not.
+      if (!(await navigator.serviceWorker.getRegistration())) {
+        await navigator.serviceWorker.register("/sw.js");
+      }
+      const registration = await navigator.serviceWorker.ready;
       const subscription =
         (await registration.pushManager.getSubscription()) ??
         (await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(PUBLIC_KEY),
         }));
-      await saveSubscription(subscription);
-      setState("on");
+      // Turning it on is the one place the server's answer matters: if this
+      // never lands, nothing will ever be sent to this device.
+      await postSubscription(subscription);
+      setShared("on");
       toast.success("Reminders are on for this device.");
       return "on";
     } catch (err) {
@@ -128,17 +233,19 @@ export function usePushReminders() {
   const disable = React.useCallback(async () => {
     setBusy(true);
     try {
-      const registration = await navigator.serviceWorker.getRegistration();
-      const subscription = await registration?.pushManager.getSubscription();
+      const subscription = await browserSubscription();
       if (subscription) {
+        // Best effort: if this request fails the row is left behind, and the
+        // first send to an unsubscribed endpoint clears it out anyway. What
+        // has to happen is the line below — the browser itself stopping.
         await fetch("/api/push/subscription", {
           method: "DELETE",
           headers: JSON_HEADERS,
           body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
+        }).catch(() => {});
         await subscription.unsubscribe();
       }
-      setState("off");
+      setShared("off");
       toast.success("Reminders are off for this device.");
     } catch {
       toast.error("Could not turn reminders off — please try again.");

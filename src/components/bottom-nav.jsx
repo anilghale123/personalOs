@@ -24,6 +24,7 @@ import { ProBadge } from "@/components/pro-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
+import { useAppUser } from "@/components/app-user";
 
 /**
  * Money leads the tabs after Home — it is the section that gets opened
@@ -54,8 +55,9 @@ function isActive(pathname, href) {
  * third; everything else lives in the More sheet. Desktop uses the
  * sidebar instead — this renders nothing at md and up.
  */
-export function BottomNav({ user }) {
+export function BottomNav() {
   const pathname = usePathname();
+  const user = useAppUser();
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);

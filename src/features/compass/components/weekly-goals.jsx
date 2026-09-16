@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/empty-state";
+import { invalidateScreens } from "@/lib/screen-data";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -35,8 +37,25 @@ function completionOf(goal) {
   return Math.round((done / goal.checklistItems.length) * 100);
 }
 
-export function WeeklyGoals({ initialGoals, weekLabel }) {
+/**
+ * @param {object} props
+ * @param {boolean} [props.pending] this device has never loaded this screen;
+ *   only the list of goals waits, never the heading or the add button.
+ */
+export function WeeklyGoals({ initialGoals, weekLabel, pending = false }) {
   const [goals, setGoals] = React.useState(initialGoals || []);
+  // Bumped by every change made here, so the background refresh behind this
+  // screen cannot seed over a tick the user just made.
+  const editsRef = React.useRef(0);
+
+  /**
+   * Re-seed when the screen hands down different goals. That identity only
+   * changes when the refresh found something the saved copy did not have,
+   * so on a quiet open this runs once and does nothing.
+   */
+  React.useEffect(() => {
+    if (editsRef.current === 0) setGoals(initialGoals || []);
+  }, [initialGoals]);
 
   // Toggle a checklist item with optimistic update + rollback.
   async function toggleItem(goalId, itemId, checked) {
@@ -56,6 +75,10 @@ export function WeeklyGoals({ initialGoals, weekLabel }) {
         )
       );
 
+    editsRef.current += 1;
+    // See lib/screen-data.js — what is on screen is already right, this
+    // only marks the saved copies for their next open.
+    invalidateScreens("compass");
     apply(checked);
     try {
       const res = await fetch("/api/weekly-goals/toggle-item", {
@@ -96,11 +119,21 @@ export function WeeklyGoals({ initialGoals, weekLabel }) {
           </p>
         </div>
         <AddWeeklyGoalDialog
-          onCreated={(goal) => setGoals((prev) => [goal, ...prev])}
+          onCreated={(goal) => {
+            editsRef.current += 1;
+            invalidateScreens("compass");
+            setGoals((prev) => [goal, ...prev]);
+          }}
         />
       </div>
 
-      {goals.length === 0 ? (
+      {pending ? (
+        <div className="space-y-2" aria-busy="true">
+          {[0, 1].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : goals.length === 0 ? (
         <EmptyState
           icon={CalendarRange}
           title="No goals for this week"

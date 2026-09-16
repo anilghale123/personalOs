@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PIE_COLORS = [
   "#2563eb",
@@ -47,7 +48,16 @@ const AllocationChart = dynamic(
   }
 );
 
-export function VaultClient({ portfolio, transactions }) {
+/**
+ * @param {object} props
+ * @param {boolean} [props.pending] this device has never loaded the
+ *   portfolio, so the numbers are not known yet. Everything that is not a
+ *   number — the tiles, the table, its headings and the buttons — is drawn
+ *   anyway: none of it was ever waiting on the server, and replacing the
+ *   whole screen with a grey copy of itself is what made arriving here feel
+ *   like loading rather than moving.
+ */
+export function VaultClient({ portfolio, transactions, pending = false }) {
   const totals = portfolio.reduce(
     (acc, p) => {
       acc.invested += p.totalInvested;
@@ -71,11 +81,13 @@ export function VaultClient({ portfolio, transactions }) {
           label="Invested"
           value={formatNPR(totals.invested)}
           icon={Wallet}
+          pending={pending}
         />
         <StatCard
           label="Current Value"
           value={formatNPR(totals.current)}
           icon={Layers}
+          pending={pending}
         />
         <StatCard
           label="Total P&L"
@@ -83,16 +95,20 @@ export function VaultClient({ portfolio, transactions }) {
           hint={`${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`}
           icon={pnl >= 0 ? TrendingUp : TrendingDown}
           tone={pnl >= 0 ? "positive" : "negative"}
+          pending={pending}
         />
         <StatCard
           label="Holdings"
           value={portfolio.length}
           hint={`${transactions.length} transactions`}
           icon={Layers}
+          pending={pending}
         />
       </div>
 
-      {portfolio.length === 0 ? (
+      {/* "Your vault is empty" is a claim about the account, so it waits
+          until the account has actually answered. */}
+      {portfolio.length === 0 && !pending ? (
         <EmptyState
           icon={Wallet}
           title="Your vault is empty"
@@ -146,6 +162,20 @@ export function VaultClient({ portfolio, transactions }) {
                     </tr>
                   </thead>
                   <tbody>
+                    {pending &&
+                      // Rows in the shape of real ones, so the table does not
+                      // grow under the reader when they arrive.
+                      Array.from({ length: 4 }).map((_, row) => (
+                        <tr key={`pending-${row}`} className="border-b last:border-0">
+                          {Array.from({ length: 5 }).map((_, cell) => (
+                            <td key={cell} className="px-6 py-3">
+                              <Skeleton
+                                className={cn("h-4", cell === 0 ? "w-16" : "ml-auto w-12")}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
                     {portfolio.map((p) => (
                       <tr
                         key={p.ticker}

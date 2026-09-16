@@ -1,6 +1,3 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
-import { getEntitlements } from "@/lib/entitlements";
 import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileTopBar } from "@/components/mobile-topbar";
@@ -9,23 +6,34 @@ import { ReminderPrompt } from "@/features/reminders/components/reminder-prompt"
 
 /**
  * App shell — desktop gets a fixed sidebar, phones get a slim brand row
- * and a bottom tab bar within thumb reach. Unauthenticated visitors are
- * redirected to /login.
+ * and a bottom tab bar within thumb reach.
+ *
+ * ## Nothing here reads the request, and that is the point
+ *
+ * This layout used to resolve the session and the user's plan before
+ * rendering. Doing so made it — and therefore every screen underneath it —
+ * server-rendered on demand, and Next prefetches a dynamic route only as far
+ * as its `loading.jsx`. So every tab in this shell had exactly one thing
+ * prefetched: its skeleton. Tapping a tab showed that skeleton and then
+ * waited on a round trip for the screen behind it, however little work that
+ * screen actually did.
+ *
+ * With no request-bound input left, this shell and the tabs inside it are
+ * prerendered at build and prefetched whole, and switching between them is a
+ * local render with nothing in the way. Who is signed in comes from
+ * `AppUserProvider`, which asks `/api/me` once per open.
+ *
+ * The auth gate moved rather than disappeared: `src/middleware.js` bounces
+ * anyone without a session cookie before this renders, `AppUserProvider`
+ * sends anyone whose cookie does not resolve to a session to sign in, and
+ * every route and action that touches data re-validates it regardless. See
+ * the note in `components/app-user.jsx`.
  */
-export default async function AppLayout({ children }) {
-  const session = await getSession();
-  if (!session?.user) redirect("/login");
-
-  // Read from the database, not the JWT, so a plan change shows immediately.
-  const { isPro } = await getEntitlements(session.user.id);
-  const user = { ...session.user, isPro };
-
-  // Screens read the user from this provider rather than resolving the
-  // session again, so opening one needs no server work of its own.
+export default function AppLayout({ children }) {
   return (
-    <AppUserProvider user={{ id: user.id, name: user.name, isPro }}>
+    <AppUserProvider>
       <div className="min-h-dvh bg-background">
-        <Sidebar user={user} />
+        <Sidebar />
 
         <MobileTopBar />
 
@@ -35,7 +43,7 @@ export default async function AppLayout({ children }) {
           </main>
         </div>
 
-        <BottomNav user={user} />
+        <BottomNav />
 
         <ReminderPrompt />
       </div>

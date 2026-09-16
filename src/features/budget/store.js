@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { newIdempotencyKey } from "@/lib/client-keys";
 import { toMinorUnits } from "@/lib/money";
 import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
+import { invalidateScreens, markRead, shouldRead } from "@/lib/screen-data";
 import { EXPENSE_PAGE_SIZE } from "./constants";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -134,25 +135,45 @@ export const useBudgetStore = create((set, get) => ({
    * result replaces it unless a newer load or an edit got there first.
    */
   async loadExpenses(filters) {
-    set({ loading: true, filters: { ...get().filters, ...filters } });
-    const current = get().filters;
-    const params = expenseParams(current);
+    const next = { ...get().filters, ...filters };
+    const params = expenseParams(next);
     const snapshotKey = `expenses:${params.toString()}`;
-    const saveable = isPlainList(current);
+    const saveable = isPlainList(next);
     const requestId = ++latestExpenseRequest;
 
-    if (saveable) {
-      const saved = readSnapshot(get().ownerId, snapshotKey);
-      if (saved) {
-        set({
-          expenses: saved.expenses,
-          totalPaisa: saved.totalPaisa,
-          matchCount: saved.count,
-          hasMore: saved.hasMore,
-          expensesReady: true,
-        });
-      }
+    /**
+     * The saved page goes in **before** the loading flag, not after.
+     *
+     * This used to set `loading: true` first and read the copy underneath
+     * it, so every open of this screen drew placeholder rows and replaced
+     * them a moment later with a list that had been on the device the whole
+     * time. The order below is the whole difference between "opening" and
+     * "loading".
+     */
+    const saved = saveable ? readSnapshot(get().ownerId, snapshotKey) : undefined;
+    set({
+      filters: next,
+      ...(saved
+        ? {
+            expenses: saved.expenses,
+            totalPaisa: saved.totalPaisa,
+            matchCount: saved.count,
+            hasMore: saved.hasMore,
+            expensesReady: true,
+          }
+        : {}),
+    });
+
+    // Cache first: a list already shown here is not re-read just because the
+    // screen was opened again. `refreshSummary` — which every add, edit and
+    // delete passes through — is what marks it to be read again. A filtered
+    // or searched list is a one-off, is never saved, and so always reads.
+    if (saveable && !shouldRead(get().ownerId, snapshotKey, Boolean(saved))) {
+      set({ loading: false });
+      return;
     }
+
+    set({ loading: !saved });
     const shown = get().expenses;
 
     try {
@@ -169,7 +190,10 @@ export const useBudgetStore = create((set, get) => ({
         count: data.count ?? data.expenses.length,
         hasMore: Boolean(data.hasMore),
       };
-      if (saveable) writeSnapshot(get().ownerId, snapshotKey, page);
+      if (saveable) {
+        writeSnapshot(get().ownerId, snapshotKey, page);
+        markRead(get().ownerId, snapshotKey);
+      }
 
       const unchanged =
         get().totalPaisa === page.totalPaisa && sameData(get().expenses, page.expenses);
@@ -348,6 +372,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async addCategory(payload) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch("/api/budget/categories", {
       method: "POST",
       headers: JSON_HEADERS,
@@ -360,6 +387,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async updateCategory(id, patch) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const before = get().categories;
     set({
       categories: before.map((c) => (c._id === id ? { ...c, ...patch } : c)),
@@ -382,6 +412,9 @@ export const useBudgetStore = create((set, get) => ({
 
   /** Delete a category — must choose reassign or archive; throws a 409-shaped error otherwise. */
   async deleteCategory(id, { reassignTo, archive } = {}) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const params = new URLSearchParams();
     if (reassignTo) params.set("reassignTo", reassignTo);
     if (archive) params.set("archive", "true");
@@ -428,7 +461,12 @@ export const useBudgetStore = create((set, get) => ({
    * request was out — a debt added mid-refresh must not vanish under an
    * older list. One failing request leaves the others to land.
    */
-  async refreshMoney() {
+  async refreshMoney({ force = false } = {}) {
+    // Cache first — see lib/screen-data.js. The section is re-read when a
+    // write marks it, when the copy has aged out, or when nothing is held.
+    if (!force && !shouldRead(get().ownerId, "money", get().moneyReady)) {
+      return;
+    }
     const fields = ["categories", "summary", "debts", "financialGoals"];
     const before = Object.fromEntries(fields.map((f) => [f, get()[f]]));
     const period = get().budgetPeriod;
@@ -449,6 +487,7 @@ export const useBudgetStore = create((set, get) => ({
       if (!sameData(before[field], result.value)) next[field] = result.value;
     });
     set({ ...next, moneyReady: true });
+    markRead(get().ownerId, "money");
   },
 
   // ── Budgets ──────────────────────────────────────────────────────────
@@ -481,6 +520,15 @@ export const useBudgetStore = create((set, get) => ({
     // single expense can move between categories, so working out which
     // entries are still valid costs more than recomputing the one being read.
     set({ breakdownCache: {}, breakdownDetailCache: {} });
+    /**
+     * Every add, edit and delete of an expense passes through here, which
+     * makes it the one place the rest of the app needs to hear about them.
+     * The list and totals on screen are already correct — they were patched
+     * in place — so this only marks the saved copies to be re-read the next
+     * time those screens are opened. `expenses-meta` is included because the
+     * first expense ever logged moves how far the history reaches back.
+     */
+    invalidateScreens("expenses", "expenses-meta", "money");
     if (!get().summary) return;
     get().loadSummary();
   },
@@ -596,6 +644,9 @@ export const useBudgetStore = create((set, get) => ({
 
   /** Set or clear one budget line — an amount of 0 removes it. */
   async setBudget({ scope, categoryId, amount, carryForward }) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch("/api/budget/budgets", {
       method: "PUT",
       headers: JSON_HEADERS,
@@ -625,6 +676,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async addDebt(payload) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch("/api/budget/debts", {
       method: "POST",
       headers: JSON_HEADERS,
@@ -637,6 +691,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async updateDebt(id, patch) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/debts/${id}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
@@ -649,6 +706,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async deleteDebt(id) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const before = get().debts;
     set({ debts: before.filter((d) => d._id !== id) });
     try {
@@ -662,6 +722,9 @@ export const useBudgetStore = create((set, get) => ({
 
   /** Log a repayment ("payment") or extra borrowing ("borrow"). */
   async addDebtEntry(id, payload) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/debts/${id}/entries`, {
       method: "POST",
       headers: JSON_HEADERS,
@@ -676,6 +739,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async deleteDebtEntry(id, entryId) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/debts/${id}/entries/${entryId}`, {
       method: "DELETE",
     });
@@ -697,6 +763,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async addFinancialGoal(payload) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch("/api/budget/goals", {
       method: "POST",
       headers: JSON_HEADERS,
@@ -709,6 +778,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async updateFinancialGoal(id, patch) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/goals/${id}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
@@ -723,6 +795,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async deleteFinancialGoal(id) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const before = get().financialGoals;
     set({ financialGoals: before.filter((g) => g._id !== id) });
     try {
@@ -735,6 +810,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async addContribution(id, payload) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/goals/${id}/contributions`, {
       method: "POST",
       headers: JSON_HEADERS,
@@ -750,6 +828,9 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   async deleteContribution(id, entryId) {
+    // Saved copies of the Money section and the home briefing now differ
+    // from the server; see lib/screen-data.js.
+    invalidateScreens("money");
     const res = await fetch(`/api/budget/goals/${id}/contributions/${entryId}`, {
       method: "DELETE",
     });

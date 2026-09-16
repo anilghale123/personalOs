@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { invalidateScreens } from "@/lib/screen-data";
 import { useRouter } from "next/navigation";
 import {
   Upload,
@@ -44,6 +45,8 @@ export function ImportClient() {
         method: "POST",
         body: formData,
       });
+      // Holdings and history both change; see lib/screen-data.js.
+      invalidateScreens("portfolio");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
       setResult(data);

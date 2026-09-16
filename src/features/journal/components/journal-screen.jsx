@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   CalendarDays,
   ChevronDown,
@@ -9,6 +11,10 @@ import {
   StickyNote,
 } from "lucide-react";
 import { formatDate, toDateKey } from "@/lib/utils";
+import { useAppUser } from "@/components/app-user";
+import { useClientClock } from "@/lib/client-clock";
+import { markRead, shouldRead } from "@/lib/screen-data";
+import { SkeletonParagraph } from "@/components/ui/skeleton";
 import { useJournalStore } from "@/features/journal/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -21,10 +27,54 @@ import {
 } from "@/features/journal/components/quick-note-input";
 import { QuickNoteCard } from "@/features/journal/components/quick-note-card";
 
-export function JournalScreen({ initialData }) {
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Shown while the day being opened is not the day the store kept. */
+function JournalSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading your journal">
+      <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+        <div className="space-y-4">
+          {/* Mood row */}
+          <div className="flex gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-10 rounded-full" />
+            ))}
+          </div>
+          {/* The entry itself */}
+          <div className="space-y-3 rounded-2xl bg-card elev-sm p-5">
+            <Skeleton className="h-5 w-40" />
+            <SkeletonParagraph lines={5} />
+          </div>
+          <Skeleton className="h-11 w-full rounded-xl" />
+        </div>
+
+        {/* Calendar sidebar, desktop only — matching the real layout */}
+        <div className="hidden space-y-3 lg:block">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-56 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function JournalScreen() {
+  const userId = useAppUser()?.id;
+  const searchParams = useSearchParams();
+  /**
+   * `?date=` lets the evidence rows on a discovery link straight to the day
+   * they were computed from. Anything malformed just opens today — and
+   * "today" is read here, on the device, because the server's today is UTC's
+   * and this route is prerendered besides.
+   */
+  const requested = searchParams.get("date");
+  const [today] = useClientClock(() => toDateKey());
+  const date = DATE_KEY.test(requested ?? "") ? requested : today;
+
   const hydrate = useJournalStore((s) => s.hydrate);
   const flushSave = useJournalStore((s) => s.flushSave);
-  const selectDate = useJournalStore((s) => s.selectDate);
   const activeDate = useJournalStore((s) => s.activeDate);
   const notes = useJournalStore((s) => s.notes);
   const notesTotal = useJournalStore((s) => s.notesTotal);
@@ -36,14 +86,47 @@ export function JournalScreen({ initialData }) {
 
   const [calendarOpen, setCalendarOpen] = React.useState(false);
 
+  /**
+   * Load the day.
+   *
+   * The page above this used to fetch it and pass it in, which made the
+   * route dynamic — and a dynamic route is prefetched only as far as its
+   * loading state, so opening Journal meant a skeleton and then a wait.
+   *
+   * Nothing is lost by moving it here: the store persists what was last on
+   * screen, so it paints immediately, and `hydrate` refuses to overwrite an
+   * unsaved draft with whatever the server still has.
+   */
   React.useEffect(() => {
-    hydrate(initialData);
-    const localToday = toDateKey();
-    if (localToday !== initialData.date) {
-      selectDate(localToday);
+    if (!date || !userId) return undefined;
+    // Cache first: the store persists the day it last held, so reopening the
+    // journal on the same day costs nothing. Saving an entry or a note marks
+    // it, which is what brings the server's copy back. See lib/screen-data.js.
+    if (!shouldRead(userId, `journal:${date}`, activeDate === date)) {
+      return undefined;
     }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/journal/screen?date=${date}`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (cancelled) return;
+        // `hydrate` refuses to overwrite an unsaved draft with what the
+        // server still has, so this is safe to run over live writing.
+        hydrate(data);
+        markRead(userId, `journal:${date}`);
+      } catch {
+        if (!cancelled) toast.error("Couldn't load your journal.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // `activeDate` is read to decide whether anything is held, not to
+    // re-run this: it changes as a *result* of hydrating.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [date, userId, hydrate]);
 
   // Read the status through a ref so these listeners are bound once — an
   // effect that re-ran on every status change would flush on its cleanup,
@@ -82,9 +165,18 @@ export function JournalScreen({ initialData }) {
     });
   }, [notes]);
 
-  const today = toDateKey();
-  const dateLabel =
-    activeDate === today ? "Today" : formatDate(activeDate);
+  const dateLabel = activeDate === today ? "Today" : formatDate(activeDate);
+
+  /**
+   * Until the clock has been read, or while what the store kept is a
+   * different day from the one being opened, there is nothing honest to
+   * show — a persisted copy of last Tuesday is worse than a placeholder.
+   * An unsaved draft is the exception: that is the user's own writing and
+   * it stays on screen.
+   */
+  if (!date || (activeDate !== date && saveStatus === "saved")) {
+    return <JournalSkeleton />;
+  }
 
   return (
     <div>

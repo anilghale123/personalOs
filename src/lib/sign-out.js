@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
+import { clearScreenData } from "@/lib/screen-data";
 
 /**
  * Sign out, and clear what the browser kept.
@@ -45,6 +46,10 @@ export async function signOutEverywhere({ callbackUrl = "/login" } = {}) {
   } catch {
     // No service worker, or it is not controlling this page yet.
   }
+
+  // Screen data this session had in memory. The storage copies go below
+  // with the rest of the `pos-` keys; this is the layer above them.
+  clearScreenData();
 
   try {
     // Per-device conveniences only (remembered tab, collapsed sections).

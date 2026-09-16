@@ -20,6 +20,8 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppUser } from "@/components/app-user";
 import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
+import { useClientClock, useIsomorphicLayoutEffect } from "@/lib/client-clock";
+import { invalidateScreens, markRead, shouldRead } from "@/lib/screen-data";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
 import { ExpandToggle, PlannerGoalRow } from "./planner-goal-row";
 import { PlannerHistory } from "./planner-history";
@@ -47,13 +49,62 @@ function GridSkeleton() {
   );
 }
 
-export function PlannerScreen({ initialWeekStart }) {
+/**
+ * The screen before the browser has said what week it is.
+ *
+ * Reached only on a cold load: this is the HTML the build ships, and the one
+ * render before the layout effect reads the clock. Tapping through to the
+ * planner never gets here, because by then the week is already known.
+ *
+ * Everything that does not depend on which week it is — the title, the two
+ * tabs — is the real thing rather than a grey copy of it, so nothing moves
+ * or redraws when the week arrives. Only the grid and the week range wait,
+ * because only they are actually unknown. Kept in step with the header in
+ * `PlannerScreen` below.
+ */
+function PlannerSkeleton() {
+  return (
+    <Tabs value="week" className="space-y-4">
+      <div className="space-y-2.5">
+        <h1 className="font-display text-[26px] leading-[1.12] tracking-tight sm:text-[32px]">
+          Weekly Planner
+        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="week">Planner</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+          <p className="text-xs text-muted-foreground">Loading your week…</p>
+        </div>
+      </div>
+      <TabsContent value="week">
+        <div className="rounded-2xl border" aria-busy="true">
+          <GridSkeleton />
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+export function PlannerScreen() {
   const userId = useAppUser()?.id;
-  const [weekStart, setWeekStart] = React.useState(initialWeekStart);
+  /**
+   * Which week is on screen. Resolved in the browser because this route is
+   * prerendered — a week worked out during render would be the week of the
+   * deploy — and because "this week" has to mean the viewer's week, not
+   * UTC's.
+   */
+  const [weekStart, setWeekStart] = useClientClock(() => weekStartKey());
   const [goals, setGoals] = React.useState([]);
   // The week `goals` belongs to — null until a saved or fetched copy lands.
   const [goalsWeek, setGoalsWeek] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  // Read inside `loadWeek`, which is deliberately stable and so closes over
+  // a stale `goalsWeek` and `userId`.
+  const goalsWeekRef = React.useRef(null);
+  goalsWeekRef.current = goalsWeek;
+  const userIdRef = React.useRef(null);
+  userIdRef.current = userId;
   const [saving, setSaving] = React.useState(0);
   const [newTitle, setNewTitle] = React.useState("");
   const [view, setView] = React.useState("week");
@@ -62,7 +113,7 @@ export function PlannerScreen({ initialWeekStart }) {
   // Bumped after every edit so history refetches its tallies.
   const [refreshKey, setRefreshKey] = React.useState(0);
   // Guards against a slow fetch overwriting the grid after navigation.
-  const weekRef = React.useRef(initialWeekStart);
+  const weekRef = React.useRef(null);
   // Always-current goals for the stable callbacks below.
   const goalsRef = React.useRef(goals);
   goalsRef.current = goals;
@@ -84,20 +135,44 @@ export function PlannerScreen({ initialWeekStart }) {
   React.useEffect(() => () => clearTimeout(refreshTimer.current), []);
 
   /**
-   * Show a week: its saved copy straight away, then the server's copy —
-   * applied only if something changed, and never over an edit made while
-   * the request was out.
+   * Seed a week from the copy saved on this device — before the browser
+   * paints, not after.
+   *
+   * This used to live inside `loadWeek`, which runs from a passive effect,
+   * so the order was always: paint an empty grid, then read localStorage,
+   * then paint the week. A layout effect runs before that first paint, so
+   * opening the planner — or paging to a week already saved here — draws the
+   * goals the first time the grid is drawn, with nothing in between.
+   *
+   * Keyed on `weekStart`, so it covers the pager as well as the first open.
+   */
+  useIsomorphicLayoutEffect(() => {
+    if (!userId || !weekStart || goalsWeek === weekStart) return;
+    const saved = readSnapshot(userId, `planner:${weekStart}`);
+    if (saved) {
+      setGoals(saved);
+      setGoalsWeek(weekStart);
+      setLoading(false);
+    }
+  }, [userId, weekStart, goalsWeek]);
+
+  /**
+   * Re-read a week from the server. The saved copy is already on screen by
+   * the time this runs; the result is applied only if something changed, and
+   * never over an edit made while the request was out.
    */
   const loadWeek = React.useCallback(
-    async (ws, { useSaved = true } = {}) => {
+    async (ws, { force = false } = {}) => {
       weekRef.current = ws;
       setWeekStart(ws);
-      const saved = useSaved ? readSnapshot(userId, `planner:${ws}`) : undefined;
-      if (saved) {
-        setGoals(saved);
-        setGoalsWeek(ws);
+      // Cache first: a week already seeded from this device is not re-read
+      // just because the planner was opened again. Editing a goal marks it,
+      // which is what brings the server's copy back. See lib/screen-data.js.
+      const seeded = goalsWeekRef.current === ws;
+      if (!force && !shouldRead(userIdRef.current, `planner:${ws}`, seeded)) {
+        setLoading(false);
+        return;
       }
-      setLoading(!saved);
       const editsAtStart = editsRef.current;
       try {
         const res = await fetch(`/api/planner?weekStart=${ws}`);
@@ -106,22 +181,30 @@ export function PlannerScreen({ initialWeekStart }) {
         if (weekRef.current !== ws || editsRef.current !== editsAtStart) return;
         setGoals((current) => (sameData(current, data) ? current : data));
         setGoalsWeek(ws);
+        markRead(userIdRef.current, `planner:${ws}`);
       } catch {
         // With a saved copy on screen, a failed refresh isn't worth a toast.
-        if (weekRef.current === ws && !saved) toast.error("Could not load that week.");
+        if (weekRef.current === ws && !goalsWeekRef.current) {
+          toast.error("Could not load that week.");
+        }
       } finally {
         if (weekRef.current === ws) setLoading(false);
       }
     },
-    [userId]
+    // Nothing user-specific is read here any more — the saved copy is
+    // seeded by the layout effect above. `setWeekStart` is a state setter
+    // and so never changes; it is listed only because it reaches this
+    // through a custom hook, where the lint rule cannot see that itself.
+    [setWeekStart]
   );
 
-  // Always the viewer's local week — the server renders "today" in its own
-  // timezone (UTC on Vercel).
+  // Always the viewer's local week. `loadWeek` changes identity only when
+  // the signed-in user does, so this re-runs exactly when the owner of the
+  // saved copies changes — and not before the shell knows who that is.
   React.useEffect(() => {
+    if (!userId) return;
     loadWeek(weekStartKey());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadWeek, userId]);
 
   // Keep the saved copy in step with what's on screen, edits included.
   React.useEffect(() => {
@@ -145,6 +228,9 @@ export function PlannerScreen({ initialWeekStart }) {
     if (!title) return;
     const ws = weekStart;
     editsRef.current += 1;
+    // What is on screen is already right — it was patched in place. This
+    // only tells the home briefing, which counts these goals, to re-read.
+    invalidateScreens("planner");
     setNewTitle("");
     setSaving((n) => n + 1);
     try {
@@ -172,6 +258,9 @@ export function PlannerScreen({ initialWeekStart }) {
   const patchGoal = React.useCallback(
     async (goalId, body, optimistic, rollback) => {
       editsRef.current += 1;
+      // What is on screen is already right — it was patched in place. This
+      // only tells the home briefing, which counts these goals, to re-read.
+      invalidateScreens("planner");
       setGoals((g) => g.map((x) => (x._id === goalId ? optimistic(x) : x)));
       pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 0) + 1);
       setSaving((n) => n + 1);
@@ -190,8 +279,9 @@ export function PlannerScreen({ initialWeekStart }) {
       } catch {
         setGoals((g) => g.map((x) => (x._id === goalId ? rollback(x) : x)));
         toast.error("Could not save — please try again.");
-        // Straight from the server: the saved copy still holds the failed edit.
-        loadWeek(weekRef.current, { useSaved: false });
+        // Straight from the server — the saved copy still holds the failed
+        // edit, so this one has to ignore the cache.
+        loadWeek(weekRef.current, { force: true });
       } finally {
         pendingRef.current.set(goalId, (pendingRef.current.get(goalId) || 1) - 1);
         setSaving((n) => n - 1);
@@ -231,6 +321,9 @@ export function PlannerScreen({ initialWeekStart }) {
     async (goalId) => {
       const before = goalsRef.current;
       editsRef.current += 1;
+      // What is on screen is already right — it was patched in place. This
+      // only tells the home briefing, which counts these goals, to re-read.
+      invalidateScreens("planner");
       setGoals((g) => g.filter((x) => x._id !== goalId));
       try {
         const res = await fetch(`/api/planner/${goalId}`, { method: "DELETE" });
@@ -245,7 +338,7 @@ export function PlannerScreen({ initialWeekStart }) {
   );
 
   const weekDates = React.useMemo(
-    () => DAYS.map((_, i) => addDays(parseISO(weekStart), i)),
+    () => (weekStart ? DAYS.map((_, i) => addDays(parseISO(weekStart), i)) : []),
     [weekStart]
   );
   const todayKey = toDateKey();
@@ -271,6 +364,10 @@ export function PlannerScreen({ initialWeekStart }) {
       "--planner-min-w": `${150 + shown * 76}px`,
     };
   }, [toggleAt, expanded]);
+
+  // Only before the browser has said what week it is — one render, on the
+  // very first paint of a cold load. Every hook above has already run.
+  if (!weekStart) return <PlannerSkeleton />;
 
   const start = parseISO(weekStart);
   // No year — the pager reads as a week, not a date stamp.

@@ -10,10 +10,14 @@ import { NextResponse } from "next/server";
  * importing the NextAuth config, which pulls mongoose and bcrypt into the
  * edge runtime. Instead this checks only for the *presence* of a session
  * cookie and redirects when it is absent — which handles the common case
- * (not signed in, clicked a bookmark) without a database round trip. The
- * real check stays in `src/app/app/layout.jsx` and in every API route's
- * `withRoute`, both of which validate the token properly. A forged cookie
- * gets past this and is then rejected there.
+ * (not signed in, clicked a bookmark) without a database round trip.
+ *
+ * The real check is in every API route's `withRoute` and in every server
+ * action, all of which validate the token properly and are the only things
+ * standing between a request and anyone's data. A forged or expired cookie
+ * gets past this, reaches an app shell that holds no data of its own, and
+ * is turned away by `/api/me` — which is what sends it to sign in. See the
+ * note in `components/app-user.jsx`.
  *
  * **The origin check is defence in depth, not the CSRF story.** SameSite=Lax
  * on the session cookie already blocks the cross-site form POST, and a

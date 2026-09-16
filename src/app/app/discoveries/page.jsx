@@ -1,13 +1,12 @@
-import { getInsightArchive } from "@/features/patterns/actions";
 import { DiscoveriesArchive } from "@/features/patterns/components/discoveries-archive";
-
-export const dynamic = "force-dynamic";
 
 /**
  * The discovery archive — every pattern ever found, held or faded.
  * Nothing is deleted here because nothing is ever deleted anywhere.
+ *
+ * Nothing is fetched here either: the screen reads its own copy, so the
+ * route stays prerenderable and is prefetched whole.
  */
-export default async function DiscoveriesArchivePage() {
-  const insights = await getInsightArchive();
-  return <DiscoveriesArchive initial={insights} />;
+export default function DiscoveriesArchivePage() {
+  return <DiscoveriesArchive />;
 }

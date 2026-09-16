@@ -91,6 +91,9 @@ export const usePatternStore = create((set, get) => ({
       }
       if (!res.ok) throw new Error(data?.error || "Run failed");
 
+      // A run rewrites the feed the home screen and the archive both read.
+      invalidateScreens("discoveries-archive");
+
       // Inside the TTL the server serves what's stored rather than
       // recomputing; that's a success, not a failure.
       if (data.ran === false) {
@@ -176,6 +179,9 @@ export const usePatternStore = create((set, get) => ({
    * history — dismissal is a status change, never a delete.
    */
   dismissInsight: async (id) => {
+    // See lib/screen-data.js — the archive and home both list these.
+    invalidateScreens("discoveries-archive");
+
     const before = get().insights;
     set({ insights: before.filter((i) => i.id !== id) });
     try {
@@ -196,6 +202,9 @@ export const usePatternStore = create((set, get) => ({
 
   /** Bring a dismissed insight back; a confirming run reactivates it. */
   restoreInsight: async (id) => {
+    // See lib/screen-data.js — the archive and home both list these.
+    invalidateScreens("discoveries-archive");
+
     try {
       const res = await fetch(`/api/patterns/insights/${id}`, {
         method: "PATCH",

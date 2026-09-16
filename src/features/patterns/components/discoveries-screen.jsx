@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppUser } from "@/components/app-user";
-import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
+import { useScreenData } from "@/lib/screen-data";
+import { useClientClock } from "@/lib/client-clock";
 import { usePatternStore } from "../store";
 import { splitFeed } from "../feed";
 import { HeadlineInsight, InsightRow } from "./insight-card";
@@ -28,70 +29,67 @@ export function DiscoveriesScreen() {
   const userId = user?.id;
   const firstName = user?.name?.split(" ")[0] || "there";
   const hydrate = usePatternStore((s) => s.hydrate);
-  const [briefing, setBriefing] = React.useState(null);
-  const [ready, setReady] = React.useState(false);
+  // Read on the device, not during render: this route is prerendered, so a
+  // date worked out here would be the date of the deploy.
+  const [now] = useClientClock(() => new Date());
 
-  // The saved copy paints at once; the fetch replaces it only if something
-  // changed since.
+  /**
+   * Read during render, not in an effect. An effect runs after the browser
+   * has painted, so reading the saved copy there guaranteed a frame of
+   * placeholders before the briefings appeared — even though they were on
+   * the device the whole time.
+   */
+  const { data, failed } = useScreenData(userId, "home", "/api/patterns/home");
+
+  // Only the first open on a device has nothing to show.
+  const pending = data === null && !failed;
+
   React.useEffect(() => {
-    let cancelled = false;
-    const saved = readSnapshot(userId, "home");
-    if (saved) {
-      hydrate(saved.discoveries);
-      setBriefing(saved.briefing);
-      setReady(true);
+    if (failed && data === null) toast.error("Couldn't load your home screen.");
+  }, [failed, data]);
+
+  // The feed lives in a store because a pattern run writes to it too. A run
+  // in flight owns it; its own refresh lands the result.
+  React.useEffect(() => {
+    if (!data) return;
+    if (usePatternStore.getState().runStatus !== "running") {
+      hydrate(data.discoveries);
     }
+  }, [data, hydrate]);
 
-    (async () => {
-      try {
-        const res = await fetch("/api/patterns/home");
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        if (cancelled) return;
-        writeSnapshot(userId, "home", data);
-        if (sameData(saved, data)) return;
-        // A run started meanwhile owns the feed; its own refresh lands it.
-        if (usePatternStore.getState().runStatus !== "running") {
-          hydrate(data.discoveries);
-        }
-        setBriefing(data.briefing);
-      } catch {
-        if (!cancelled && !saved) toast.error("Couldn't load your home screen.");
-      } finally {
-        if (!cancelled) setReady(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hydrate, userId]);
+  const briefing = data?.briefing ?? null;
 
   return (
     <>
       <header className="mb-8">
-        <p className="kicker mb-2.5">{format(new Date(), "EEEE, d MMMM")}</p>
+        {/* A non-breaking space rather than nothing, so the greeting below
+            does not jump up a line for the one render before the clock is
+            read. */}
+        <p className="kicker mb-2.5">
+          {now ? format(now, "EEEE, d MMMM") : " "}
+        </p>
         <h1 className="font-display text-[26px] leading-[1.12] tracking-tight sm:text-[34px]">
-          Good {greeting()}, {firstName}
+          {now ? `Good ${greeting(now)}, ${firstName}` : `Hello, ${firstName}`}
         </h1>
       </header>
 
       <div className="max-w-[860px] space-y-4">
-        {ready ? (
+        {pending ? (
+          <BriefingSkeleton />
+        ) : (
           <>
             <MoneyBriefing briefing={briefing} />
             <HabitsBriefing briefing={briefing} />
           </>
-        ) : (
-          <BriefingSkeleton />
         )}
       </div>
 
-      {ready && (
-        <div className="max-w-[860px]">
-          <PatternDiscovery />
-        </div>
-      )}
+      {/* The discovery panel is closed by default and costs nothing to draw,
+          so it is never withheld — it was only ever hidden here because it
+          shared a flag with the briefings above. */}
+      <div className="max-w-[860px]">
+        <PatternDiscovery />
+      </div>
     </>
   );
 }
@@ -335,8 +333,8 @@ function FeedFooter({ meta, computing, onCheck }) {
   );
 }
 
-function greeting() {
-  const h = new Date().getHours();
+function greeting(now) {
+  const h = now.getHours();
   if (h < 12) return "morning";
   if (h < 18) return "afternoon";
   return "evening";

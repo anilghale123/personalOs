@@ -2,20 +2,14 @@ import Link from "next/link";
 import { Wallet, Repeat } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import {
-  getPortfolioSummary,
-  getRecentTransactions,
-} from "@/features/vault/actions";
-import { VaultClient } from "@/features/vault/components/vault-client";
+import { PortfolioScreen } from "@/features/vault/components/portfolio-screen";
 
-export const dynamic = "force-dynamic";
-
-export default async function PortfolioPage() {
-  const [portfolio, transactions] = await Promise.all([
-    getPortfolioSummary(),
-    getRecentTransactions(),
-  ]);
-
+/**
+ * Nothing is fetched here: the screen paints what was saved on this device
+ * and reads /api/vault/screen behind it, so the route stays prerenderable
+ * and the tab is prefetched whole rather than only as far as a skeleton.
+ */
+export default function PortfolioPage() {
   return (
     <>
       <PageHeader
@@ -30,7 +24,7 @@ export default async function PortfolioPage() {
           </Link>
         </Button>
       </PageHeader>
-      <VaultClient portfolio={portfolio} transactions={transactions} />
+      <PortfolioScreen />
     </>
   );
 }

@@ -1,23 +1,13 @@
 import { Target } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import {
-  getGoals,
-  getAllHeatmapData,
-  getWeeklyGoals,
-} from "@/features/compass/actions";
-import { CompassClient } from "@/features/compass/components/compass-client";
-import { WeeklyGoals } from "@/features/compass/components/weekly-goals";
-import { weekLabel } from "@/lib/week";
+import { CompassScreen } from "@/features/compass/components/compass-screen";
 
-export const dynamic = "force-dynamic";
-
-export default async function GoalsPage() {
-  const [goals, { heatmap, habits }, weeklyGoals] = await Promise.all([
-    getGoals(),
-    getAllHeatmapData(),
-    getWeeklyGoals(),
-  ]);
-
+/**
+ * Nothing is fetched here: the screen paints what was saved on this device
+ * and reads /api/compass/screen behind it, so the route stays prerenderable
+ * and the tab is prefetched whole rather than only as far as a skeleton.
+ */
+export default function GoalsPage() {
   return (
     <>
       <PageHeader
@@ -25,14 +15,7 @@ export default async function GoalsPage() {
         title="Goals & Habits"
         subtitle="The week, your habits, the long game"
       />
-      <div className="space-y-8">
-        <WeeklyGoals initialGoals={weeklyGoals} weekLabel={weekLabel()} />
-        <CompassClient
-          initialGoals={goals}
-          initialHeatmap={heatmap}
-          initialHabits={habits}
-        />
-      </div>
+      <CompassScreen />
     </>
   );
 }

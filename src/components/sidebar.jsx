@@ -26,6 +26,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/install-button";
 import { ProfileDialog } from "@/features/auth/components/profile-dialog";
 import { ProBadge } from "@/components/pro-badge";
+import { useAppUser } from "@/components/app-user";
 
 /**
  * Discoveries leads, because that is what this app is for. Everything
@@ -188,13 +189,18 @@ function NavContent({ user, pathname, onOpenProfile }) {
 }
 
 /** Desktop sidebar — phones use BottomNav instead. */
-export function Sidebar({ user }) {
+export function Sidebar() {
   const pathname = usePathname();
+  const user = useAppUser();
   const [profileOpen, setProfileOpen] = React.useState(false);
   // Local overlay so an edited name shows immediately without waiting
   // for a fresh sign-in to reissue the JWT (which is what the session
   // actually carries under the jwt strategy).
-  const [displayUser, setDisplayUser] = React.useState(user);
+  const [patch, setPatch] = React.useState(null);
+  const displayUser = React.useMemo(
+    () => (user ? { ...user, ...patch } : null),
+    [user, patch]
+  );
 
   return (
     <>
@@ -210,7 +216,7 @@ export function Sidebar({ user }) {
         open={profileOpen}
         onOpenChange={setProfileOpen}
         user={displayUser}
-        onUpdated={(patch) => setDisplayUser((u) => ({ ...u, ...patch }))}
+        onUpdated={(update) => setPatch((held) => ({ ...held, ...update }))}
       />
     </>
   );

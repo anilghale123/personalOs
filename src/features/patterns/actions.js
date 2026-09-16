@@ -130,15 +130,6 @@ export async function getDiscoveriesData() {
   };
 }
 
-/** The archive: every insight the user has ever had, including lapsed ones. */
-export async function getInsightArchive() {
-  const session = await getSession();
-  if (!session?.user?.id) return [];
-  await connectDB();
-  const docs = await Insight.find({ userId: session.user.id }).lean();
-  return docs.map(toFeedItem);
-}
-
 /**
  * One insight in full, including the evidence rows and strength history
  * the detail page charts.

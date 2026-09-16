@@ -3,7 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAppUser } from "@/components/app-user";
+import { useScreenData } from "@/lib/screen-data";
 import { rankFeed } from "../feed";
 import { usePatternStore } from "../store";
 import { InsightCard } from "./insight-card";
@@ -30,20 +34,42 @@ const SORTS = [
   { id: "first", label: "First found" },
 ];
 
-export function DiscoveriesArchive({ initial }) {
+const SNAPSHOT_KEY = "discoveries-archive";
+
+export function DiscoveriesArchive() {
+  const userId = useAppUser()?.id;
   const [status, setStatus] = React.useState("active");
   const [domain, setDomain] = React.useState("all");
   const [sort, setSort] = React.useState("strength");
   const restore = usePatternStore((s) => s.restoreInsight);
-  const [items, setItems] = React.useState(initial ?? []);
+
+  /**
+   * Read during render, not in an effect — an effect runs after the browser
+   * has painted, which guaranteed a frame of placeholders even when the
+   * archive was already saved on this device.
+   */
+  const { data, failed } = useScreenData(
+    userId,
+    SNAPSHOT_KEY,
+    "/api/patterns/insights?status=all"
+  );
+
+  /** Local overlay for a restore made here, over what the screen loaded. */
+  const [restored, setRestored] = React.useState(null);
+  const items = restored ?? data?.insights ?? null;
+  const pending = items === null && !failed;
+
+  React.useEffect(() => {
+    if (failed && items === null) toast.error("Couldn't load your discoveries.");
+  }, [failed, items]);
 
   const domains = React.useMemo(
-    () => [...new Set((initial ?? []).flatMap((i) => i.domains ?? []))],
-    [initial]
+    () => [...new Set((items ?? []).flatMap((i) => i.domains ?? []))],
+    [items]
   );
 
   const visible = React.useMemo(() => {
-    const filtered = items.filter(
+    const filtered = (items ?? []).filter(
       (i) =>
         (status === "all" || i.status === status) &&
         (domain === "all" || (i.domains ?? []).includes(domain))
@@ -92,7 +118,19 @@ export function DiscoveriesArchive({ initial }) {
         <FilterRow label="Sort" options={SORTS} value={sort} onChange={setSort} />
       </div>
 
-      {visible.length === 0 ? (
+      {pending ? (
+        /* Before the saved copy or the server has answered. "Nothing here
+           yet" would be a lie at this point, and the wrong one to tell. */
+        <div className="space-y-3" aria-busy="true" aria-label="Loading discoveries">
+          {[0, 1, 2].map((i) => (
+            <Skeleton
+              key={i}
+              className="h-28 w-full rounded-2xl"
+              style={{ opacity: 1 - i * 0.25 }}
+            />
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-card/50 px-5 py-10 text-center text-sm text-muted-foreground">
           Nothing here yet.
         </p>
@@ -105,8 +143,10 @@ export function DiscoveriesArchive({ initial }) {
                 insight={insight}
                 onRestore={async () => {
                   await restore(insight.id);
-                  setItems((rows) =>
-                    rows.map((r) => (r.id === insight.id ? { ...r, status: "stale" } : r))
+                  setRestored((rows) =>
+                    (rows ?? items).map((r) =>
+                      r.id === insight.id ? { ...r, status: "stale" } : r
+                    )
                   );
                 }}
               />

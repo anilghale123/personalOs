@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { invalidateScreens } from "@/lib/screen-data";
 import { persist } from "zustand/middleware";
 
 /**
@@ -35,6 +36,10 @@ export const useCompassStore = create(
             },
           },
         });
+        // The tile on screen is already right — it was patched in place.
+        // This marks the saved copies so they re-read next time. See
+        // lib/screen-data.js.
+        invalidateScreens("compass");
         // Background sync
         fetch("/api/compass/habits", {
           method: "POST",

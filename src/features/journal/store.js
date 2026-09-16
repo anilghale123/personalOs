@@ -3,8 +3,31 @@ import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { toDateKey } from "@/lib/utils";
 import { NOTE_PAGE_SIZE } from "@/features/journal/constants";
+import { invalidateScreens } from "@/lib/screen-data";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+/**
+ * Move what the previous build saved under the un-prefixed key.
+ *
+ * Runs once, before the store is created, so someone who had an unsaved
+ * entry open when this shipped does not lose it. Safe to delete once no
+ * installed client can still be on the old name.
+ */
+function migrateLegacyKey() {
+  if (typeof window === "undefined") return;
+  try {
+    const legacy = localStorage.getItem("journal-store");
+    if (legacy && !localStorage.getItem("pos-journal-store")) {
+      localStorage.setItem("pos-journal-store", legacy);
+    }
+    localStorage.removeItem("journal-store");
+  } catch {
+    // Storage blocked. Nothing to carry over, and nothing left behind.
+  }
+}
+
+migrateLegacyKey();
 
 /** Empty anchor-journal draft for a day with no entry yet. */
 function emptyJournal(date) {
@@ -149,6 +172,11 @@ export const useJournalStore = create(
        * request was in flight, their text wins and the day stays "unsaved".
        */
       saveJournal: async ({ silent = false } = {}) => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         const j = get().journal;
         if (!j || get().saveStatus === "saved") return true;
         if (get()._saving) return false;
@@ -223,6 +251,11 @@ export const useJournalStore = create(
       },
 
       addNote: async (content, type = "note") => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         const text = content.trim();
         if (!text) return;
         const date = get().activeDate;
@@ -276,6 +309,11 @@ export const useJournalStore = create(
       },
 
       updateNote: async (id, patch) => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         const before = get().notes;
         set({
           notes: before.map((n) => (n._id === id ? { ...n, ...patch } : n)),
@@ -294,11 +332,21 @@ export const useJournalStore = create(
       },
 
       togglePin: async (id) => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         const note = get().notes.find((n) => n._id === id);
         if (note) await get().updateNote(id, { pinned: !note.pinned });
       },
 
       deleteNote: async (id) => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         const before = get().notes;
         const note = before.find((n) => n._id === id);
         if (!note) return;
@@ -335,6 +383,11 @@ export const useJournalStore = create(
 
       /** Restore a soft-deleted note (the delete toast's Undo action). */
       undoNote: async (id) => {
+        // The day on screen is already correct — it was patched in place.
+        // This marks the home briefing, which reads the journal, and the
+        // day itself for its next open. See lib/screen-data.js.
+        invalidateScreens("journal");
+
         try {
           const res = await fetch(`/api/journal/notes/${id}/undo`, {
             method: "POST",
@@ -365,7 +418,16 @@ export const useJournalStore = create(
       },
     }),
     {
-      name: "journal-store",
+      /**
+       * `pos-` prefixed so `signOutEverywhere` clears it.
+       *
+       * Under the old name this survived sign-out: a journal — the most
+       * personal thing in the app — stayed readable in localStorage for
+       * whoever picked up a shared laptop next. It matters more now that the
+       * screen paints from this rather than from server-rendered HTML.
+       * `migrateLegacyKey` carries an unsaved draft across the rename once.
+       */
+      name: "pos-journal-store",
       partialize: (state) => ({
         activeDate: state.activeDate,
         journal: state.journal,

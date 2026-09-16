@@ -1,39 +1,18 @@
+import { Suspense } from "react";
 import { BookOpen } from "lucide-react";
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-} from "date-fns";
 import { PageHeader } from "@/components/page-header";
-import { toDateKey } from "@/lib/utils";
-import {
-  getJournalDay,
-  getCalendarMoods,
-  getRecentEntries,
-} from "@/features/journal/actions";
 import { JournalScreen } from "@/features/journal/components/journal-screen";
 
-export const dynamic = "force-dynamic";
-
-const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
-
-export default async function JournalPage({ searchParams }) {
-  // `?date=` lets the evidence rows on a discovery link straight to the
-  // day they were computed from. Anything malformed just opens today.
-  const requested = searchParams?.date;
-  const today = DATE_KEY.test(requested ?? "") ? requested : toDateKey();
-  const now = new Date(`${today}T12:00:00`);
-  const from = toDateKey(startOfWeek(startOfMonth(now), { weekStartsOn: 1 }));
-  const to = toDateKey(endOfWeek(endOfMonth(now), { weekStartsOn: 1 }));
-
-  const [{ journal, notes, notesTotal, notesHasMore }, calendar, recents] =
-    await Promise.all([
-      getJournalDay(today),
-      getCalendarMoods(from, to),
-      getRecentEntries(),
-    ]);
-
+/**
+ * Nothing is fetched here, and `?date=` is read in the browser rather than
+ * from the request, so this route stays prerenderable and the tab is
+ * prefetched whole rather than only as far as a skeleton.
+ *
+ * The Suspense boundary is what `useSearchParams` needs in a prerendered
+ * route: the build renders the fallback, and the browser fills in the screen
+ * once it knows the query string.
+ */
+export default function JournalPage() {
   return (
     <>
       <PageHeader
@@ -41,17 +20,9 @@ export default async function JournalPage({ searchParams }) {
         title="Journal"
         subtitle="One entry a day, plus anything in between"
       />
-      <JournalScreen
-        initialData={{
-          date: today,
-          journal,
-          notes,
-          notesTotal,
-          notesHasMore,
-          calendar,
-          recents,
-        }}
-      />
+      <Suspense>
+        <JournalScreen />
+      </Suspense>
     </>
   );
 }

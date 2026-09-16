@@ -10,6 +10,7 @@ import {
   monthCursorRange,
 } from "@/lib/months";
 import { useBudgetStore } from "../store";
+import { useIsomorphicLayoutEffect } from "@/lib/client-clock";
 
 /**
  * The expenses screen's filter set, owned one level above the list.
@@ -51,16 +52,29 @@ export function useExpenseFilters({ earliestDate, cal }) {
     Boolean(initialFrom || initialTo)
   );
 
-  // Re-fetch whenever any filter changes. The opening load runs at once —
-  // it paints from the saved copy, so a delay there is pure waiting; only
-  // later changes (typing in search) are debounced.
+  /**
+   * Re-read whenever a filter changes.
+   *
+   * The opening load runs **before the browser paints**, and not on a timer.
+   * `loadExpenses` seeds the list from the copy saved on this device before
+   * its first `await`, so running it here means the list is already on
+   * screen the first time the screen is drawn. Deferring it — which a
+   * passive effect or even a zero-delay timeout does — put a frame of
+   * placeholder rows in front of a list the device already had.
+   *
+   * Later changes are a different matter: typing in the search box should
+   * not fire a request per keystroke, so those stay debounced.
+   */
   const firstLoad = React.useRef(true);
-  React.useEffect(() => {
-    const delay = firstLoad.current ? 0 : 250;
-    firstLoad.current = false;
-    const t = setTimeout(() => {
+  useIsomorphicLayoutEffect(() => {
+    const load = () =>
       loadExpenses({ q, categoryId, paymentMethod, dateFrom, dateTo, sort });
-    }, delay);
+    if (firstLoad.current) {
+      firstLoad.current = false;
+      load();
+      return undefined;
+    }
+    const t = setTimeout(load, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, categoryId, paymentMethod, dateFrom, dateTo, sort]);

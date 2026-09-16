@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { invalidateScreens } from "@/lib/screen-data";
 import { Plus, Repeat, CalendarClock, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, toDateKey } from "@/lib/utils";
@@ -274,6 +275,8 @@ function AddInstallmentDialog({ sipId }) {
     if (!form.amountInvested) return;
     setSaving(true);
     try {
+      // A SIP installment is a transaction; see lib/screen-data.js.
+      invalidateScreens("portfolio");
       const res = await fetch("/api/vault/sip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

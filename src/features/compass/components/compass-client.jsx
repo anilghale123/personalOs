@@ -20,6 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/empty-state";
+import { invalidateScreens } from "@/lib/screen-data";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +44,18 @@ const CATEGORY_TONE = {
   personal: "bg-sand-200 text-sand-800",
 };
 
-export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
+/**
+ * @param {object} props
+ * @param {boolean} [props.pending] this device has never loaded this screen.
+ *   Only the lists wait — the cards, headings and buttons around them were
+ *   never waiting on the server, so they are drawn on the first frame.
+ */
+export function CompassClient({
+  initialGoals,
+  initialHeatmap,
+  initialHabits,
+  pending = false,
+}) {
   const router = useRouter();
   const {
     goals,
@@ -55,8 +68,20 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
     toggleHabit,
   } = useCompassStore();
 
-  // Hydrate store from server data on mount.
+  // Bumped by anything added here, so a background refresh that started
+  // before the change cannot seed over the top of it.
+  const editsRef = React.useRef(0);
+
+  /**
+   * Seed the store from the screen's data.
+   *
+   * Re-runs when that data changes identity, which `CompassScreen` arranges
+   * to mean "the server had something different from the saved copy" — so
+   * this fires once on mount and again only if the background refresh
+   * actually found news.
+   */
   React.useEffect(() => {
+    if (editsRef.current > 0) return;
     setGoals(initialGoals);
     if (initialHabits?.length) {
       const merged = [
@@ -66,7 +91,7 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
     }
     setHeatmapData({ ...initialHeatmap, ...useCompassStore.getState().heatmapData });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialGoals, initialHabits, initialHeatmap]);
 
   const today = toDateKey();
   const todayHabits = heatmapData[today] || {};
@@ -116,7 +141,13 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
           </div>
         </CardHeader>
         <CardContent>
-          {habits.length === 0 ? (
+          {pending ? (
+            <div className="space-y-2" aria-busy="true">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-11 w-full rounded-md" />
+              ))}
+            </div>
+          ) : habits.length === 0 ? (
             <EmptyState
               icon={Flame}
               title="No habits yet"
@@ -180,12 +211,22 @@ export function CompassClient({ initialGoals, initialHeatmap, initialHabits }) {
           <h2 className="text-base font-semibold">Long-term Goals</h2>
           <AddGoalDialog
             onCreated={(goal) => {
+              editsRef.current += 1;
+              invalidateScreens("compass");
               setGoals([goal, ...useCompassStore.getState().goals]);
               router.refresh();
             }}
           />
         </div>
-        {goals.length === 0 ? (
+        {/* "No goals yet" is a claim about the account, so it waits until
+            the account has answered. */}
+        {pending ? (
+          <div className="grid gap-3 sm:grid-cols-2" aria-busy="true">
+            {[0, 1].map((i) => (
+              <Skeleton key={i} className="h-36 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : goals.length === 0 ? (
           <EmptyState
             icon={Target}
             title="No goals yet"
