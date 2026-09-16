@@ -1,5 +1,5 @@
 import { withRoute, json } from "@/lib/api";
-import { z, dateKey, text, optionalText, tagList } from "@/lib/validation";
+import { z, dateKey, text, tagList } from "@/lib/validation";
 import { invalidateJournal } from "@/lib/cache";
 import DailyJournal from "@/models/DailyJournal";
 import QuickNote from "@/models/QuickNote";

@@ -4,9 +4,8 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useAppUser } from "@/components/app-user";
 import { useScreenData } from "@/lib/screen-data";
+import { asList } from "@/lib/snapshot";
 import { VaultClient } from "./vault-client";
-
-const EMPTY = { portfolio: [], transactions: [] };
 
 /**
  * Portfolio.
@@ -33,12 +32,13 @@ export function PortfolioScreen() {
     if (failed && data === null) toast.error("Couldn't load your portfolio.");
   }, [failed, data]);
 
-  const { portfolio, transactions } = data ?? EMPTY;
-
+  // Never trusted: a saved copy is whatever localStorage handed back, and a
+  // screen that renders `portfolio.reduce` on a string crashes on every open
+  // until someone clears their browser. See lib/snapshot.js.
   return (
     <VaultClient
-      portfolio={portfolio}
-      transactions={transactions}
+      portfolio={asList(data?.portfolio)}
+      transactions={asList(data?.transactions)}
       pending={pending}
     />
   );

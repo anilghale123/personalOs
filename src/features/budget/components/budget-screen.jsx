@@ -108,8 +108,11 @@ function ExpensesTabs({ earliestDate, dateFormat, isPro = false }) {
   // Owned here, not in the list: the filters live in their own tab, so the
   // list is unmounted while they are being changed.
   const filters = useExpenseFilters({ earliestDate, cal });
-  // `?tab=income` — where a deposits-only statement import lands.
-  const initialTab = useSearchParams().get("tab") === "income" ? "income" : "expenses";
+  // `?tab=income` — where a deposits-only statement import lands. Optional:
+  // on a prerendered route the params are not always there on the first
+  // client render, and `.get` on nothing is a crash rather than a default.
+  const searchParams = useSearchParams();
+  const initialTab = searchParams?.get("tab") === "income" ? "income" : "expenses";
 
   return (
     <div className="space-y-4">

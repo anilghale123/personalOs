@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutEverywhere } from "@/lib/sign-out";
 import {
-  LayoutDashboard,
   Target,
   BookOpen,
   Receipt,

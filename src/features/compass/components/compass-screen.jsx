@@ -5,11 +5,10 @@ import { toast } from "sonner";
 import { useAppUser } from "@/components/app-user";
 import { useClientClock } from "@/lib/client-clock";
 import { useScreenData } from "@/lib/screen-data";
+import { asList, asRecord } from "@/lib/snapshot";
 import { weekLabel } from "@/lib/week";
 import { CompassClient } from "./compass-client";
 import { WeeklyGoals } from "./weekly-goals";
-
-const EMPTY = { goals: [], heatmap: {}, habits: [], weeklyGoals: [] };
 
 /**
  * Goals & Habits.
@@ -40,19 +39,18 @@ export function CompassScreen() {
     if (failed && data === null) toast.error("Couldn't load your goals.");
   }, [failed, data]);
 
-  const { goals, heatmap, habits, weeklyGoals } = data ?? EMPTY;
-
+  // Never trusted — see lib/snapshot.js.
   return (
     <div className="space-y-8">
       <WeeklyGoals
-        initialGoals={weeklyGoals}
+        initialGoals={asList(data?.weeklyGoals)}
         weekLabel={label ?? ""}
         pending={pending}
       />
       <CompassClient
-        initialGoals={goals}
-        initialHeatmap={heatmap}
-        initialHabits={habits}
+        initialGoals={asList(data?.goals)}
+        initialHeatmap={asRecord(data?.heatmap)}
+        initialHabits={asList(data?.habits)}
         pending={pending}
       />
     </div>

@@ -52,7 +52,7 @@ export function LoginForm({ googleEnabled = false }) {
   const searchParams = useSearchParams();
   // /signup lands here as /login?mode=signup — open on the signup form.
   const [mode, setMode] = React.useState(() =>
-    searchParams.get("mode") === "signup" ? "signup" : "login"
+    searchParams?.get("mode") === "signup" ? "signup" : "login"
   );
   const [form, setForm] = React.useState({
     name: "",
@@ -75,13 +75,13 @@ export function LoginForm({ googleEnabled = false }) {
    * module for why the URL parser rather than string checks.
    */
   const destination = React.useMemo(
-    () => safeRedirect(searchParams.get("next")),
+    () => safeRedirect(searchParams?.get("next")),
     [searchParams]
   );
 
   // Surface OAuth / callback errors NextAuth passes back via the URL.
   React.useEffect(() => {
-    const code = searchParams.get("error");
+    const code = searchParams?.get("error");
     if (code) {
       setError(AUTH_ERRORS[code] || "Sign-in failed. Please try again.");
     }

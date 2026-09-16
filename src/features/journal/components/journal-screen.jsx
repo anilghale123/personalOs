@@ -69,7 +69,7 @@ export function JournalScreen() {
    * "today" is read here, on the device, because the server's today is UTC's
    * and this route is prerendered besides.
    */
-  const requested = searchParams.get("date");
+  const requested = searchParams?.get("date") ?? null;
   const [today] = useClientClock(() => toDateKey());
   const date = DATE_KEY.test(requested ?? "") ? requested : today;
 

@@ -23,7 +23,7 @@ function ago(iso) {
 
 export default async function AdminDashboard() {
   const data = await getAdminOverview();
-  const { users, features, mostUsed, untouched, goneQuiet, signupTrend } = data;
+  const { users, mostUsed, untouched, goneQuiet, signupTrend } = data;
 
   return (
     <div className="space-y-8">

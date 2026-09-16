@@ -13,7 +13,8 @@
     "db:indexes:check": "node scripts/sync-indexes.mjs --dry-run",
     "db:migrate:paisa": "node scripts/migrate-vault-to-paisa.mjs",
     "db:migrate:paisa:check": "node scripts/migrate-vault-to-paisa.mjs --dry-run",
-    "seed:superadmin": "node scripts/seed-superadmin.mjs"
+    "seed:superadmin": "node scripts/seed-superadmin.mjs",
+    "account:delete": "node scripts/delete-account.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

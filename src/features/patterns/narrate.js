@@ -24,8 +24,15 @@ import { getGroqClient, GROQ_CHAT_MODEL } from "@/lib/groq";
 import { fromMinorUnits } from "@/lib/money";
 import { BANNED_CAUSAL_TERMS } from "./constants";
 
-/** Small integers a writer may spell out without it being a claim. */
-const SPELLED_NUMBERS = {
+/**
+ * Small integers a writer may spell out without it being a claim.
+ *
+ * Not yet consulted — `extractNumbers` below only reads digits, so a model
+ * writing "twice as often" currently slips past the check that every figure
+ * in the prose came from the data. Kept because that is the table the fix
+ * needs, and underscored so it is plainly unused rather than forgotten.
+ */
+const _SPELLED_NUMBERS = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
   seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
   half: 0.5, twice: 2, double: 2, triple: 3,

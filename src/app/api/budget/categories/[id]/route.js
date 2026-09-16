@@ -73,9 +73,9 @@ const DeleteQuery = z.object({
 export const DELETE = withRoute(
   { limit: "write", params: ["id"], query: DeleteQuery },
   async ({ userId, params, query }) => {
-    const category = must(
-      await Category.findOne({ _id: params.id, userId }).select("_id").lean()
-    );
+    // The call is the guard — it throws a 404 when the category is not this
+    // user's — and nothing below needs the document itself.
+    must(await Category.findOne({ _id: params.id, userId }).select("_id").lean());
 
     const expenseCount = await Expense.countDocuments({
       userId,

@@ -30,7 +30,9 @@ export function LandingFooter() {
     <footer className="border-t border-border/60">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 text-xs text-muted-foreground sm:flex-row sm:px-8">
         <BrandMark wordClassName="text-sm" markClassName="h-3.5" />
-        <p>Private by design.</p>
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
         <p>© {new Date().getFullYear()} selfView</p>
       </div>
     </footer>

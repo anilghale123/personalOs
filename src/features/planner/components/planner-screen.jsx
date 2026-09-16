@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppUser } from "@/components/app-user";
-import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
+import { asList, readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
 import { useClientClock, useIsomorphicLayoutEffect } from "@/lib/client-clock";
 import { invalidateScreens, markRead, shouldRead } from "@/lib/screen-data";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
@@ -149,7 +149,10 @@ export function PlannerScreen() {
   useIsomorphicLayoutEffect(() => {
     if (!userId || !weekStart || goalsWeek === weekStart) return;
     const saved = readSnapshot(userId, `planner:${weekStart}`);
-    if (saved) {
+    // A copy that is not a list of goals is treated as no copy — see
+    // lib/snapshot.js. `goals.reduce` on anything else throws during render,
+    // and a throw during render is the screen the user should never see.
+    if (Array.isArray(saved)) {
       setGoals(saved);
       setGoalsWeek(weekStart);
       setLoading(false);
@@ -179,7 +182,7 @@ export function PlannerScreen() {
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (weekRef.current !== ws || editsRef.current !== editsAtStart) return;
-        setGoals((current) => (sameData(current, data) ? current : data));
+        setGoals((current) => (sameData(current, data) ? current : asList(data)));
         setGoalsWeek(ws);
         markRead(userIdRef.current, `planner:${ws}`);
       } catch {

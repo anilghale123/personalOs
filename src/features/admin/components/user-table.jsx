@@ -54,7 +54,7 @@ export function UserTable({
 
   /** Push a filter change into the URL so the page is shareable and back works. */
   function applyFilter(next) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
     for (const [key, value] of Object.entries(next)) {
       if (value) params.set(key, value);
       else params.delete(key);

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppUser } from "@/components/app-user";
 import { useScreenData } from "@/lib/screen-data";
+import { asList } from "@/lib/snapshot";
 import { rankFeed } from "../feed";
 import { usePatternStore } from "../store";
 import { InsightCard } from "./insight-card";
@@ -56,7 +57,9 @@ export function DiscoveriesArchive() {
 
   /** Local overlay for a restore made here, over what the screen loaded. */
   const [restored, setRestored] = React.useState(null);
-  const items = restored ?? data?.insights ?? null;
+  // Never trusted — see lib/snapshot.js. `null` still means "nothing yet",
+  // which is different from "nothing here", so only a present copy is listed.
+  const items = restored ?? (data ? asList(data.insights) : null);
   const pending = items === null && !failed;
 
   React.useEffect(() => {

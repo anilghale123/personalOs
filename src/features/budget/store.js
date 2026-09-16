@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { newIdempotencyKey } from "@/lib/client-keys";
 import { toMinorUnits } from "@/lib/money";
-import { readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
+import { asList, readSnapshot, sameData, writeSnapshot } from "@/lib/snapshot";
 import { invalidateScreens, markRead, shouldRead } from "@/lib/screen-data";
 import { EXPENSE_PAGE_SIZE } from "./constants";
 
@@ -155,10 +155,10 @@ export const useBudgetStore = create((set, get) => ({
       filters: next,
       ...(saved
         ? {
-            expenses: saved.expenses,
-            totalPaisa: saved.totalPaisa,
-            matchCount: saved.count,
-            hasMore: saved.hasMore,
+            expenses: asList(saved.expenses),
+            totalPaisa: Number(saved.totalPaisa) || 0,
+            matchCount: Number(saved.count) || 0,
+            hasMore: Boolean(saved.hasMore),
             expensesReady: true,
           }
         : {}),
@@ -447,10 +447,13 @@ export const useBudgetStore = create((set, get) => ({
   /** Fill the section from the copy saved on this device last time. */
   seedMoney: (saved) =>
     set({
-      categories: saved.categories ?? [],
-      summary: saved.summary ?? null,
-      debts: saved.debts ?? [],
-      financialGoals: saved.financialGoals ?? [],
+      // A saved copy is whatever localStorage handed back — see
+      // lib/snapshot.js. A list that turns out not to be one throws during
+      // render, on every open, until the browser is cleared.
+      categories: asList(saved?.categories),
+      summary: saved?.summary ?? null,
+      debts: asList(saved?.debts),
+      financialGoals: asList(saved?.financialGoals),
       moneyReady: true,
     }),
 

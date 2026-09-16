@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import { toDateKey } from "@/lib/utils";
+import { invalidateScreens } from "@/lib/screen-data";
+import { asList } from "@/lib/snapshot";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -29,11 +31,21 @@ export const usePatternStore = create((set, get) => ({
    * Seed from the server-rendered payload. Coverage is not part of that
    * payload any more, so a lazily-loaded one is never clobbered here.
    */
-  hydrate: ({ insights, readiness, meta }) =>
+  /**
+   * Seed the feed.
+   *
+   * The payload may have come from this device's saved copy, so its shape is
+   * not guaranteed — an older version of the app, or a write cut short by a
+   * full disk, and this is called with something that does not destructure.
+   * It used to take `({ insights, readiness, meta })` directly, which throws
+   * on `undefined` and takes the whole screen down with it. See
+   * lib/snapshot.js.
+   */
+  hydrate: (payload) =>
     set({
-      insights: insights ?? [],
-      readiness: readiness ?? get().readiness ?? null,
-      meta: meta ?? null,
+      insights: asList(payload?.insights),
+      readiness: payload?.readiness ?? get().readiness ?? null,
+      meta: payload?.meta ?? null,
       hydrated: true,
     }),
 

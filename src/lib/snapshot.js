@@ -93,6 +93,29 @@ export function clearSnapshots() {
 }
 
 /**
+ * A list from a saved copy, or an empty one.
+ *
+ * Saved copies come back from `localStorage`, which means they can be
+ * anything: written by an older version of the app with a different shape,
+ * truncated by a quota error mid-write, or edited by hand. Rendering
+ * `saved.rows.map(...)` against one of those throws, and a throw during
+ * render is the "Application error" screen — on every open, because the bad
+ * copy is still there the next time too.
+ *
+ * So nothing trusts the shape of what comes back. A copy that is not what
+ * the screen expects is treated as no copy at all, which costs one fetch and
+ * never costs a crash.
+ */
+export function asList(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+/** The same, for a saved copy expected to be a plain object. */
+export function asRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+/**
  * Whether two payloads carry the same data — so a refresh that changed
  * nothing keeps the existing objects and re-renders nothing.
  */

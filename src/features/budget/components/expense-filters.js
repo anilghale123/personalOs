@@ -24,9 +24,11 @@ export function useExpenseFilters({ earliestDate, cal }) {
 
   // A discovery's evidence rows link here with the day already selected,
   // so the user lands on exactly the expenses a finding was computed from.
+  // Optional: on a prerendered route the params are not always there on the
+  // first client render, and `.get` on nothing is a crash rather than "".
   const searchParams = useSearchParams();
-  const initialFrom = searchParams.get("dateFrom") ?? "";
-  const initialTo = searchParams.get("dateTo") ?? "";
+  const initialFrom = searchParams?.get("dateFrom") ?? "";
+  const initialTo = searchParams?.get("dateTo") ?? "";
 
   // With a monthly record the list opens on the current month, unless a
   // deep-link already pinned a range.

@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProBadge } from "@/components/pro-badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReminderSettings } from "@/features/reminders/components/reminder-settings";
+import { AccountData } from "@/features/account/components/account-data";
 
 /** Server-enforced minimum, mirrored here so the form fails before a
  *  round trip. Keep in step with `password` in lib/validation.js. */
@@ -400,6 +401,8 @@ export function ProfileDialog({ open, onOpenChange, user, onUpdated }) {
                 onChange={(e) => saveExtraction(e.target.checked)}
               />
             </label>
+
+            <AccountData />
           </TabsContent>
         </Tabs>
       </DialogContent>
