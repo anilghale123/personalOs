@@ -86,6 +86,61 @@ function PlannerSkeleton() {
   );
 }
 
+/**
+ * The name field and its button.
+ *
+ * ## Why the button is never disabled
+ *
+ * It used to grey out until something was typed, which reads as broken
+ * rather than as "type first": the control that says what to do here is the
+ * one you cannot press, and nothing on screen explains why. Pressing it now
+ * always does something — with a name it adds the goal, and empty it puts
+ * the cursor in the field, which is the instruction the disabled state was
+ * failing to give. On a phone that also raises the keyboard, so the next tap
+ * is already the right one.
+ *
+ * ## Why this is a component and not a function called twice
+ *
+ * It owns the `ref` to its own input. The row is rendered twice — phone and
+ * desktop — and one shared ref would hold whichever mounted last, so half
+ * the time the button would move the cursor into the copy that is currently
+ * hidden by a breakpoint, and appear to do nothing at all.
+ */
+function AddGoalRow({ className, value, onChange, onSubmit, isPastWeek }) {
+  const inputRef = React.useRef(null);
+
+  function submit() {
+    if (!value.trim()) {
+      inputRef.current?.focus();
+      return;
+    }
+    onSubmit();
+  }
+
+  return (
+    <div className={className}>
+      <Input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        placeholder={
+          isPastWeek
+            ? "Add a goal to this past week"
+            : "Add a goal — e.g. Morning workout"
+        }
+        className="h-9 min-w-0 flex-1 bg-background"
+      />
+      <Button size="sm" className="shrink-0" onClick={submit}>
+        <Plus className="h-4 w-4" />
+        Add goal
+      </Button>
+    </div>
+  );
+}
+
 export function PlannerScreen() {
   const userId = useAppUser()?.id;
   /**
@@ -405,36 +460,19 @@ export function PlannerScreen() {
   const isFiltered = filter !== "all" || q.length > 0;
 
   /**
-   * The add-goal control. Rendered twice — once above the grid for
-   * phones, once as the grid's last row on wider screens — so it isn't
-   * stranded behind a horizontal scroll on a small display. Both share
-   * this component's `newTitle`, so only the visible one is ever typed in.
+   * The add-goal control. Rendered twice — once above the grid for phones,
+   * once as the grid's last row on wider screens — so it isn't stranded
+   * behind a horizontal scroll on a small display. Both share `newTitle`, so
+   * only the visible one is ever typed in.
    */
   const addGoalRow = (className) => (
-    <div className={className}>
-      <Input
-        value={newTitle}
-        onChange={(e) => setNewTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") addGoal();
-        }}
-        placeholder={
-          isPastWeek
-            ? "Add a goal to this past week"
-            : "Add a goal — e.g. Morning workout"
-        }
-        className="h-9 min-w-0 flex-1 bg-background"
-      />
-      <Button
-        size="sm"
-        className="shrink-0"
-        onClick={addGoal}
-        disabled={!newTitle.trim()}
-      >
-        <Plus className="h-4 w-4" />
-        Add goal
-      </Button>
-    </div>
+    <AddGoalRow
+      className={className}
+      value={newTitle}
+      onChange={setNewTitle}
+      onSubmit={addGoal}
+      isPastWeek={isPastWeek}
+    />
   );
 
   return (
