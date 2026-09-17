@@ -11,7 +11,7 @@ import { plain } from "@/lib/serialize";
  * Ensures a week has been "initialised": the first time the current
  * or a future week is opened with zero goals, its titles are copied
  * forward from the most recent prior week that had any — fresh
- * (pending) day statuses, no other fields. This runs at most once per
+ * (pending) day statuses and the same reminder time, no other fields. This runs at most once per
  * week per user: once the state doc exists, deleting every goal in
  * that week sticks and nothing gets re-added on the next load.
  */
@@ -37,6 +37,7 @@ async function initWeekIfNeeded(userId, weekStart) {
             userId,
             weekStart,
             title: g.title,
+            ...(g.time ? { time: g.time } : {}),
           }))
         );
       }

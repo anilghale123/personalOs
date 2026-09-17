@@ -1,5 +1,5 @@
 import { withRoute, json } from "@/lib/api";
-import { z, dateKey, text } from "@/lib/validation";
+import { z, blankAsAbsent, clockTime, dateKey, text } from "@/lib/validation";
 import { invalidatePlanner } from "@/lib/cache";
 import PlannerGoal from "@/models/PlannerGoal";
 import { getPlannerWeek } from "@/features/planner/actions";
@@ -22,11 +22,12 @@ export const GET = withRoute(
 const CreateRow = z.object({
   weekStart: dateKey,
   title: text(200).pipe(z.string().min(1, "A goal title is required.")),
+  time: blankAsAbsent(clockTime),
 });
 
 /**
  * POST /api/planner — add a goal row for a week.
- * Body: { weekStart, title }
+ * Body: { weekStart, title, time? } — time is 'HH:mm'
  */
 export const POST = withRoute(
   { limit: "write", body: CreateRow },
@@ -35,6 +36,7 @@ export const POST = withRoute(
       userId,
       weekStart: input.weekStart,
       title: input.title,
+      ...(input.time ? { time: input.time } : {}),
     });
 
     invalidatePlanner(userId);

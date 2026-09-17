@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsLeft, ChevronsRight, X, Trash2 } from "lucide-react";
+import { Check, ChevronsLeft, ChevronsRight, Clock, X, Trash2 } from "lucide-react";
 import { cn, toDateKey } from "@/lib/utils";
+import { formatTime } from "@/features/reminders/logic";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Tapping a cell cycles through the three states.
@@ -66,6 +67,78 @@ function DayToggle({ status, isToday, className, onChange }) {
 }
 
 /**
+ * The goal's time — "6:00 AM" as a chip, or a quiet "Set time" when there is
+ * none. Tapping opens a native time field (pick or type); leaving it saves,
+ * and emptying it (or the ×) removes the time and with it the reminder.
+ */
+function GoalTime({ time, onChange }) {
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState(time || "");
+
+  React.useEffect(() => {
+    if (!editing) setValue(time || "");
+  }, [time, editing]);
+
+  function commit(next) {
+    setEditing(false);
+    const normalized = next || null;
+    if (normalized !== (time || null)) onChange(normalized);
+  }
+
+  if (editing) {
+    return (
+      <span className="flex items-center gap-1">
+        <input
+          type="time"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={() => commit(value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setValue(time || "");
+              setEditing(false);
+            }
+          }}
+          aria-label="Goal time"
+          className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+        />
+        {time && (
+          <button
+            type="button"
+            // Keep the field from blurring (and saving) before this runs.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => commit(null)}
+            aria-label="Remove time"
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      aria-label={time ? `Change time, ${formatTime(time)}` : "Set a time"}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full text-[11px] tabular-nums transition-colors",
+        time
+          ? "bg-primary/10 px-1.5 py-0.5 font-medium text-primary hover:bg-primary/15"
+          : "text-sand-500 hover:text-primary"
+      )}
+    >
+      <Clock className="h-3 w-3" />
+      {time ? formatTime(time) : "Set time"}
+    </button>
+  );
+}
+
+/**
  * A planner goal row — editable title in the Goals column, followed by
  * a done/missed toggle for each day of the week.
  *
@@ -80,6 +153,7 @@ function PlannerGoalRowInner({
   hiddenDays,
   onUpdateDay,
   onUpdateTitle,
+  onUpdateTime,
   onDelete,
 }) {
   const [editing, setEditing] = React.useState(false);
@@ -130,9 +204,15 @@ function PlannerGoalRowInner({
             {goal.title}
           </button>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] tabular-nums text-sand-600">
-            {done}/7 done
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-[11px] tabular-nums text-sand-600">
+              {done}/7 done
+            </span>
+            <GoalTime
+              time={goal.time}
+              onChange={(time) => onUpdateTime(goal._id, time)}
+            />
           </span>
           <button
             type="button"

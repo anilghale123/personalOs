@@ -91,6 +91,11 @@ export function clearable(schema) {
   );
 }
 
+/** A 24-hour 'HH:mm' clock time, as an `<input type="time">` sends it. */
+export const clockTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a time like 06:00.");
+
 /** A date a PATCH can clear by sending it blank. */
 export const clearableDateKey = clearable(dateKey);
 

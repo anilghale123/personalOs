@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildGoalTimeReminder,
   buildReminder,
+  formatTime,
+  goalTimeDue,
   daysBetween,
   firstName,
   nepalClock,
@@ -15,6 +18,7 @@ describe("nepalClock", () => {
       weekday: "Tue",
       weekStart: "2026-09-14",
       hour: 10,
+      minute: 0,
     });
   });
 
@@ -25,6 +29,7 @@ describe("nepalClock", () => {
       weekday: "Mon",
       weekStart: "2026-09-21",
       hour: 1,
+      minute: 45,
     });
   });
 
@@ -101,5 +106,69 @@ describe("buildReminder", () => {
     expect(buildReminder({ ...base, daysAway: null }).title).toBe(
       "Evening check-in"
     );
+  });
+});
+
+describe("goalTimeDue", () => {
+  // 00:30 UTC Tuesday is 06:15 in Kathmandu.
+  const clock = nepalClock(new Date("2026-09-15T00:30:00Z"));
+  const goal = { time: "06:00", days: { Tue: "pending" } };
+
+  it("is due once the time passes with today unchecked", () => {
+    expect(goalTimeDue(goal, clock)).toBe(true);
+  });
+
+  it("never fires for a goal without a time", () => {
+    expect(goalTimeDue({ days: {} }, clock)).toBe(false);
+  });
+
+  it("stays quiet before the time and after the window", () => {
+    expect(goalTimeDue({ ...goal, time: "06:30" }, clock)).toBe(false);
+    expect(goalTimeDue({ ...goal, time: "05:00" }, clock)).toBe(false);
+  });
+
+  it("stays quiet once today is checked either way, or already nudged", () => {
+    expect(goalTimeDue({ ...goal, days: { Tue: "done" } }, clock)).toBe(false);
+    expect(goalTimeDue({ ...goal, days: { Tue: "missed" } }, clock)).toBe(false);
+    expect(goalTimeDue({ ...goal, timeRemindedOn: "2026-09-15" }, clock)).toBe(false);
+  });
+
+  it("treats a missing day status as unchecked", () => {
+    expect(goalTimeDue({ time: "06:00" }, clock)).toBe(true);
+  });
+});
+
+describe("buildGoalTimeReminder", () => {
+  it("formats 24-hour times for people", () => {
+    expect(formatTime("06:00")).toBe("6:00 AM");
+    expect(formatTime("00:05")).toBe("12:05 AM");
+    expect(formatTime("18:30")).toBe("6:30 PM");
+  });
+
+  it("names the goal and its time", () => {
+    const r = buildGoalTimeReminder({
+      name: "Anil Ghale",
+      goals: [{ title: "Wake up", time: "06:00" }],
+    });
+    expect(r.body).toBe(
+      'Anil, you need to check your goal "Wake up" — it was due at 6:00 AM. Done it? Tick it off.'
+    );
+    expect(r.url).toBe("/app/planner");
+  });
+
+  it("folds several goals into one notification", () => {
+    const r = buildGoalTimeReminder({
+      name: "Anil",
+      goals: [
+        { title: "Wake up", time: "06:00" },
+        { title: "Run", time: "06:00" },
+      ],
+    });
+    expect(r.title).toBe("2 goals are waiting");
+    expect(r.body).toContain('"Wake up", "Run"');
+  });
+
+  it("returns null with nothing due", () => {
+    expect(buildGoalTimeReminder({ name: "Anil", goals: [] })).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import Goal from "@/models/Goal";
 import HabitLog from "@/models/HabitLog";
 import Income from "@/models/Income";
 import Insight from "@/models/Insight";
+import Notification from "@/models/Notification";
 import PasswordResetCode from "@/models/PasswordResetCode";
 import PatternRun from "@/models/PatternRun";
 import PlannerGoal from "@/models/PlannerGoal";
@@ -55,6 +56,7 @@ export const USER_COLLECTIONS = [
   { name: "discoveries", model: () => Insight },
   { name: "patternRuns", model: () => PatternRun },
   { name: "reminderDevices", model: () => PushSubscription },
+  { name: "notifications", model: () => Notification },
   { name: "passwordResetCodes", model: () => PasswordResetCode },
 ];
 

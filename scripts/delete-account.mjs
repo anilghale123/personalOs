@@ -73,6 +73,7 @@ const USER_COLLECTIONS = [
   "insights",
   "patternruns",
   "pushsubscriptions",
+  "notifications",
   "passwordresetcodes",
 ];
 

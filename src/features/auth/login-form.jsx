@@ -219,7 +219,7 @@ export function LoginForm({ googleEnabled = false }) {
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"
-              placeholder="Amish Singh"
+              placeholder="Ram Bahadur Kaji"
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               required

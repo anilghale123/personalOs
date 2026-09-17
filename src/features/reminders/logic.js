@@ -14,7 +14,7 @@ export const AWAY_AFTER_DAYS = 3;
  * The Nepal-local calendar for an instant, independent of the server's own
  * timezone (UTC on Vercel).
  * @param {Date} [now]
- * @returns {{dateKey: string, weekday: string, weekStart: string, hour: number}}
+ * @returns {{dateKey: string, weekday: string, weekStart: string, hour: number, minute: number}}
  */
 export function nepalClock(now = new Date()) {
   const local = new Date(now.getTime() + NEPAL_OFFSET_MIN * 60_000);
@@ -26,6 +26,7 @@ export function nepalClock(now = new Date()) {
     weekday: WEEKDAYS[dow],
     weekStart: monday.toISOString().slice(0, 10),
     hour: local.getUTCHours(),
+    minute: local.getUTCMinutes(),
   };
 }
 
@@ -99,6 +100,72 @@ export function buildReminder({
     title: slot === "morning" ? "Good morning" : "Evening check-in",
     body,
     url: expenseLoggedToday ? "/app/planner" : "/app/budget/expenses",
+    tag,
+  };
+}
+
+/**
+ * How long after a goal's time its nudge may still go out. Wider than the
+ * scheduler's interval so a late or skipped run still lands, narrow enough
+ * that a 6 am goal added at 3 pm doesn't ping the moment it is saved.
+ */
+export const GOAL_TIME_WINDOW_MIN = 60;
+
+/** 'HH:mm' → minutes since midnight. */
+export function minutesOf(time) {
+  const [h, m] = String(time).split(":").map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Whether a timed planner goal is due a nudge right now: it has a time, that
+ * time passed within the window, today's cell is still unchecked, and today's
+ * nudge hasn't gone out yet. Goals without a time are never due.
+ *
+ * @param {{time?: string, days?: object, timeRemindedOn?: string}} goal
+ * @param {ReturnType<typeof nepalClock>} clock
+ */
+export function goalTimeDue(goal, clock) {
+  if (!goal.time || !/^\d{2}:\d{2}$/.test(goal.time)) return false;
+  if ((goal.days?.[clock.weekday] ?? "pending") !== "pending") return false;
+  if (goal.timeRemindedOn === clock.dateKey) return false;
+  const late = clock.hour * 60 + clock.minute - minutesOf(goal.time);
+  return late >= 0 && late < GOAL_TIME_WINDOW_MIN;
+}
+
+/** '18:30' → '6:30 PM'. */
+export function formatTime(time) {
+  const mins = minutesOf(time);
+  const h = Math.floor(mins / 60);
+  const m = String(mins % 60).padStart(2, "0");
+  return `${h % 12 || 12}:${m} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/**
+ * The nudge for one user's goals whose time passed unchecked.
+ *
+ * @param {{name: string, goals: {title: string, time: string}[]}} state
+ * @returns {{title: string, body: string, url: string, tag: string}|null}
+ */
+export function buildGoalTimeReminder({ name, goals }) {
+  if (!goals.length) return null;
+  const who = firstName(name);
+  const tag = "goal-time-reminder";
+  if (goals.length === 1) {
+    const [goal] = goals;
+    const at = formatTime(goal.time);
+    return {
+      title: `${goal.title} · ${at}`,
+      body: `${who}, you need to check your goal "${goal.title}" — it was due at ${at}. Done it? Tick it off.`,
+      url: "/app/planner",
+      tag,
+    };
+  }
+  const titles = goals.map((g) => `"${g.title}"`).join(", ");
+  return {
+    title: `${goals.length} goals are waiting`,
+    body: `${who}, you need to check your goals: ${titles}. Done them? Tick them off.`,
+    url: "/app/planner",
     tag,
   };
 }

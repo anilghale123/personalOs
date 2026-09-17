@@ -3,6 +3,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { MobileTopBar } from "@/components/mobile-topbar";
 import { AppUserProvider } from "@/components/app-user";
 import { ReminderPrompt } from "@/features/reminders/components/reminder-prompt";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 
 /**
  * App shell — desktop gets a fixed sidebar, phones get a slim brand row
@@ -36,6 +37,8 @@ export default function AppLayout({ children }) {
         <Sidebar />
 
         <MobileTopBar />
+
+        <NotificationBell />
 
         <div className="md:pl-[248px]">
           <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-8 md:px-14 md:pb-16 md:pt-11">

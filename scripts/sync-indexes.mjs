@@ -49,6 +49,7 @@ const MODEL_PATHS = [
   "../src/models/Insight.js",
   "../src/models/PasswordResetCode.js",
   "../src/models/Income.js",
+  "../src/models/Notification.js",
   "../src/models/PatternRun.js",
   "../src/models/PlannerGoal.js",
   "../src/models/PlannerWeekState.js",

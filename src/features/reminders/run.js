@@ -5,7 +5,15 @@ import User from "@/models/User";
 import Expense from "@/models/Expense";
 import PlannerGoal from "@/models/PlannerGoal";
 import PushSubscription from "@/models/PushSubscription";
-import { buildReminder, daysBetween, nepalClock, slotFor } from "./logic";
+import { recordNotifications } from "@/features/notifications/record";
+import {
+  buildGoalTimeReminder,
+  buildReminder,
+  daysBetween,
+  goalTimeDue,
+  nepalClock,
+  slotFor,
+} from "./logic";
 
 /** Parallel sends per batch — enough to be quick, few enough to be polite. */
 const BATCH = 25;
@@ -102,6 +110,20 @@ export async function runReminders({ now = new Date(), slot: forcedSlot } = {}) 
     );
   }
 
+  // The bell gets one entry per person, however many devices they have.
+  await recordNotifications(
+    [...messages]
+      .filter(([, message]) => message)
+      .map(([userId, message]) => ({
+        userId,
+        kind: "daily",
+        title: message.title,
+        body: message.body,
+        url: message.url,
+        dedupeKey: `daily:${sentKey}`,
+      }))
+  );
+
   let sent = 0;
   let removed = 0;
   let skipped = 0;
@@ -129,4 +151,114 @@ export async function runReminders({ now = new Date(), slot: forcedSlot } = {}) 
   }
 
   return { slot, date: clock.dateKey, devices: subscriptions.length, sent, skipped, removed };
+}
+
+/**
+ * Nudge people whose timed planner goals are still unchecked after their time
+ * ("Wake up" at 6:00 not ticked by 6:00). Each goal is nudged at most once a
+ * day, and every nudge lands in the in-app inbox (the bell) as well as going
+ * out as a push to the owner's devices.
+ *
+ * Two callers:
+ *   - the cron (`/api/cron/goal-reminders`), every few minutes, for everyone;
+ *   - the bell (`/api/notifications`) with `userId`, whenever the app is open
+ *     — so nudges show up while someone is using the app even with no
+ *     scheduler running (local development, or a missed cron).
+ *
+ * Goals are claimed (stamped `timeRemindedOn`) before anything is sent, so two
+ * overlapping runs can't both deliver the same nudge. A user with several
+ * goals due in the same run gets one notification listing them.
+ *
+ * @param {{now?: Date, userId?: string}} [options]
+ */
+export async function runGoalTimeReminders({ now = new Date(), userId } = {}) {
+  await connectDB();
+
+  const clock = nepalClock(now);
+  const candidates = await PlannerGoal.find({
+    ...(userId ? { userId } : {}),
+    weekStart: clock.weekStart,
+    time: { $exists: true, $ne: null },
+    timeRemindedOn: { $ne: clock.dateKey },
+  })
+    .select(`userId title time timeRemindedOn days.${clock.weekday}`)
+    .lean();
+
+  const due = candidates.filter((goal) => goalTimeDue(goal, clock));
+  if (!due.length) return { date: clock.dateKey, due: 0, sent: 0 };
+
+  // Claim one goal at a time so a goal another run already took is skipped
+  // rather than nudged twice.
+  const claimed = [];
+  for (const goal of due) {
+    const res = await PlannerGoal.updateOne(
+      { _id: goal._id, timeRemindedOn: { $ne: clock.dateKey } },
+      { $set: { timeRemindedOn: clock.dateKey } }
+    );
+    if (res.modifiedCount) claimed.push(goal);
+  }
+  if (!claimed.length) return { date: clock.dateKey, due: 0, sent: 0 };
+
+  const userIds = [...new Set(claimed.map((g) => String(g.userId)))].map(
+    (id) => new mongoose.Types.ObjectId(id)
+  );
+  const push = pushConfigured();
+  const [users, subscriptions] = await Promise.all([
+    User.find({ _id: { $in: userIds }, isSuspended: { $ne: true } })
+      .select("name")
+      .lean(),
+    push
+      ? PushSubscription.find({ userId: { $in: userIds } })
+          .select("userId endpoint keys")
+          .lean()
+      : [],
+  ]);
+
+  const messages = new Map();
+  for (const user of users) {
+    const id = String(user._id);
+    const goals = claimed
+      .filter((g) => String(g.userId) === id)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    messages.set(id, buildGoalTimeReminder({ name: user.name, goals }));
+  }
+
+  await recordNotifications(
+    [...messages]
+      .filter(([, message]) => message)
+      .map(([id, message]) => ({
+        userId: id,
+        kind: "goal-time",
+        title: message.title,
+        body: message.body,
+        url: message.url,
+      }))
+  );
+
+  let sent = 0;
+  let removed = 0;
+  for (let i = 0; i < subscriptions.length; i += BATCH) {
+    await Promise.all(
+      subscriptions.slice(i, i + BATCH).map(async (subscription) => {
+        const message = messages.get(String(subscription.userId));
+        if (!message) return; // suspended account
+        const result = await sendPush(subscription, message);
+        if (result.ok) {
+          sent += 1;
+        } else if (result.gone) {
+          removed += 1;
+          await PushSubscription.deleteOne({ _id: subscription._id });
+        }
+      })
+    );
+  }
+
+  return {
+    date: clock.dateKey,
+    due: claimed.length,
+    devices: subscriptions.length,
+    sent,
+    removed,
+    ...(push ? {} : { push: "not-configured" }),
+  };
 }

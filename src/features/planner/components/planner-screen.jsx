@@ -106,7 +106,15 @@ function PlannerSkeleton() {
  * the time the button would move the cursor into the copy that is currently
  * hidden by a breakpoint, and appear to do nothing at all.
  */
-function AddGoalRow({ className, value, onChange, onSubmit, isPastWeek }) {
+function AddGoalRow({
+  className,
+  value,
+  onChange,
+  time,
+  onTimeChange,
+  onSubmit,
+  isPastWeek,
+}) {
   const inputRef = React.useRef(null);
 
   function submit() {
@@ -132,6 +140,21 @@ function AddGoalRow({ className, value, onChange, onSubmit, isPastWeek }) {
             : "Add a goal — e.g. Morning workout"
         }
         className="h-9 min-w-0 flex-1 bg-background"
+      />
+      {/* Optional — a goal with a time gets a reminder if it's still
+          unchecked when that time passes. Pick or type, e.g. 06:00. Wide
+          screens only: on a phone the time is set from the goal's own row
+          ("Set time"), which keeps this row roomy. */}
+      <Input
+        type="time"
+        value={time}
+        onChange={(e) => onTimeChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        aria-label="Time (optional)"
+        title="Time (optional) — you'll get a reminder if it's not checked by then"
+        className="h-9 w-[7.5rem] shrink-0 bg-background px-2 max-md:hidden"
       />
       <Button size="sm" className="shrink-0" onClick={submit}>
         <Plus className="h-4 w-4" />
@@ -162,6 +185,7 @@ export function PlannerScreen() {
   userIdRef.current = userId;
   const [saving, setSaving] = React.useState(0);
   const [newTitle, setNewTitle] = React.useState("");
+  const [newTime, setNewTime] = React.useState("");
   const [view, setView] = React.useState("week");
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState("all");
@@ -284,18 +308,20 @@ export function PlannerScreen() {
   async function addGoal() {
     const title = newTitle.trim();
     if (!title) return;
+    const time = newTime || undefined;
     const ws = weekStart;
     editsRef.current += 1;
     // What is on screen is already right — it was patched in place. This
     // only tells the home briefing, which counts these goals, to re-read.
     invalidateScreens("planner");
     setNewTitle("");
+    setNewTime("");
     setSaving((n) => n + 1);
     try {
       const res = await fetch("/api/planner", {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ weekStart: ws, title }),
+        body: JSON.stringify({ weekStart: ws, title, time }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const created = await res.json();
@@ -370,6 +396,26 @@ export function PlannerScreen() {
         { title },
         (g) => ({ ...g, title }),
         (g) => ({ ...g, title: prev })
+      );
+    },
+    [patchGoal]
+  );
+
+  /** Set a goal's time, or clear it with null. */
+  const updateTime = React.useCallback(
+    (goalId, time) => {
+      const prev = goalsRef.current.find((x) => x._id === goalId)?.time;
+      const withTime = (g, t) => {
+        const next = { ...g };
+        if (t) next.time = t;
+        else delete next.time;
+        return next;
+      };
+      patchGoal(
+        goalId,
+        { time },
+        (g) => withTime(g, time),
+        (g) => withTime(g, prev)
       );
     },
     [patchGoal]
@@ -470,6 +516,8 @@ export function PlannerScreen() {
       className={className}
       value={newTitle}
       onChange={setNewTitle}
+      time={newTime}
+      onTimeChange={setNewTime}
       onSubmit={addGoal}
       isPastWeek={isPastWeek}
     />
@@ -682,6 +730,7 @@ export function PlannerScreen() {
                   hiddenDays={expanded ? 0 : Math.max(toggleAt, 0)}
                   onUpdateDay={updateDay}
                   onUpdateTitle={updateTitle}
+                  onUpdateTime={updateTime}
                   onDelete={deleteGoal}
                 />
               ))

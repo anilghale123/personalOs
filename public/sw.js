@@ -145,15 +145,22 @@ self.addEventListener("push", (event) => {
     data = { body: event.data?.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "selfView", {
-      body: data.body,
-      icon: "/icon-192.png",
-      // Android draws the status-bar badge from the alpha channel only, so
-      // it needs a transparent silhouette, not the full-colour icon.
-      badge: "/badge-96.png",
-      tag: data.tag || "selfview",
-      data: { url: data.url || "/app" },
-    })
+    Promise.all([
+      self.registration.showNotification(data.title || "selfView", {
+        body: data.body,
+        icon: "/icon-192.png",
+        // Android draws the status-bar badge from the alpha channel only, so
+        // it needs a transparent silhouette, not the full-colour icon.
+        badge: "/badge-96.png",
+        tag: data.tag || "selfview",
+        data: { url: data.url || "/app" },
+      }),
+      // An open app refreshes its bell straight away instead of on its next poll.
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((windows) => windows.forEach((w) => w.postMessage({ type: "NOTIFICATION" })))
+        .catch(() => {}),
+    ])
   );
 });
 
