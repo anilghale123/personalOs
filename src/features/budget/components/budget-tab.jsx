@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { useBudgetStore } from "../store";
 import { BUDGET_PERIODS } from "../constants";
 import { categoryMap, categoryOptions } from "../utils";
@@ -363,6 +364,7 @@ export function BudgetTab({ categories }) {
   const setBudget = useBudgetStore((s) => s.setBudget);
 
   const catMap = React.useMemo(() => categoryMap(categories), [categories]);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
   // The page seeds the summary server-side; this covers the case where it
   // could not be loaded there (or the tab is reached without it).
@@ -372,6 +374,13 @@ export function BudgetTab({ categories }) {
   }, []);
 
   async function removeCategoryBudget(line) {
+    const name = catMap[line.categoryId]?.name;
+    const ok = await confirmDelete({
+      title: "Remove this budget?",
+      description: `The ${name ? `${name} ` : ""}spending limit will be removed. Your expenses stay as they are.`,
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     try {
       await setBudget({ scope: "category", categoryId: line.categoryId, amount: 0 });
       toast.success("Category budget removed.");
@@ -401,6 +410,7 @@ export function BudgetTab({ categories }) {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       {/* Period switch */}
       <div className="flex items-center gap-1 rounded-lg bg-muted p-1 text-sm">
         {BUDGET_PERIODS.map((p) => (

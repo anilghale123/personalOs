@@ -133,6 +133,28 @@ export function goalTimeDue(goal, clock) {
   return late >= 0 && late < GOAL_TIME_WINDOW_MIN;
 }
 
+/**
+ * A time as someone types it → 'HH:mm', or null if it isn't one.
+ * Takes '6:30 pm', '6.30pm', '630pm', '6pm', '18:30', '1830' and '6' (6 AM).
+ * Without am/pm the hour is read as 24-hour.
+ */
+export function parseTypedTime(input) {
+  const text = String(input ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  const match = /^(\d{1,2})(?:[:.]?(\d{2}))?(a|p|am|pm)?$/.exec(text);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = match[2] ? Number(match[2]) : 0;
+  const meridiem = match[3]?.[0];
+  if (minute > 59) return null;
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    hour = (hour % 12) + (meridiem === "p" ? 12 : 0);
+  } else if (hour > 23) {
+    return null;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 /** '18:30' → '6:30 PM'. */
 export function formatTime(time) {
   const mins = minutesOf(time);

@@ -41,7 +41,7 @@ export default function AppLayout({ children }) {
         <NotificationBell />
 
         <div className="md:pl-[248px]">
-          <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-8 md:px-14 md:pb-16 md:pt-11">
+          <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(4.125rem+max(22px,env(safe-area-inset-bottom)))] pt-4 sm:px-8 md:px-14 md:pb-16 md:pt-11">
             {children}
           </main>
         </div>

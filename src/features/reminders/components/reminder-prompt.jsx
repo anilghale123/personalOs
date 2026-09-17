@@ -69,7 +69,7 @@ export function ReminderPrompt() {
     <div
       role="dialog"
       aria-label="Turn on daily reminders"
-      className="fixed inset-x-3 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border bg-card p-4 elev-lg animate-slide-up md:inset-x-auto md:bottom-6 md:right-6 md:w-[360px]"
+      className="fixed inset-x-3 bottom-[calc(4.625rem+max(22px,env(safe-area-inset-bottom)))] z-40 rounded-2xl border bg-card p-4 elev-lg animate-slide-up md:inset-x-auto md:bottom-6 md:right-6 md:w-[360px]"
     >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

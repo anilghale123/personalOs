@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/empty-state";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { INCOME_CATEGORIES, INCOME_PAGE_SIZE } from "@/features/wealth/constants";
 import { INCOME_CHANGED_EVENT } from "./voice-entry";
 
@@ -58,6 +59,7 @@ export function IncomeList({ filters, cal = "en", isPro = false }) {
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -109,6 +111,11 @@ export function IncomeList({ filters, cal = "en", isPro = false }) {
   }
 
   async function remove(item) {
+    const ok = await confirmDelete({
+      title: "Delete this income?",
+      description: `${item.note || item.category} · ${formatMoney(item.amountPaisa)} will be removed. This can't be undone.`,
+    });
+    if (!ok) return;
     const before = state;
     setState((s) => ({
       ...s,
@@ -127,6 +134,7 @@ export function IncomeList({ filters, cal = "en", isPro = false }) {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       <div className="flex items-center gap-1 rounded-2xl bg-card p-2 elev-sm">
         <Button
           variant="outline"

@@ -8,6 +8,7 @@ import {
   daysBetween,
   firstName,
   nepalClock,
+  parseTypedTime,
   slotFor,
 } from "./logic";
 
@@ -194,5 +195,32 @@ describe("nextGoalTimeAt", () => {
 
   it("is null with nothing left today", () => {
     expect(nextGoalTimeAt([{ time: "05:00" }, { days: {} }], clock)).toBeNull();
+  });
+});
+
+describe("parseTypedTime", () => {
+  it("reads 12-hour times with or without a colon", () => {
+    expect(parseTypedTime("6:30 pm")).toBe("18:30");
+    expect(parseTypedTime("6.30PM")).toBe("18:30");
+    expect(parseTypedTime("630pm")).toBe("18:30");
+    expect(parseTypedTime("6pm")).toBe("18:00");
+    expect(parseTypedTime("6 a")).toBe("06:00");
+    expect(parseTypedTime("12:15 am")).toBe("00:15");
+    expect(parseTypedTime("12pm")).toBe("12:00");
+  });
+
+  it("reads 24-hour times", () => {
+    expect(parseTypedTime("18:30")).toBe("18:30");
+    expect(parseTypedTime("0630")).toBe("06:30");
+    expect(parseTypedTime("6")).toBe("06:00");
+    expect(parseTypedTime("0:05")).toBe("00:05");
+  });
+
+  it("rejects what isn't a time", () => {
+    expect(parseTypedTime("")).toBeNull();
+    expect(parseTypedTime("24:00")).toBeNull();
+    expect(parseTypedTime("6:75")).toBeNull();
+    expect(parseTypedTime("13pm")).toBeNull();
+    expect(parseTypedTime("soon")).toBeNull();
   });
 });

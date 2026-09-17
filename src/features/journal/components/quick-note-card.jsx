@@ -4,6 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { Pin, PinOff, Pencil, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { useJournalStore } from "@/features/journal/store";
 import { noteTypeEmoji, noteTypeLabel } from "@/features/journal/constants";
 
@@ -14,12 +15,13 @@ export function QuickNoteCard({ note }) {
   const updateNote = useJournalStore((s) => s.updateNote);
   const deleteNote = useJournalStore((s) => s.deleteNote);
   const togglePin = useJournalStore((s) => s.togglePin);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(note.content);
   const [expanded, setExpanded] = React.useState(false);
 
-  // Swipe-to-delete (touch only — pointer users keep the hover buttons).
+  // Swipe-to-delete (touch only) — it still asks before deleting.
   const [swipeX, setSwipeX] = React.useState(0);
   const tracking = React.useRef(null);
 
@@ -37,6 +39,14 @@ export function QuickNoteCard({ note }) {
     }
     updateNote(note._id, { content: text });
     setEditing(false);
+  }
+
+  async function handleDelete() {
+    const ok = await confirmDelete({
+      title: "Delete this note?",
+      description: "This note will be removed from your journal.",
+    });
+    if (ok) deleteNote(note._id); // soft delete — the toast offers Undo
   }
 
   function onTouchStart(e) {
@@ -61,7 +71,7 @@ export function QuickNoteCard({ note }) {
     tracking.current = null;
     if (t?.axis === "h" && swipeX <= SWIPE_COMMIT) {
       setSwipeX(0);
-      deleteNote(note._id); // soft delete — the toast offers Undo
+      handleDelete();
       return;
     }
     setSwipeX(0);
@@ -138,7 +148,7 @@ export function QuickNoteCard({ note }) {
               {stamp ? format(stamp, "h:mm a") : ""}
               {note.pinned && <span className="text-brand">Pinned</span>}
             </span>
-            <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <div className="flex items-center gap-0.5">
               <IconBtn
                 label={note.pinned ? "Unpin" : "Pin"}
                 onClick={() => togglePin(note._id)}
@@ -154,7 +164,7 @@ export function QuickNoteCard({ note }) {
               </IconBtn>
               <IconBtn
                 label="Delete"
-                onClick={() => deleteNote(note._id)}
+                onClick={handleDelete}
                 danger
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -168,6 +178,7 @@ export function QuickNoteCard({ note }) {
 
   return (
     <div className="relative overflow-hidden rounded-xl">
+      {confirmDialog}
       {/* Delete affordance revealed behind the card while swiping. */}
       <div
         aria-hidden="true"

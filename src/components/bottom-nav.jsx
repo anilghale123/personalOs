@@ -69,10 +69,12 @@ export function BottomNav() {
     <>
       <nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 backdrop-blur-[8px] md:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        // The iPhone home-indicator inset replaces the 22px gap rather than
+        // adding to it, so the bar isn't taller on iOS than on Android.
+        style={{ paddingBottom: "max(22px, env(safe-area-inset-bottom))" }}
         aria-label="Primary"
       >
-        <div className="flex gap-1 px-3.5 pb-[22px] pt-2.5">
+        <div className="flex gap-1 px-3.5 pt-2.5">
           {TABS.map((tab) => {
             const active = isActive(pathname, tab.href);
             return (

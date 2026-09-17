@@ -17,6 +17,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
@@ -28,6 +29,7 @@ import { DebtEntryDialog } from "./debt-entry-dialog";
 /** The repayment ledger for one debt, collapsed until asked for. */
 function DebtLedger({ debt }) {
   const deleteDebtEntry = useBudgetStore((s) => s.deleteDebtEntry);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
   const entries = React.useMemo(
     () =>
       [...(debt.entries || [])].sort(
@@ -44,7 +46,13 @@ function DebtLedger({ debt }) {
     );
   }
 
-  async function remove(entryId) {
+  async function remove(entry) {
+    const ok = await confirmDelete({
+      title: "Remove this entry?",
+      description: `${entry.type === "payment" ? "Payment" : "Extra borrowed"} of ${formatMoney(entry.amountPaisa)} will be removed from ${debt.name}. This can't be undone.`,
+    });
+    if (!ok) return;
+    const entryId = entry._id;
     try {
       await deleteDebtEntry(debt._id, entryId);
       toast.success("Entry removed.");
@@ -55,6 +63,7 @@ function DebtLedger({ debt }) {
 
   return (
     <div className="divide-y border-t">
+      {confirmDialog}
       {entries.map((entry) => {
         const isPayment = entry.type === "payment";
         return (
@@ -98,9 +107,9 @@ function DebtLedger({ debt }) {
                 {formatMoney(entry.amountPaisa)}
               </span>
               <button
-                onClick={() => remove(entry._id)}
+                onClick={() => remove(entry)}
                 aria-label="Remove entry"
-                className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                className="rounded-md p-1 text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -115,6 +124,7 @@ function DebtLedger({ debt }) {
 function DebtCard({ debt, onEdit, onRecord }) {
   const deleteDebt = useBudgetStore((s) => s.deleteDebt);
   const updateDebt = useBudgetStore((s) => s.updateDebt);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
   const [open, setOpen] = React.useState(false);
 
   const totals = debtTotals(debt);
@@ -122,6 +132,11 @@ function DebtCard({ debt, onEdit, onRecord }) {
   const cleared = totals.isCleared || debt.status === "closed";
 
   async function remove() {
+    const ok = await confirmDelete({
+      title: "Delete this debt?",
+      description: `“${debt.name}” and all its recorded payments will be removed. This can't be undone.`,
+    });
+    if (!ok) return;
     try {
       await deleteDebt(debt._id);
       toast.success("Debt removed.");
@@ -148,6 +163,7 @@ function DebtCard({ debt, onEdit, onRecord }) {
         debt.status === "closed" && "opacity-70"
       )}
     >
+      {confirmDialog}
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

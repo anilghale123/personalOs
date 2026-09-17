@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { useBudgetStore } from "../store";
 import { PAYMENT_METHODS } from "../constants";
 
@@ -23,12 +24,18 @@ const SWIPE_COMMIT = -96; // px of leftward drag that deletes on release
 export function ExpenseRow({ expense, category, onEdit }) {
   const deleteExpense = useBudgetStore((s) => s.deleteExpense);
   const undoDeleteExpense = useBudgetStore((s) => s.undoDeleteExpense);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
-  // Swipe-to-delete (touch only — pointer users keep the hover buttons).
+  // Swipe-to-delete (touch only) — it still asks before deleting.
   const [swipeX, setSwipeX] = React.useState(0);
   const tracking = React.useRef(null);
 
   async function handleDelete() {
+    const ok = await confirmDelete({
+      title: "Delete this expense?",
+      description: `${category?.name || "Uncategorized"} · ${formatMoney(expense.amountPaisa)} will be removed.`,
+    });
+    if (!ok) return;
     try {
       const removed = await deleteExpense(expense._id);
       toast("Expense deleted.", {
@@ -76,6 +83,7 @@ export function ExpenseRow({ expense, category, onEdit }) {
 
   return (
     <div className="relative overflow-hidden rounded-lg">
+      {confirmDialog}
       {/* Delete affordance revealed behind the row while swiping. */}
       <div
         aria-hidden="true"
@@ -134,7 +142,7 @@ export function ExpenseRow({ expense, category, onEdit }) {
         <span className="tabular-nums font-medium">
           {formatMoney(expense.amountPaisa)}
         </span>
-        <div className="flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <div className="flex">
           <button
             onClick={() => onEdit(expense)}
             aria-label="Edit expense"

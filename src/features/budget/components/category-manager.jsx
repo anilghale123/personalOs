@@ -6,6 +6,7 @@ import { Plus, Pencil, Archive, ArchiveRestore, Trash2, Tag } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { useBudgetStore } from "../store";
 import { CATEGORY_TYPES } from "../constants";
 import { topLevelCategories, subcategoriesOf } from "../utils";
@@ -88,6 +89,7 @@ export function CategoryManager({ categories }) {
   const [editing, setEditing] = React.useState(null);
   const [deleteTarget, setDeleteTarget] = React.useState(null);
   const [expenseCount, setExpenseCount] = React.useState(0);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
   function openCreate() {
     setEditing(null);
@@ -99,6 +101,11 @@ export function CategoryManager({ categories }) {
   }
 
   async function requestDelete(category) {
+    const ok = await confirmDelete({
+      title: `Delete “${category.name}”?`,
+      description: "This category will be removed. If it has expenses, you'll choose what happens to them next.",
+    });
+    if (!ok) return;
     try {
       // Attempt the delete; if it has expenses the API responds 409 with the count,
       // which we surface as the resolution dialog instead of a blind confirm.
@@ -118,6 +125,7 @@ export function CategoryManager({ categories }) {
 
   return (
     <div className="space-y-3">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Archived categories stay visible in past reports but won&apos;t appear when adding a new

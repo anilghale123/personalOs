@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 
 export function GoalDetailClient({ initialGoal }) {
   const [goal, setGoal] = React.useState(initialGoal);
   const [saving, setSaving] = React.useState(false);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
 
   async function persist(patch) {
     setSaving(true);
@@ -45,7 +47,12 @@ export function GoalDetailClient({ initialGoal }) {
     persist({ milestones });
   }
 
-  function removeMilestone(index) {
+  async function removeMilestone(index) {
+    const ok = await confirmDelete({
+      title: "Delete this milestone?",
+      description: `“${goal.milestones[index]?.title}” and its progress will be removed.`,
+    });
+    if (!ok) return;
     const milestones = goal.milestones.filter((_, i) => i !== index);
     setGoal({ ...goal, milestones });
     persist({ milestones });
@@ -63,6 +70,7 @@ export function GoalDetailClient({ initialGoal }) {
 
   return (
     <div className="space-y-6">
+      {confirmDialog}
       <Link
         href="/app/goals"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -147,6 +155,7 @@ export function GoalDetailClient({ initialGoal }) {
                 variant="ghost"
                 size="icon"
                 onClick={() => removeMilestone(i)}
+                aria-label="Delete milestone"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

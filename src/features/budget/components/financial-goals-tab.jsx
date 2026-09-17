@@ -16,6 +16,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmDelete } from "@/components/confirm-delete-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
@@ -27,6 +28,7 @@ import { TotalTargetDialog } from "./total-target-dialog";
 
 function ContributionList({ goal }) {
   const deleteContribution = useBudgetStore((s) => s.deleteContribution);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
   const items = React.useMemo(
     () =>
       [...(goal.contributions || [])].sort((a, b) =>
@@ -43,7 +45,13 @@ function ContributionList({ goal }) {
     );
   }
 
-  async function remove(entryId) {
+  async function remove(entry) {
+    const ok = await confirmDelete({
+      title: "Remove this contribution?",
+      description: `${formatMoney(entry.amountPaisa)} will be removed from ${goal.name}. This can't be undone.`,
+    });
+    if (!ok) return;
+    const entryId = entry._id;
     try {
       await deleteContribution(goal._id, entryId);
       toast.success("Contribution removed.");
@@ -54,6 +62,7 @@ function ContributionList({ goal }) {
 
   return (
     <div className="divide-y border-t">
+      {confirmDialog}
       {items.map((entry) => (
         <div
           key={entry._id}
@@ -74,9 +83,9 @@ function ContributionList({ goal }) {
               {formatMoney(entry.amountPaisa)}
             </span>
             <button
-              onClick={() => remove(entry._id)}
+              onClick={() => remove(entry)}
               aria-label="Remove contribution"
-              className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+              className="rounded-md p-1 text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -89,10 +98,16 @@ function ContributionList({ goal }) {
 
 function GoalCard({ goal, onEdit, onContribute }) {
   const deleteFinancialGoal = useBudgetStore((s) => s.deleteFinancialGoal);
+  const [confirmDelete, confirmDialog] = useConfirmDelete();
   const [open, setOpen] = React.useState(false);
   const totals = goalTotals(goal);
 
   async function remove() {
+    const ok = await confirmDelete({
+      title: "Delete this goal?",
+      description: `“${goal.name}” and everything saved towards it will be removed. This can't be undone.`,
+    });
+    if (!ok) return;
     try {
       await deleteFinancialGoal(goal._id);
       toast.success("Goal removed.");
@@ -103,6 +118,7 @@ function GoalCard({ goal, onEdit, onContribute }) {
 
   return (
     <div className="rounded-2xl bg-card elev-sm">
+      {confirmDialog}
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">

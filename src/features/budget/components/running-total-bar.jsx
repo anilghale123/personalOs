@@ -16,7 +16,7 @@ export function RunningTotalBar({ totalPaisa, count, label = "Total" }) {
       <div aria-hidden="true" className="h-[76px] md:hidden" />
 
       <div
-        className="fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-30 flex items-center justify-between rounded-2xl border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:inset-x-auto md:bottom-3 md:border-0 md:shadow-sm"
+        className="fixed inset-x-4 bottom-[calc(4.375rem+max(22px,env(safe-area-inset-bottom)))] z-30 flex items-center justify-between rounded-2xl border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:inset-x-auto md:bottom-3 md:border-0 md:shadow-sm"
       >
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
