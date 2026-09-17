@@ -169,3 +169,30 @@ export function buildGoalTimeReminder({ name, goals }) {
     tag,
   };
 }
+
+/** The instant a Nepal-local 'YYYY-MM-DD' + 'HH:mm' falls on. */
+export function nepalInstant(dateKey, time) {
+  return new Date(Date.parse(`${dateKey}T${time}:00Z`) - NEPAL_OFFSET_MIN * 60_000);
+}
+
+/**
+ * When the next of these goals becomes due today, or null if none will.
+ * The open app sets a timer for it, so the nudge lands on the minute instead
+ * of on the next poll.
+ *
+ * @param {{time?: string, days?: object, timeRemindedOn?: string}[]} goals
+ * @param {ReturnType<typeof nepalClock>} clock
+ * @returns {Date|null}
+ */
+export function nextGoalTimeAt(goals, clock) {
+  const nowMin = clock.hour * 60 + clock.minute;
+  let next = null;
+  for (const goal of goals) {
+    if (!goal.time || !/^\d{2}:\d{2}$/.test(goal.time)) continue;
+    if ((goal.days?.[clock.weekday] ?? "pending") !== "pending") continue;
+    if (goal.timeRemindedOn === clock.dateKey) continue;
+    if (minutesOf(goal.time) <= nowMin) continue; // due now or past — not "next"
+    if (!next || goal.time < next) next = goal.time;
+  }
+  return next ? nepalInstant(clock.dateKey, next) : null;
+}

@@ -11,6 +11,7 @@ import {
   buildReminder,
   daysBetween,
   goalTimeDue,
+  nextGoalTimeAt,
   nepalClock,
   slotFor,
 } from "./logic";
@@ -185,7 +186,9 @@ export async function runGoalTimeReminders({ now = new Date(), userId } = {}) {
     .lean();
 
   const due = candidates.filter((goal) => goalTimeDue(goal, clock));
-  if (!due.length) return { date: clock.dateKey, due: 0, sent: 0 };
+  // For the open app's timer; only meaningful for a single user's goals.
+  const nextAt = userId ? nextGoalTimeAt(candidates, clock) : undefined;
+  if (!due.length) return { date: clock.dateKey, due: 0, sent: 0, nextAt };
 
   // Claim one goal at a time so a goal another run already took is skipped
   // rather than nudged twice.
@@ -197,7 +200,7 @@ export async function runGoalTimeReminders({ now = new Date(), userId } = {}) {
     );
     if (res.modifiedCount) claimed.push(goal);
   }
-  if (!claimed.length) return { date: clock.dateKey, due: 0, sent: 0 };
+  if (!claimed.length) return { date: clock.dateKey, due: 0, sent: 0, nextAt };
 
   const userIds = [...new Set(claimed.map((g) => String(g.userId)))].map(
     (id) => new mongoose.Types.ObjectId(id)
@@ -259,6 +262,7 @@ export async function runGoalTimeReminders({ now = new Date(), userId } = {}) {
     devices: subscriptions.length,
     sent,
     removed,
+    nextAt,
     ...(push ? {} : { push: "not-configured" }),
   };
 }

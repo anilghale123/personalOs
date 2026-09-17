@@ -14,8 +14,10 @@ const LIMIT = 30;
  * check is best-effort — if it fails, the inbox is still returned.
  */
 export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
+  let nextCheckAt = null;
   try {
-    await runGoalTimeReminders({ userId });
+    const run = await runGoalTimeReminders({ userId });
+    nextCheckAt = run.nextAt ?? null;
   } catch (err) {
     captureException(err, { route: "GET /api/notifications", step: "goal-time" });
   }
@@ -29,5 +31,7 @@ export const GET = withRoute({ limit: "read" }, async ({ userId }) => {
     Notification.countDocuments({ userId, readAt: null }),
   ]);
 
-  return json({ items, unread });
+  // nextCheckAt: when this user's next goal time falls today, so the open app
+  // can check again exactly then instead of waiting for its next poll.
+  return json({ items, unread, nextCheckAt });
 });

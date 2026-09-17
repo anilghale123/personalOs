@@ -4,6 +4,7 @@ import {
   buildReminder,
   formatTime,
   goalTimeDue,
+  nextGoalTimeAt,
   daysBetween,
   firstName,
   nepalClock,
@@ -170,5 +171,28 @@ describe("buildGoalTimeReminder", () => {
 
   it("returns null with nothing due", () => {
     expect(buildGoalTimeReminder({ name: "Anil", goals: [] })).toBeNull();
+  });
+});
+
+describe("nextGoalTimeAt", () => {
+  // 00:30 UTC Tuesday is 06:15 in Kathmandu.
+  const clock = nepalClock(new Date("2026-09-15T00:30:00Z"));
+
+  it("picks the earliest unchecked time still ahead today", () => {
+    const next = nextGoalTimeAt(
+      [
+        { time: "06:00", days: {} }, // already passed
+        { time: "09:30", days: {} },
+        { time: "07:00", days: {} },
+        { time: "06:30", days: { Tue: "done" } }, // already checked
+      ],
+      clock
+    );
+    // 07:00 Nepal is 01:15 UTC.
+    expect(next?.toISOString()).toBe("2026-09-15T01:15:00.000Z");
+  });
+
+  it("is null with nothing left today", () => {
+    expect(nextGoalTimeAt([{ time: "05:00" }, { days: {} }], clock)).toBeNull();
   });
 });

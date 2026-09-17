@@ -3,12 +3,24 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { formatDistanceToNowStrict } from "date-fns";
+import { toast } from "sonner";
 import { AlarmClock, Bell, BellRing, CalendarCheck, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppUser } from "@/components/app-user";
 
-/** How often an open, visible app re-checks the inbox. */
-const POLL_MS = 60_000;
+/** How often an open app re-checks the inbox, as a fallback to the timer. */
+const POLL_MS = 30_000;
+/** Lands just after the due minute, so the server agrees the time has passed. */
+const DUE_SLACK_MS = 1_500;
+/** Longest single timer; a longer wait just re-arms after the next load. */
+const MAX_TIMER_MS = 6 * 60 * 60 * 1000;
+/** Other screens fire this after changing something the bell depends on. */
+export const REFRESH_EVENT = "notifications:refresh";
+
+/** Ask the bell to re-check now — e.g. right after a goal's time changes. */
+export function refreshNotifications() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(REFRESH_EVENT));
+}
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 const KIND_ICON = {
@@ -38,28 +50,65 @@ export function NotificationBell() {
   const [loaded, setLoaded] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef(null);
+  // Ids already seen, so only notifications that arrive while the app is open
+  // pop up — null until the first load, which never pops anything.
+  const seenRef = React.useRef(null);
+  const dueTimerRef = React.useRef(null);
+  const loadRef = React.useRef(null);
 
   const load = React.useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      setItems(data.items ?? []);
+      const list = data.items ?? [];
+
+      if (seenRef.current) {
+        const fresh = list.filter((n) => !n.readAt && !seenRef.current.has(n._id));
+        // Oldest first, so the newest ends up on top of the stack.
+        for (const n of fresh.reverse()) {
+          toast(n.title, {
+            description: n.body,
+            duration: 10_000,
+            action: n.url
+              ? { label: "View", onClick: () => router.push(n.url) }
+              : undefined,
+          });
+        }
+      }
+      seenRef.current = new Set(list.map((n) => n._id));
+
+      setItems(list);
       setUnread(data.unread ?? 0);
       setLoaded(true);
+
+      // Check again the moment the next goal time arrives — the poll alone
+      // could be up to POLL_MS late.
+      clearTimeout(dueTimerRef.current);
+      if (data.nextCheckAt) {
+        const wait = new Date(data.nextCheckAt).getTime() - Date.now() + DUE_SLACK_MS;
+        dueTimerRef.current = setTimeout(
+          () => loadRef.current?.(),
+          Math.min(Math.max(wait, 0), MAX_TIMER_MS)
+        );
+      }
     } catch {
       // Offline — keep showing what we have.
     }
-  }, []);
+  }, [router]);
+  loadRef.current = load;
 
   // Load on sign-in, then poll while visible, refresh on return to the tab,
-  // and straight away when the service worker says a push just arrived.
+  // straight away when the service worker says a push just arrived, and
+  // when another screen says something changed (a goal's time edited).
   React.useEffect(() => {
     if (!userId) return;
     load();
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") load();
     }, POLL_MS);
+    const onRefresh = () => load();
+    window.addEventListener(REFRESH_EVENT, onRefresh);
     const onVisible = () => {
       if (document.visibilityState === "visible") load();
     };
@@ -70,6 +119,8 @@ export function NotificationBell() {
     navigator.serviceWorker?.addEventListener("message", onMessage);
     return () => {
       clearInterval(timer);
+      clearTimeout(dueTimerRef.current);
+      window.removeEventListener(REFRESH_EVENT, onRefresh);
       document.removeEventListener("visibilitychange", onVisible);
       navigator.serviceWorker?.removeEventListener("message", onMessage);
     };

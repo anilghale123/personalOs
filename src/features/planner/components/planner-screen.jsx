@@ -25,6 +25,7 @@ import { invalidateScreens, markRead, shouldRead } from "@/lib/screen-data";
 import { DAYS, GOAL_FILTERS, goalTally } from "@/features/planner/utils";
 import { ExpandToggle, PlannerGoalRow } from "./planner-goal-row";
 import { PlannerHistory } from "./planner-history";
+import { refreshNotifications } from "@/features/notifications/components/notification-bell";
 
 // Phones take their columns from --planner-cols, which drops the days
 // before today behind a "…" column; wide screens always show Mon–Sun.
@@ -326,6 +327,8 @@ export function PlannerScreen() {
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const created = await res.json();
       if (weekRef.current === ws) setGoals((g) => [...g, created]);
+      // The bell times its next check from goal times — tell it about this one.
+      if (time) refreshNotifications();
       setRefreshKey((n) => n + 1);
     } catch (err) {
       toast.error(err.message || "Could not add goal.");
@@ -403,7 +406,7 @@ export function PlannerScreen() {
 
   /** Set a goal's time, or clear it with null. */
   const updateTime = React.useCallback(
-    (goalId, time) => {
+    async (goalId, time) => {
       const prev = goalsRef.current.find((x) => x._id === goalId)?.time;
       const withTime = (g, t) => {
         const next = { ...g };
@@ -411,12 +414,14 @@ export function PlannerScreen() {
         else delete next.time;
         return next;
       };
-      patchGoal(
+      await patchGoal(
         goalId,
         { time },
         (g) => withTime(g, time),
         (g) => withTime(g, prev)
       );
+      // The bell times its next check from goal times.
+      refreshNotifications();
     },
     [patchGoal]
   );
