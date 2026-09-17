@@ -67,8 +67,9 @@ function DayToggle({ status, isToday, className, onChange }) {
 }
 
 /**
- * The goal's time — "6:00 AM" as a chip, or a quiet "Set time" when there is
- * none. Tapping opens a native time field (pick or type); leaving it saves,
+ * The goal's time — "6:00 AM" as a chip, or just a quiet clock icon when
+ * there is none. It sits on the same line as the done count and is no taller
+ * than it, so setting a time never makes the row grow. Tapping opens a native time field (pick or type); leaving it saves,
  * and emptying it (or the ×) removes the time and with it the reminder.
  */
 function GoalTime({ time, onChange }) {
@@ -87,7 +88,7 @@ function GoalTime({ time, onChange }) {
 
   if (editing) {
     return (
-      <span className="flex items-center gap-1">
+      <span className="flex h-4 items-center gap-1">
         <input
           type="time"
           autoFocus
@@ -102,7 +103,7 @@ function GoalTime({ time, onChange }) {
             }
           }}
           aria-label="Goal time"
-          className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+          className="h-5 rounded border border-input bg-background px-1 text-[11px] leading-none outline-none focus:ring-1 focus:ring-ring"
         />
         {time && (
           <button
@@ -126,14 +127,14 @@ function GoalTime({ time, onChange }) {
       onClick={() => setEditing(true)}
       aria-label={time ? `Change time, ${formatTime(time)}` : "Set a time"}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full text-[11px] tabular-nums transition-colors",
+        "inline-flex h-4 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full text-[11px] leading-none tabular-nums transition-colors",
         time
-          ? "bg-primary/10 px-1.5 py-0.5 font-medium text-primary hover:bg-primary/15"
+          ? "bg-primary/10 px-1.5 font-medium text-primary hover:bg-primary/15"
           : "text-sand-500 hover:text-primary"
       )}
     >
       <Clock className="h-3 w-3" />
-      {time ? formatTime(time) : "Set time"}
+      {time && formatTime(time)}
     </button>
   );
 }
@@ -205,9 +206,14 @@ function PlannerGoalRowInner({
           </button>
         )}
         <div className="flex items-center justify-between gap-2">
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-[11px] tabular-nums text-sand-600">
-              {done}/7 done
+          {/* One line: ✓ 1/7 and the time side by side. */}
+          <span className="flex h-4 min-w-0 items-center gap-2 whitespace-nowrap">
+            <span
+              className="inline-flex items-center gap-0.5 text-[11px] leading-none tabular-nums text-sand-600"
+              aria-label={`${done} of 7 days done`}
+            >
+              <Check className="h-3 w-3" />
+              {done}/7
             </span>
             <GoalTime
               time={goal.time}
