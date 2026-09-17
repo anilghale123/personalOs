@@ -29,6 +29,15 @@ import { NotificationBell } from "@/features/notifications/components/notificati
  * sends anyone whose cookie does not resolve to a session to sign in, and
  * every route and action that touches data re-validates it regardless. See
  * the note in `components/app-user.jsx`.
+ *
+ * ## Phones scroll a pane, not the page
+ *
+ * Below md the content scrolls inside a full-screen pane (`#app-scroll`) and
+ * the document itself never moves. iOS Safari shrinks and regrows its toolbar
+ * as the page scrolls, and while it does, `position: fixed; bottom: 0` bars
+ * drift up off the bottom edge — the tab bar would float mid-scroll. With the
+ * page still, the toolbar stays put and the tab bar stays pinned. Anything
+ * that needs the scroll position on a phone reads it from `#app-scroll`.
  */
 export default function AppLayout({ children }) {
   return (
@@ -36,15 +45,18 @@ export default function AppLayout({ children }) {
       <div className="min-h-dvh bg-background">
         <Sidebar />
 
-        <MobileTopBar />
+        <div
+          id="app-scroll"
+          className="max-md:fixed max-md:inset-0 max-md:overflow-y-auto max-md:overscroll-y-contain md:pl-[248px]"
+        >
+          <MobileTopBar />
 
-        <NotificationBell />
-
-        <div className="md:pl-[248px]">
           <main className="mx-auto w-full max-w-6xl animate-fade-in px-4 pb-[calc(4.125rem+max(22px,env(safe-area-inset-bottom)))] pt-4 sm:px-8 md:px-14 md:pb-16 md:pt-11">
             {children}
           </main>
         </div>
+
+        <NotificationBell />
 
         <BottomNav />
 

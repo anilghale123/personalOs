@@ -14,10 +14,17 @@ export function MobileTopBar() {
   const [scrolled, setScrolled] = React.useState(false);
 
   React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
+    // Phones scroll the app pane rather than the page (see the app layout).
+    const pane = document.getElementById("app-scroll");
+    const onScroll = () =>
+      setScrolled(window.scrollY > 4 || (pane?.scrollTop ?? 0) > 4);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    pane?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      pane?.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   return (
