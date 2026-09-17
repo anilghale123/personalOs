@@ -173,6 +173,17 @@
   }
 }
 
+/* iOS Safari zooms the page when a field under 16px is focused. The base rule
+   above loses to utility classes like `text-sm`, and a landscape iPhone is
+   wider than 640px, so iOS alone gets a hard floor that nothing overrides. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

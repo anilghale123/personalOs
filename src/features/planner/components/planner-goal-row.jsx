@@ -138,7 +138,9 @@ function GoalTime({ time, onChange }) {
 
   const label = time ? `Change time, ${formatTime(time)}` : "Set a time";
 
-  // The phone's picker is anchored to this invisible field under the chip.
+  // The phone's picker lives in this invisible field over the chip. On a touch
+  // screen the tap lands on the field itself: iOS Safari only opens a time
+  // picker from a real tap, never from showPicker() or focus() in script.
   const picker = (
     <input
       ref={attachPicker}
@@ -146,7 +148,7 @@ function GoalTime({ time, onChange }) {
       tabIndex={-1}
       aria-hidden="true"
       defaultValue={time || ""}
-      className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+      className="pointer-events-none absolute -inset-1 z-10 h-[calc(100%+0.5rem)] w-[calc(100%+0.5rem)] cursor-pointer appearance-none opacity-0 [@media(pointer:coarse)]:pointer-events-auto"
     />
   );
 
