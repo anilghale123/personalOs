@@ -15,6 +15,14 @@ import { cn, toDateKey } from "@/lib/utils";
 import { weekStartKey } from "@/lib/week";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -446,6 +454,14 @@ export function PlannerScreen() {
     [scheduleRefresh]
   );
 
+  // Deleting asks first: the trash icon sits right under a thumb on a phone,
+  // and a goal's whole week of ticks goes with it.
+  const [pendingDelete, setPendingDelete] = React.useState(null);
+  const requestDelete = React.useCallback((goalId) => {
+    const goal = goalsRef.current.find((x) => x._id === goalId);
+    if (goal) setPendingDelete(goal);
+  }, []);
+
   const weekDates = React.useMemo(
     () => (weekStart ? DAYS.map((_, i) => addDays(parseISO(weekStart), i)) : []),
     [weekStart]
@@ -736,7 +752,7 @@ export function PlannerScreen() {
                   onUpdateDay={updateDay}
                   onUpdateTitle={updateTitle}
                   onUpdateTime={updateTime}
-                  onDelete={deleteGoal}
+                  onDelete={requestDelete}
                 />
               ))
             )}
@@ -762,6 +778,38 @@ export function PlannerScreen() {
           refreshKey={refreshKey}
         />
       </TabsContent>
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this goal?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{pendingDelete?.title}&rdquo; and its ticks for this week will be
+              removed. This can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const id = pendingDelete?._id;
+                setPendingDelete(null);
+                if (id) deleteGoal(id);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }

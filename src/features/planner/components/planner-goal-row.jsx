@@ -66,18 +66,39 @@ function DayToggle({ status, isToday, className, onChange }) {
   );
 }
 
+/** Phones and tablets: the OS time picker, not an inline field. */
+function isTouchDevice() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(pointer: coarse)").matches === true
+  );
+}
+
 /**
  * The goal's time — "6:00 AM" as a chip, or just a quiet clock icon when
  * there is none. It sits on the same line as the done count and is no taller
- * than it, so setting a time never makes the row grow. Tapping opens a native time field (pick or type); leaving it saves,
- * and emptying it (or the ×) removes the time and with it the reminder.
+ * than it, so setting a time never makes the row grow.
+ *
+ * On a touch screen, tapping opens the phone's own time picker straight from
+ * the chip — no inline field to crowd the day boxes — and pressing Set saves
+ * at once (Clear removes the time). The native `change` event is used, not
+ * React's `onChange`: it fires once the picker is confirmed, not on every
+ * turn of an iOS wheel.
+ *
+ * With a mouse, a narrow inline field opens instead so the time can be typed;
+ * Enter or clicking away saves, Escape cancels, × removes the time.
  */
 function GoalTime({ time, onChange }) {
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(time || "");
+  const pickerRef = React.useRef(null);
+  // The native listener below is attached once; these keep it current.
+  const latest = React.useRef({ time, onChange });
+  latest.current = { time, onChange };
 
   React.useEffect(() => {
     if (!editing) setValue(time || "");
+    if (pickerRef.current) pickerRef.current.value = time || "";
   }, [time, editing]);
 
   function commit(next) {
@@ -85,6 +106,49 @@ function GoalTime({ time, onChange }) {
     const normalized = next || null;
     if (normalized !== (time || null)) onChange(normalized);
   }
+
+  // A callback ref, so the listener follows the field if it is ever remounted.
+  const onPicked = React.useCallback((e) => {
+    const normalized = e.target.value || null;
+    if (normalized !== (latest.current.time || null)) latest.current.onChange(normalized);
+  }, []);
+  const attachPicker = React.useCallback(
+    (el) => {
+      pickerRef.current?.removeEventListener("change", onPicked);
+      pickerRef.current = el;
+      el?.addEventListener("change", onPicked);
+    },
+    [onPicked]
+  );
+
+  function open() {
+    if (!isTouchDevice()) {
+      setEditing(true);
+      return;
+    }
+    const el = pickerRef.current;
+    try {
+      el.showPicker();
+    } catch {
+      // Older browsers without showPicker open their picker on focus.
+      el.focus();
+      el.click();
+    }
+  }
+
+  const label = time ? `Change time, ${formatTime(time)}` : "Set a time";
+
+  // The phone's picker is anchored to this invisible field under the chip.
+  const picker = (
+    <input
+      ref={attachPicker}
+      type="time"
+      tabIndex={-1}
+      aria-hidden="true"
+      defaultValue={time || ""}
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+    />
+  );
 
   if (editing) {
     return (
@@ -103,7 +167,7 @@ function GoalTime({ time, onChange }) {
             }
           }}
           aria-label="Goal time"
-          className="h-5 rounded border border-input bg-background px-1 text-[11px] leading-none outline-none focus:ring-1 focus:ring-ring"
+          className="h-5 w-[5.25rem] rounded border border-input bg-background px-0.5 text-[11px] leading-none outline-none focus:ring-1 focus:ring-ring"
         />
         {time && (
           <button
@@ -122,20 +186,23 @@ function GoalTime({ time, onChange }) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      aria-label={time ? `Change time, ${formatTime(time)}` : "Set a time"}
-      className={cn(
-        "inline-flex h-4 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full text-[11px] leading-none tabular-nums transition-colors",
-        time
-          ? "bg-primary/10 px-1.5 font-medium text-primary hover:bg-primary/15"
-          : "text-sand-500 hover:text-primary"
-      )}
-    >
-      <Clock className="h-3 w-3" />
-      {time && formatTime(time)}
-    </button>
+    <span className="relative inline-flex shrink-0">
+      {picker}
+      <button
+        type="button"
+        onClick={open}
+        aria-label={label}
+        className={cn(
+          "relative inline-flex h-4 items-center gap-0.5 whitespace-nowrap rounded-full text-[11px] leading-none tabular-nums transition-colors",
+          time
+            ? "bg-primary/10 px-1.5 font-medium text-primary hover:bg-primary/15"
+            : "text-sand-500 hover:text-primary"
+        )}
+      >
+        <Clock className="h-3 w-3" />
+        {time && formatTime(time)}
+      </button>
+    </span>
   );
 }
 
