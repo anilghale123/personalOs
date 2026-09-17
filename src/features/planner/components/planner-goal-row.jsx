@@ -67,15 +67,15 @@ function DayToggle({ status, isToday, className, onChange }) {
 }
 
 /**
- * The goal's time — "6:00 AM" as a chip with a × to remove it, or just a
- * quiet clock icon when there is none. It sits on the same line as the done
- * count, so setting a time doesn't make the row grow.
+ * The goal's time — "6:00 AM" as a chip, or just a quiet clock icon when
+ * there is none. It sits on the same line as the done count, so setting a
+ * time doesn't make the row grow.
  *
  * Tapping the chip opens a small editor, the same on every device: type the
  * time ("6:30 pm", "630pm", "18:30"), or tap the clock for the phone's own
- * picker, which saves as soon as it's set. Enter or tapping elsewhere saves,
- * Escape cancels, and emptying the field or × removes the time — iOS's picker
- * has no dependable Clear of its own.
+ * picker, which only fills the field — iOS reports every turn of its wheel,
+ * so nothing is saved until ✓ (or Enter) is pressed. Emptying the field and
+ * pressing ✓ removes the time. Escape or tapping elsewhere cancels.
  */
 function GoalTime({ time, onChange, onEditingChange }) {
   const [editing, setEditing] = React.useState(false);
@@ -83,9 +83,6 @@ function GoalTime({ time, onChange, onEditingChange }) {
   const [invalid, setInvalid] = React.useState(false);
   const wrapRef = React.useRef(null);
   const pickerRef = React.useRef(null);
-  // Native listeners are attached once; this keeps them current.
-  const latest = React.useRef({ time, onChange, text });
-  latest.current = { time, onChange, text };
 
   React.useEffect(() => {
     if (pickerRef.current) pickerRef.current.value = time || "";
@@ -96,57 +93,48 @@ function GoalTime({ time, onChange, onEditingChange }) {
     onEditingChange?.(editing);
   }, [editing, onEditingChange]);
 
-  const save = React.useCallback((next) => {
+  function close() {
     setEditing(false);
     setInvalid(false);
-    const normalized = next || null;
-    if (normalized !== (latest.current.time || null)) latest.current.onChange(normalized);
-  }, []);
+  }
 
-  /** Saves what was typed; false when it isn't a time. */
-  const saveTyped = React.useCallback(() => {
-    const raw = latest.current.text.trim();
-    if (!raw) {
-      save(null);
-      return true;
+  function save() {
+    const raw = text.trim();
+    const next = raw ? parseTypedTime(raw) : null;
+    if (raw && !next) {
+      setInvalid(true);
+      return;
     }
-    const parsed = parseTypedTime(raw);
-    if (!parsed) return false;
-    save(parsed);
-    return true;
-  }, [save]);
+    close();
+    if (next !== (time || null)) onChange(next);
+  }
 
-  // Tapping anywhere outside the editor saves it, or drops a typo.
+  // Tapping anywhere outside the editor cancels it.
   React.useEffect(() => {
     if (!editing) return undefined;
     function onPointer(e) {
       if (wrapRef.current?.contains(e.target)) return;
-      if (!saveTyped()) {
-        setEditing(false);
-        setInvalid(false);
-      }
+      setEditing(false);
+      setInvalid(false);
     }
     document.addEventListener("pointerdown", onPointer, true);
     return () => document.removeEventListener("pointerdown", onPointer, true);
-  }, [editing, saveTyped]);
+  }, [editing]);
 
-  // The native `change` fires once the picker is confirmed, not on every turn
-  // of an iOS wheel; `blur` catches iOS's Reset, which can skip `change`.
-  const onPicked = React.useCallback(
-    (e) => {
-      const normalized = e.target.value || null;
-      if (normalized !== (latest.current.time || null)) save(normalized);
-    },
-    [save]
-  );
+  // The picker only fills the field. Native listeners, since iOS fires
+  // `input`/`change` as the wheel turns and React's onChange hides which.
+  const onPicked = React.useCallback((e) => {
+    setText(e.target.value ? formatTime(e.target.value) : "");
+    setInvalid(false);
+  }, []);
   // A callback ref, so the listeners follow the field if it is ever remounted.
   const attachPicker = React.useCallback(
     (el) => {
+      pickerRef.current?.removeEventListener("input", onPicked);
       pickerRef.current?.removeEventListener("change", onPicked);
-      pickerRef.current?.removeEventListener("blur", onPicked);
       pickerRef.current = el;
+      el?.addEventListener("input", onPicked);
       el?.addEventListener("change", onPicked);
-      el?.addEventListener("blur", onPicked);
     },
     [onPicked]
   );
@@ -167,18 +155,6 @@ function GoalTime({ time, onChange, onEditingChange }) {
       // No picker here (e.g. desktop Firefox) — typing still works.
     }
   }
-
-  const removeButton = (
-    <button
-      type="button"
-      onClick={() => save(null)}
-      aria-label="Remove time"
-      // The pseudo-element gives a thumb more to hit than the small icon.
-      className="relative inline-flex items-center justify-center text-muted-foreground before:absolute before:-inset-2 hover:text-destructive"
-    >
-      <X className="h-3.5 w-3.5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
-    </button>
-  );
 
   if (editing) {
     return (
@@ -202,16 +178,13 @@ function GoalTime({ time, onChange, onEditingChange }) {
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              if (!saveTyped()) setInvalid(true);
+              save();
             }
-            if (e.key === "Escape") {
-              setEditing(false);
-              setInvalid(false);
-            }
+            if (e.key === "Escape") close();
           }}
           aria-label="Goal time"
           aria-invalid={invalid || undefined}
-          title="Type a time, e.g. 6:30 pm or 18:30"
+          title="Type a time, e.g. 6:30 pm or 18:30 — leave empty to remove it"
           className={cn(
             // On a phone the field is finger-sized (and 16px, so iOS doesn't
             // zoom); the line grows only while it's open.
@@ -239,31 +212,36 @@ function GoalTime({ time, onChange, onEditingChange }) {
             <Clock className="h-3.5 w-3.5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
           </button>
         </span>
-        {time && removeButton}
+        <button
+          type="button"
+          onClick={save}
+          aria-label="Save time"
+          // The pseudo-element gives a thumb more to hit than the small icon.
+          className="relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground before:absolute before:-inset-2 hover:bg-primary/90 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7"
+        >
+          <Check className="h-3 w-3 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:w-4" />
+        </button>
       </span>
     );
   }
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-2.5">
-      <button
-        type="button"
-        onClick={startEditing}
-        aria-label={time ? `Change time, ${formatTime(time)}` : "Set a time"}
-        className={cn(
-          // A touch larger on phones; the negative margin keeps the line from
-          // growing. The pseudo-element widens the hit area.
-          "relative inline-flex h-4 items-center gap-0.5 whitespace-nowrap rounded-full text-[11px] leading-none tabular-nums transition-colors before:absolute before:-inset-x-2 before:-inset-y-1.5 [@media(pointer:coarse)]:-my-0.5 [@media(pointer:coarse)]:h-5 [@media(pointer:coarse)]:gap-1 [@media(pointer:coarse)]:text-xs",
-          time
-            ? "bg-primary/10 px-1.5 font-medium text-primary hover:bg-primary/15 [@media(pointer:coarse)]:px-2"
-            : "text-sand-500 hover:text-primary"
-        )}
-      >
-        <Clock className="h-3 w-3 [@media(pointer:coarse)]:h-3.5 [@media(pointer:coarse)]:w-3.5" />
-        {time && formatTime(time)}
-      </button>
-      {time && removeButton}
-    </span>
+    <button
+      type="button"
+      onClick={startEditing}
+      aria-label={time ? `Change time, ${formatTime(time)}` : "Set a time"}
+      className={cn(
+        // A touch larger on phones; the negative margin keeps the line from
+        // growing. The pseudo-element widens the hit area.
+        "relative inline-flex h-4 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full text-[11px] leading-none tabular-nums transition-colors before:absolute before:-inset-x-2 before:-inset-y-1.5 [@media(pointer:coarse)]:-my-0.5 [@media(pointer:coarse)]:h-5 [@media(pointer:coarse)]:gap-1 [@media(pointer:coarse)]:text-xs",
+        time
+          ? "bg-primary/10 px-1.5 font-medium text-primary hover:bg-primary/15 [@media(pointer:coarse)]:px-2"
+          : "text-sand-500 hover:text-primary"
+      )}
+    >
+      <Clock className="h-3 w-3 [@media(pointer:coarse)]:h-3.5 [@media(pointer:coarse)]:w-3.5" />
+      {time && formatTime(time)}
+    </button>
   );
 }
 
