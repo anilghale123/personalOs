@@ -157,6 +157,59 @@ self.addEventListener("push", (event) => {
   );
 });
 
+/**
+ * The browser replaced this device's push subscription.
+ *
+ * Push services expire and rotate subscriptions on their own schedule, and
+ * the browser says so here — often while the app is closed. Ignoring the
+ * event left the device with no subscription at all, which the app then
+ * showed as reminders being "off" the next morning, as though the user had
+ * turned them off.
+ *
+ * So subscribe again with the same key and tell the server about the new
+ * endpoint. The worker's fetch carries the session cookie, so this lands on
+ * the signed-in account. The old endpoint is dropped best-effort; if that
+ * fails, the next reminder sent to it bounces and the cron removes it.
+ */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      const oldSubscription = event.oldSubscription;
+      const applicationServerKey = oldSubscription?.options?.applicationServerKey;
+
+      const subscription =
+        event.newSubscription ??
+        (applicationServerKey
+          ? await self.registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey,
+            })
+          : null);
+      if (!subscription) return;
+
+      const headers = { "Content-Type": "application/json" };
+      await fetch("/api/push/subscription", {
+        method: "POST",
+        headers,
+        credentials: "same-origin",
+        body: JSON.stringify(subscription.toJSON()),
+      });
+
+      if (oldSubscription?.endpoint && oldSubscription.endpoint !== subscription.endpoint) {
+        await fetch("/api/push/subscription", {
+          method: "DELETE",
+          headers,
+          credentials: "same-origin",
+          body: JSON.stringify({ endpoint: oldSubscription.endpoint }),
+        }).catch(() => {});
+      }
+    })().catch(() => {
+      // Nothing to show from a worker. The app repairs the subscription
+      // itself the next time it opens — see use-push-reminders.js.
+    })
+  );
+});
+
 /** Tapping a reminder focuses an open window, or opens one, at its screen. */
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

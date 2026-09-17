@@ -31,6 +31,31 @@ describe("reminderState", () => {
     expect(reminderState({ ...ON, permission: "denied" })).toBe("denied");
   });
 
+  /**
+   * Reminders are only ever off because someone turned them off. When the
+   * browser removes a subscription the user still wants — replacing it,
+   * clearing it with site data, resetting the permission — the switch says
+   * so, rather than reporting "off" as though it had been the user's choice.
+   */
+  it("reports a subscription the user still wants as interrupted, not off", () => {
+    const wanted = { ...ON, wanted: true };
+    expect(reminderState({ ...wanted, subscribed: false })).toBe("interrupted");
+    expect(reminderState({ ...wanted, permission: "default", subscribed: false })).toBe(
+      "interrupted"
+    );
+    // Working as normal is still simply "on".
+    expect(reminderState(wanted)).toBe("on");
+  });
+
+  it("stays plainly off for someone who never turned reminders on, or turned them off", () => {
+    expect(reminderState({ ...ON, subscribed: false, wanted: false })).toBe("off");
+  });
+
+  /** Blocked in browser settings is something only the user can undo there. */
+  it("reports blocked notifications as denied even when they were wanted", () => {
+    expect(reminderState({ ...ON, permission: "denied", wanted: true })).toBe("denied");
+  });
+
   it("reports why the switch cannot be offered", () => {
     expect(reminderState({ ...ON, configured: false })).toBe("unconfigured");
     expect(reminderState({ ...ON, supported: false })).toBe("unsupported");

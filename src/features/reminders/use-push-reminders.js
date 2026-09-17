@@ -86,6 +86,62 @@ async function postSubscription(subscription) {
   throw error;
 }
 
+/**
+ * Whether the person turned reminders on here and has not turned them off.
+ *
+ * The browser alone cannot answer that: a missing subscription looks the same
+ * whether the user switched reminders off or the browser removed them on its
+ * own. This is the missing half, so a subscription the browser dropped is
+ * repaired instead of being reported as the user's choice.
+ *
+ * `pos-` prefixed, so signing out clears it — and signing out also
+ * unsubscribes, which is exactly when a shared device should stop reminding
+ * whoever used it last.
+ */
+const WANTED_KEY = "pos-reminders-wanted";
+
+function readWanted() {
+  try {
+    return localStorage.getItem(WANTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeWanted(wanted) {
+  try {
+    if (wanted) localStorage.setItem(WANTED_KEY, "1");
+    else localStorage.removeItem(WANTED_KEY);
+  } catch {
+    // Storage blocked: the switch still works, it just cannot self-repair.
+  }
+}
+
+/**
+ * Put back a subscription the user still wants but the browser removed.
+ *
+ * Only attempted when notification permission is still granted, so no prompt
+ * is ever shown without a tap. Chrome and Firefox allow this silently; Safari
+ * may refuse without a tap, in which case the switch reports "interrupted"
+ * and one tap on it does the same thing.
+ *
+ * @returns {Promise<PushSubscription|null>}
+ */
+async function heal() {
+  try {
+    const registration = await registrationSoon();
+    if (!registration) return null;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUBLIC_KEY),
+    });
+    resync(subscription);
+    return subscription;
+  } catch {
+    return null;
+  }
+}
+
 /** Backoff between re-sync attempts. */
 const RETRY_DELAYS_MS = [1000, 4000, 15000];
 
@@ -136,6 +192,7 @@ async function probe() {
     supported,
     permission: supported ? Notification.permission : "default",
     subscribed: false,
+    wanted: readWanted(),
   };
 
   // Only worth asking once the cheaper answers have not already settled it.
@@ -146,8 +203,17 @@ async function probe() {
     } catch {
       // No worker, or push blocked at the platform level: not subscribed.
     }
+
+    if (subscription) {
+      resync(subscription);
+      // Devices that turned reminders on before intent was remembered have
+      // no flag yet; a live subscription is proof enough that they want it.
+      if (!device.wanted) writeWanted(true);
+      device.wanted = true;
+    } else if (device.wanted && PUBLIC_KEY) {
+      subscription = await heal();
+    }
     device.subscribed = Boolean(subscription);
-    if (subscription) resync(subscription);
   }
 
   return reminderState(device);
@@ -159,6 +225,8 @@ async function probe() {
  *
  * `state` is one of:
  *   loading | unconfigured | ios-install | unsupported | denied | off | on
+ *   | interrupted — wanted here, but the browser removed the subscription
+ *     and it could not be put back without a tap
  */
 export function usePushReminders() {
   const state = React.useSyncExternalStore(
@@ -219,6 +287,7 @@ export function usePushReminders() {
       // Turning it on is the one place the server's answer matters: if this
       // never lands, nothing will ever be sent to this device.
       await postSubscription(subscription);
+      writeWanted(true);
       setShared("on");
       toast.success("Reminders are on for this device.");
       return "on";
@@ -245,6 +314,8 @@ export function usePushReminders() {
         }).catch(() => {});
         await subscription.unsubscribe();
       }
+      // The one place reminders are allowed to become "off".
+      writeWanted(false);
       setShared("off");
       toast.success("Reminders are off for this device.");
     } catch {

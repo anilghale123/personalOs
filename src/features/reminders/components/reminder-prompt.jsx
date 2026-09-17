@@ -36,7 +36,10 @@ export function ReminderPrompt() {
   const [visible, setVisible] = React.useState(false);
 
   React.useEffect(() => {
-    if (state !== "off" || recentlyDismissed()) {
+    // An interruption is shown regardless of an earlier "Not now": that
+    // answered "would you like reminders?", and this person said yes.
+    const offer = state === "off" && !recentlyDismissed();
+    if (!offer && state !== "interrupted") {
       setVisible(false);
       return undefined;
     }
@@ -59,7 +62,8 @@ export function ReminderPrompt() {
     if (next === "off" || next === "error") dismiss();
   }
 
-  if (!visible || state !== "off") return null;
+  if (!visible || (state !== "off" && state !== "interrupted")) return null;
+  const interrupted = state === "interrupted";
 
   return (
     <div
@@ -72,14 +76,17 @@ export function ReminderPrompt() {
           <BellRing className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Get a daily nudge?</p>
+          <p className="text-sm font-semibold">
+            {interrupted ? "Reminders stopped on this device" : "Get a daily nudge?"}
+          </p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            A reminder at 10 am and 8 pm — only when today&apos;s expenses or
-            goals are still open. You can change it anytime in Profile.
+            {interrupted
+              ? "Your browser stopped them — you didn't turn them off. One tap turns them back on."
+              : "A reminder at 10 am and 8 pm — only when today's expenses or goals are still open. You can change it anytime in Profile."}
           </p>
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={turnOn} disabled={busy}>
-              {busy ? "Turning on…" : "Turn on"}
+              {busy ? "Turning on…" : interrupted ? "Turn back on" : "Turn on"}
             </Button>
             <Button size="sm" variant="ghost" onClick={dismiss} disabled={busy}>
               Not now

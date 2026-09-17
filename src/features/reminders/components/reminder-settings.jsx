@@ -36,12 +36,27 @@ export function ReminderSettings() {
         </p>
       </div>
 
-      {state === "on" || state === "off" ? (
+      {state === "interrupted" && (
+        // Said plainly, because the alternative reading — "I must have
+        // turned this off" — is wrong, and is the bug this state exists for.
+        <p className="rounded-md bg-secondary px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          Your browser stopped reminders on this device — you didn&apos;t turn
+          them off. Switch them back on below.
+        </p>
+      )}
+
+      {state === "on" || state === "off" || state === "interrupted" ? (
         <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-3">
           <span className="text-sm">
             Remind me on this device
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              {busy ? "Saving…" : state === "on" ? "On" : "Off"}
+              {busy
+                ? "Saving…"
+                : state === "on"
+                ? "On"
+                : state === "interrupted"
+                ? "Stopped by your browser"
+                : "Off"}
             </span>
           </span>
           {busy ? (
