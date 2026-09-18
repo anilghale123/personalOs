@@ -7,7 +7,7 @@ import Debt from "@/models/Debt";
 import FinancialGoal from "@/models/FinancialGoal";
 import { getSession } from "@/lib/session";
 import { buildExpenseFilter } from "./expense-filter";
-import { cachedMoney, cachedReference, tags } from "@/lib/cache";
+import { cachedMoney, cachedReference, invalidate, tags } from "@/lib/cache";
 import {
   DEFAULT_CATEGORIES,
   EXPENSE_MAX_PAGE_SIZE,
@@ -59,14 +59,46 @@ export async function ensureDefaultCategories() {
     { userId, key: "has-categories", tags: [tags.categories(userId)] }
   );
   if (alreadySeeded) return;
-  await Category.insertMany(
-    DEFAULT_CATEGORIES.map((c, i) => ({
-      ...c,
+
+  // Several requests land at once on a new account's first load. Collapse
+  // the ones in this process onto one seed; the unique name index catches
+  // any that race in from another instance.
+  if (!seeding.has(userId)) {
+    seeding.set(
       userId,
-      isDefault: true,
-      sortOrder: i,
-    }))
-  );
+      seedDefaults(userId).finally(() => seeding.delete(userId))
+    );
+  }
+  await seeding.get(userId);
+}
+
+/** In-flight seeds by userId. */
+const seeding = new Map();
+
+async function seedDefaults(userId) {
+  try {
+    // Upserts, not inserts: re-running is a no-op instead of a second copy.
+    await Category.bulkWrite(
+      DEFAULT_CATEGORIES.map((c, i) => ({
+        updateOne: {
+          filter: { userId, parentId: null, name: c.name },
+          update: {
+            $setOnInsert: { ...c, userId, parentId: null, isDefault: true, sortOrder: i },
+          },
+          upsert: true,
+        },
+      })),
+      { ordered: false }
+    );
+  } catch (err) {
+    // A concurrent seed won the race for some names — those exist, as wanted.
+    if (err?.code !== 11000 && !err?.writeErrors?.every?.((e) => e.code === 11000)) {
+      throw err;
+    }
+  }
+  // The cached "no categories yet" answer is now wrong. Left in place, every
+  // request until it expired seeded the whole set again.
+  invalidate(tags.categories(userId));
 }
 
 /** All categories for the current user (archived included by default — callers filter). */

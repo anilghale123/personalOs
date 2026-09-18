@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, Repeat } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { cn, toDateKey } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
@@ -17,10 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { CategoryPicker } from "./category-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { useBudgetStore } from "../store";
 import { categoryOptions } from "../utils";
 import { PAYMENT_METHODS, RECURRENCE_FREQUENCIES } from "../constants";
+import { CategoryFormDialog } from "./category-form-dialog";
 
 /** A blank draft — the date starts on today so the common case needs no input. */
 function emptyDraft(defaultCategoryId = "") {
@@ -73,6 +75,9 @@ export function ExpenseDialog({ open, onOpenChange, categories, expense }) {
   const [form, setForm] = React.useState(emptyDraft());
   const [showMore, setShowMore] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  // The new-category form is open while this is a string — the name to
+  // start it with, empty when opened from the "New category" link.
+  const [newCategoryName, setNewCategoryName] = React.useState(null);
 
   // Reset every time the modal opens so a cancelled edit never leaks
   // into the next expense.
@@ -160,27 +165,27 @@ export function ExpenseDialog({ open, onOpenChange, categories, expense }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="expense-category">Category</Label>
-              <Select
+              <div className="flex items-center justify-between">
+                <Label htmlFor="expense-category">Category</Label>
+                <button
+                  type="button"
+                  onClick={() => setNewCategoryName("")}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New category
+                </button>
+              </div>
+              <CategoryPicker
                 id="expense-category"
+                options={options}
                 value={form.categoryId}
-                onChange={(e) => set({ categoryId: e.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Select a category
-                </option>
-                {options.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.depth ? "— " : ""}
-                    {c.icon} {c.name}
-                    {c.isArchived ? " (archived)" : ""}
-                  </option>
-                ))}
-              </Select>
+                onChange={(categoryId) => set({ categoryId })}
+                onCreate={setNewCategoryName}
+              />
               {options.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  No categories yet — add one in the Categories tab first.
+                  No categories yet — create one with “New category”.
                 </p>
               )}
             </div>
@@ -298,6 +303,16 @@ export function ExpenseDialog({ open, onOpenChange, categories, expense }) {
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Stacked over this form, which stays open underneath; the new
+          category comes back selected so the expense can be saved at once. */}
+      <CategoryFormDialog
+        open={newCategoryName !== null}
+        onOpenChange={(next) => !next && setNewCategoryName(null)}
+        initialName={newCategoryName ?? ""}
+        categories={categories}
+        onSaved={(created) => created?._id && set({ categoryId: created._id })}
+      />
     </Dialog>
   );
 }

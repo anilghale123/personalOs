@@ -21,6 +21,7 @@ import { matchCategory } from "@/features/wealth/categorize";
 import { INCOME_CATEGORIES } from "@/features/wealth/constants";
 import { useBudgetStore } from "../store";
 import { categoryOptions } from "../utils";
+import { CategoryPicker } from "./category-picker";
 
 /** Longest recording — a voice note is a sentence or two. */
 const MAX_RECORD_MS = 60_000;
@@ -791,17 +792,12 @@ export function VoiceEntry({ categories }) {
                 <div className="space-y-1.5">
                   <Label htmlFor="voice-category">Category</Label>
                   {draft.type === "expense" ? (
-                    <Select id="voice-category" value={draft.categoryId} onChange={(e) => set({ categoryId: e.target.value })}>
-                      <option value="" disabled>
-                        Select a category
-                      </option>
-                      {options.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.depth ? "— " : ""}
-                          {c.icon} {c.name}
-                        </option>
-                      ))}
-                    </Select>
+                    <CategoryPicker
+                      id="voice-category"
+                      options={options}
+                      value={draft.categoryId}
+                      onChange={(categoryId) => set({ categoryId })}
+                    />
                   ) : (
                     <Select id="voice-category" value={draft.incomeCategory} onChange={(e) => set({ incomeCategory: e.target.value })}>
                       {INCOME_CATEGORIES.map((c) => (

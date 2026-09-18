@@ -13,6 +13,8 @@
     "db:indexes:check": "node scripts/sync-indexes.mjs --dry-run",
     "db:migrate:paisa": "node scripts/migrate-vault-to-paisa.mjs",
     "db:migrate:paisa:check": "node scripts/migrate-vault-to-paisa.mjs --dry-run",
+    "db:dedupe-categories": "node scripts/dedupe-categories.mjs",
+    "db:dedupe-categories:check": "node scripts/dedupe-categories.mjs --dry-run",
     "seed:superadmin": "node scripts/seed-superadmin.mjs",
     "account:delete": "node scripts/delete-account.mjs"
   },

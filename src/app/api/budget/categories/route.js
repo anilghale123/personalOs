@@ -1,7 +1,7 @@
-import { withRoute, json, badRequest } from "@/lib/api";
+import { withRoute, json, badRequest, conflict } from "@/lib/api";
 import { z, optionalObjectId, text, optionalText } from "@/lib/validation";
 import { cachedReference, invalidateMoney, tags } from "@/lib/cache";
-import Category from "@/models/Category";
+import Category, { CATEGORY_NAME_COLLATION } from "@/models/Category";
 import { CATEGORY_TYPES } from "@/features/budget/constants";
 import { ensureDefaultCategories } from "@/features/budget/actions";
 
@@ -63,6 +63,23 @@ export const POST = withRoute(
       if (parent.parentId) {
         throw badRequest("Subcategories can only be one level deep.");
       }
+    }
+
+    // Friendlier than the unique index's generic 409, and it names the clash.
+    const existing = await Category.findOne({
+      userId,
+      parentId: input.parentId || null,
+      name: input.name,
+    })
+      .collation(CATEGORY_NAME_COLLATION)
+      .select("name isArchived")
+      .lean();
+    if (existing) {
+      throw conflict(
+        existing.isArchived
+          ? `"${existing.name}" already exists as an archived category — restore it instead.`
+          : `A category named "${existing.name}" already exists.`
+      );
     }
 
     const category = await Category.create({

@@ -19,6 +19,7 @@ import { matchCategory } from "@/features/wealth/categorize";
 import { INCOME_CATEGORIES } from "@/features/wealth/constants";
 import { useBudgetStore } from "../store";
 import { categoryOptions } from "../utils";
+import { CategoryPicker } from "./category-picker";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -333,21 +334,16 @@ export function StatementImport() {
                 </td>
                 <td className="px-3 py-2">
                   {r.direction === "withdraw" ? (
-                    <Select
-                      className="h-8 w-44 text-xs"
-                      value={r.categoryId}
-                      onChange={(e) => updateRow(i, { categoryId: e.target.value })}
-                      aria-label="Expense category"
-                    >
-                      <option value="" disabled>
-                        Category
-                      </option>
-                      {options.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.icon} {c.name}
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="w-44">
+                      <CategoryPicker
+                        className="h-8 text-xs"
+                        options={options}
+                        value={r.categoryId}
+                        onChange={(categoryId) => updateRow(i, { categoryId })}
+                        placeholder="Category"
+                        aria-label="Expense category"
+                      />
+                    </div>
                   ) : (
                     <Select
                       className="h-8 w-44 text-xs"

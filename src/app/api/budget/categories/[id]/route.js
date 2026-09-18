@@ -3,7 +3,7 @@ import { withRoute, json, badRequest, conflict, must } from "@/lib/api";
 import { z, objectId, text, optionalText } from "@/lib/validation";
 import { invalidateMoney } from "@/lib/cache";
 import { log } from "@/lib/logger";
-import Category from "@/models/Category";
+import Category, { CATEGORY_NAME_COLLATION } from "@/models/Category";
 import Expense from "@/models/Expense";
 import { CATEGORY_TYPES } from "@/features/budget/constants";
 
@@ -33,6 +33,22 @@ export const PATCH = withRoute(
     const update = Object.fromEntries(
       Object.entries(input).filter(([, v]) => v !== undefined)
     );
+
+    if (update.name) {
+      const current = must(
+        await Category.findOne({ _id: params.id, userId }).select("parentId").lean()
+      );
+      const clash = await Category.findOne({
+        _id: { $ne: params.id },
+        userId,
+        parentId: current.parentId ?? null,
+        name: update.name,
+      })
+        .collation(CATEGORY_NAME_COLLATION)
+        .select("name")
+        .lean();
+      if (clash) throw conflict(`A category named "${clash.name}" already exists.`);
+    }
 
     const category = must(
       await Category.findOneAndUpdate(

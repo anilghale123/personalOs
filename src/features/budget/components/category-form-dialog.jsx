@@ -33,7 +33,23 @@ const QUICK_COLORS = [
 
 const EMPTY = { name: "", icon: "🏷️", color: "#64748b", type: "want", parentId: "", note: "" };
 
-export function CategoryFormDialog({ open, onOpenChange, categories, editing }) {
+/** Names compare the way the server's unique index does: trimmed, case-insensitive. */
+const nameKey = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
+
+/**
+ * @param {object} props
+ * @param {(category: object) => void} [props.onSaved] called with the saved
+ *   category — the expense form uses it to select a category it just created
+ * @param {string} [props.initialName] prefills a new category's name
+ */
+export function CategoryFormDialog({
+  open,
+  onOpenChange,
+  categories,
+  editing,
+  onSaved,
+  initialName = "",
+}) {
   const addCategory = useBudgetStore((s) => s.addCategory);
   const updateCategory = useBudgetStore((s) => s.updateCategory);
   const [form, setForm] = React.useState(EMPTY);
@@ -51,21 +67,39 @@ export function CategoryFormDialog({ open, onOpenChange, categories, editing }) 
               parentId: editing.parentId || "",
               note: editing.note || "",
             }
-          : EMPTY
+          : { ...EMPTY, name: initialName }
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing]);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const parentOptions = topLevelCategories(categories).filter((c) => c._id !== editing?._id);
 
+  // Checked as the user types, against the same level the category will sit
+  // at, so a duplicate is caught before the round trip rather than after.
+  const parentId = editing ? editing.parentId || "" : form.parentId;
+  const duplicate = React.useMemo(() => {
+    const key = nameKey(form.name);
+    if (!key) return null;
+    return (
+      categories.find(
+        (c) =>
+          c._id !== editing?._id &&
+          String(c.parentId || "") === String(parentId || "") &&
+          nameKey(c.name) === key
+      ) || null
+    );
+  }, [categories, editing, form.name, parentId]);
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || duplicate) return;
     setSaving(true);
     try {
+      let saved;
       if (editing) {
-        await updateCategory(editing._id, {
+        saved = await updateCategory(editing._id, {
           name: form.name,
           icon: form.icon,
           color: form.color,
@@ -74,7 +108,7 @@ export function CategoryFormDialog({ open, onOpenChange, categories, editing }) 
         });
         toast.success("Category updated.");
       } else {
-        await addCategory({
+        saved = await addCategory({
           name: form.name,
           icon: form.icon,
           color: form.color,
@@ -85,6 +119,7 @@ export function CategoryFormDialog({ open, onOpenChange, categories, editing }) 
         toast.success("Category added.");
       }
       onOpenChange(false);
+      onSaved?.(saved);
     } catch (err) {
       toast.error(err.message || "Could not save category.");
     } finally {
@@ -118,9 +153,19 @@ export function CategoryFormDialog({ open, onOpenChange, categories, editing }) 
                 onChange={(e) => set({ name: e.target.value })}
                 placeholder="e.g. Ride-share"
                 required
+                aria-invalid={Boolean(duplicate)}
+                aria-describedby={duplicate ? "cat-name-duplicate" : undefined}
+                autoFocus
               />
             </div>
           </div>
+          {duplicate && (
+            <p id="cat-name-duplicate" role="alert" className="-mt-2 text-xs text-destructive">
+              {duplicate.isArchived
+                ? `"${duplicate.name}" already exists as an archived category.`
+                : `"${duplicate.name}" already exists.`}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-1.5">
             {QUICK_EMOJI.map((emoji) => (
@@ -207,7 +252,7 @@ export function CategoryFormDialog({ open, onOpenChange, categories, editing }) 
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={!form.name.trim() || saving}>
+            <Button type="submit" disabled={!form.name.trim() || Boolean(duplicate) || saving}>
               {saving ? "Saving…" : editing ? "Save changes" : "Add category"}
             </Button>
           </DialogFooter>

@@ -8,7 +8,6 @@ import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -18,6 +17,7 @@ import { BUDGET_PERIODS } from "../constants";
 import { categoryMap, categoryOptions } from "../utils";
 import { BudgetAlert } from "./budget-alert";
 import { BudgetMeter } from "./budget-meter";
+import { CategoryPicker } from "./category-picker";
 
 /** Inline amount editor shared by the total and per-category budget rows. */
 function AmountEditor({ initial, onSave, onCancel, label }) {
@@ -310,18 +310,12 @@ function AddCategoryBudget({ categories, taken, onSave }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="budget-category">Category</Label>
-          <Select
+          <CategoryPicker
             id="budget-category"
+            options={options}
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-          >
-            {options.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.depth ? "— " : ""}
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
+            onChange={setCategoryId}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="budget-amount">Limit</Label>
