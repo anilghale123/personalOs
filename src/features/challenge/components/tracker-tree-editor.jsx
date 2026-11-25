@@ -212,7 +212,7 @@ function NodeRow({
         <div className="min-w-0 flex-1">
           <NodeFields
             node={{ ...node, hasChildren: children.length > 0 }}
-            onChange={onChange}
+            onChange={(patch) => onChange(node.key, patch)}
             challenge={challenge}
           />
         </div>
