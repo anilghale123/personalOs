@@ -14,6 +14,7 @@ import { usePatternStore } from "../store";
 import { splitFeed } from "../feed";
 import { HeadlineInsight, InsightRow } from "./insight-card";
 import { MoneyBriefing, HabitsBriefing } from "./weekly-briefing";
+import { ActiveChallengeCard } from "@/features/challenge/components/active-challenge-card";
 
 /**
  * Home.
@@ -80,6 +81,7 @@ export function DiscoveriesScreen() {
           <>
             <MoneyBriefing briefing={briefing} />
             <HabitsBriefing briefing={briefing} />
+            <ActiveChallengeCard />
           </>
         )}
       </div>

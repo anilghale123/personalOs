@@ -57,6 +57,7 @@ export const tags = {
   habits: (userId) => `u:${userId}:habits`,
   journal: (userId) => `u:${userId}:journal`,
   planner: (userId) => `u:${userId}:planner`,
+  challenges: (userId) => `u:${userId}:challenges`,
   insights: (userId) => `u:${userId}:insights`,
   signals: (userId) => `u:${userId}:signals`,
   profile: (userId) => `u:${userId}:profile`,
@@ -162,4 +163,10 @@ export function invalidateHabits(userId) {
 /** Planner writes. */
 export function invalidatePlanner(userId) {
   invalidate(tags.planner(userId), tags.signals(userId));
+}
+
+/** Challenge writes — the stats route recomputes on every read, so there is
+    no server cache tag to clear; this is a future hook, kept for parity. */
+export function invalidateChallenges(userId) {
+  invalidate(tags.challenges(userId), tags.signals(userId));
 }

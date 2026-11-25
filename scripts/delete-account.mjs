@@ -60,6 +60,8 @@ const USER_COLLECTIONS = [
   "categories",
   "budgets",
   "debts",
+  "challenges",
+  "challengelogs",
   "financialgoals",
   "journalentries",
   "quicknotes",

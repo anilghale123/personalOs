@@ -10,6 +10,7 @@ import {
   Receipt,
   TrendingUp,
   CalendarDays,
+  Trophy,
   LogOut,
   X,
   User,
@@ -27,13 +28,15 @@ import { useAppUser } from "@/components/app-user";
 
 /**
  * Money leads the tabs after Home — it is the section that gets opened
- * daily. Journal moved into the More sheet: it is a place people go
+ * daily. Challenges is a daily-logged ritual, so it earns a tab too.
+ * Journal moved into the More sheet: it is a place people go
  * deliberately, not something they tap between other things.
  */
 const TABS = [
   { href: "/app", label: "Home", icon: Sparkles },
   { href: "/app/budget", label: "Money", icon: Receipt },
   { href: "/app/planner", label: "Planner", icon: CalendarDays },
+  { href: "/app/challenges", label: "Challenges", icon: Trophy },
 ];
 
 const MORE_LINKS = [

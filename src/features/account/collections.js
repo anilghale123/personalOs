@@ -1,5 +1,7 @@
 import Budget from "@/models/Budget";
 import Category from "@/models/Category";
+import Challenge from "@/models/Challenge";
+import ChallengeLog from "@/models/ChallengeLog";
 import DailyJournal from "@/models/DailyJournal";
 import Debt from "@/models/Debt";
 import Expense from "@/models/Expense";
@@ -43,6 +45,8 @@ export const USER_COLLECTIONS = [
   { name: "categories", model: () => Category },
   { name: "budgets", model: () => Budget },
   { name: "debts", model: () => Debt },
+  { name: "challenges", model: () => Challenge },
+  { name: "challengeLogs", model: () => ChallengeLog },
   { name: "savingsGoals", model: () => FinancialGoal },
   { name: "journalEntries", model: () => DailyJournal },
   { name: "quickNotes", model: () => QuickNote },

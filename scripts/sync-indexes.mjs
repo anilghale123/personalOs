@@ -39,6 +39,8 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const MODEL_PATHS = [
   "../src/models/Budget.js",
   "../src/models/Category.js",
+  "../src/models/Challenge.js",
+  "../src/models/ChallengeLog.js",
   "../src/models/DailyJournal.js",
   "../src/models/Debt.js",
   "../src/models/Expense.js",
